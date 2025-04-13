@@ -61,13 +61,13 @@ public class MTESteamTurbine extends MTEBasicGenerator {
 
     @Override
     public String[] getDescription() {
-        return new String[] { "Converts Steam into EU", "Base rate: 2L of Steam -> 1 EU",
-            "Fuel Efficiency: " + addFormattedString(String.valueOf(600 / getEfficiency())) + "%%",
-            "Consumes up to " + addFormattedString(
-                String.valueOf(
-                    (int) (4000 * (8 * GTUtility.powInt(4, mTier) + GTUtility.powInt(2, Math.max(mTier - 1, 0)))
-                        / (600 / getEfficiency()))))
-                + "L of Steam per second" };
+        String[] desc = new String[mDescriptionArray.length + 2];
+        System.arraycopy(mDescriptionArray, 0, desc, 0, mDescriptionArray.length);
+        desc[mDescriptionArray.length] = "Fuel Efficiency: " + (getEfficiency()) + "%";
+        desc[mDescriptionArray.length + 1] = String.format(
+            "Consumes up to %sL of Steam per second",
+            (int) (4000 * (8 * Math.pow(4, mTier) + Math.pow(2, Math.max(mTier - 1, 0))) / (getEfficiency())));
+        return desc;
     }
 
     @Override
@@ -77,7 +77,7 @@ public class MTESteamTurbine extends MTEBasicGenerator {
 
     @Override
     public int getEfficiency() {
-        return 6 + this.mTier;
+        return 10 + 5 * this.mTier;
     }
 
     @Override
