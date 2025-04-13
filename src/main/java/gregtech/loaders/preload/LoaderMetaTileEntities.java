@@ -9761,38 +9761,38 @@ public class LoaderMetaTileEntities implements Runnable { // TODO CHECK CIRCUIT 
                 "basicgenerator.diesel.tier.01",
                 "Basic Combustion Generator",
                 1,
-                95).getStackForm(1L));
+                15).getStackForm(1L));
         ItemList.Generator_Diesel_MV.set(
             new MTEDieselGenerator(
                 COMBUSTION_GENERATOR_MV.ID,
                 "basicgenerator.diesel.tier.02",
                 "Advanced Combustion Generator",
                 2,
-                90).getStackForm(1L));
+                20).getStackForm(1L));
         ItemList.Generator_Diesel_HV.set(
             new MTEDieselGenerator(
                 COMBUSTION_GENERATOR_HV.ID,
                 "basicgenerator.diesel.tier.03",
                 "Turbo Combustion Generator",
                 3,
-                85).getStackForm(1L));
+                25).getStackForm(1L));
     }
 
     private static void registerGasTurbines() {
         ItemList.Generator_Gas_Turbine_LV.set(
-            new MTEGasTurbine(GAS_TURBINE_LV.ID, "basicgenerator.gasturbine.tier.01", "Basic Gas Turbine", 1, 95)
+            new MTEGasTurbine(GAS_TURBINE_LV.ID, "basicgenerator.gasturbine.tier.01", "Basic Gas Turbine", 1, 15)
                 .getStackForm(1L));
         ItemList.Generator_Gas_Turbine_MV.set(
-            new MTEGasTurbine(GAS_TURBINE_MV.ID, "basicgenerator.gasturbine.tier.02", "Advanced Gas Turbine", 2, 90)
+            new MTEGasTurbine(GAS_TURBINE_MV.ID, "basicgenerator.gasturbine.tier.02", "Advanced Gas Turbine", 2, 20)
                 .getStackForm(1L));
         ItemList.Generator_Gas_Turbine_HV.set(
-            new MTEGasTurbine(GAS_TURBINE_HV.ID, "basicgenerator.gasturbine.tier.03", "Turbo Gas Turbine", 3, 85)
+            new MTEGasTurbine(GAS_TURBINE_HV.ID, "basicgenerator.gasturbine.tier.03", "Turbo Gas Turbine", 3, 25)
                 .getStackForm(1L));
         ItemList.Generator_Gas_Turbine_EV.set(
-            new MTEGasTurbine(GAS_TURBINE_EV.ID, "basicgenerator.gasturbine.tier.04", "Turbo Gas Turbine II", 4, 60)
+            new MTEGasTurbine(GAS_TURBINE_EV.ID, "basicgenerator.gasturbine.tier.04", "Turbo Gas Turbine II", 4, 25)
                 .getStackForm(1L));
         ItemList.Generator_Gas_Turbine_IV.set(
-            new MTEGasTurbine(GAS_TURBINE_IV.ID, "basicgenerator.gasturbine.tier.05", "Turbo Gas Turbine III", 5, 50)
+            new MTEGasTurbine(GAS_TURBINE_IV.ID, "basicgenerator.gasturbine.tier.05", "Turbo Gas Turbine III", 5, 25)
                 .getStackForm(1L));
     }
 
