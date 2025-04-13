@@ -57,7 +57,7 @@ public class MTESemiFluidGenerator extends MTEBasicGenerator {
 
     @Override
     public int getEfficiency() {
-        return 100 - (this.mTier * 5);
+        return 10 + (this.mTier * 5);
     }
 
     @Override

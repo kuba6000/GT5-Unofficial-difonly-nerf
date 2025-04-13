@@ -353,13 +353,13 @@ public class Loaders {
             "basicgenerator.diesel.tier.04",
             "Turbo Supercharging Combustion Generator",
             4,
-            65).getStackForm(1L);
+            25).getStackForm(1L);
         Loaders.Generator_Diesel[1] = new MTEDieselGenerator(
             MetaTileEntityIDs.DieselGeneratorIV.ID,
             "basicgenerator.diesel.tier.05",
             "Ultimate Chemical Energy Releaser",
             5,
-            50).getStackForm(1L);
+            25).getStackForm(1L);
         Loaders.CT = new MTECoolantTower(MetaTileEntityIDs.CoolantTower.ID, "CoolantTower", "Coolant Tower")
             .getStackForm(1L);
         Loaders.CompAssline = new MTEComponentAssemblyLine(
