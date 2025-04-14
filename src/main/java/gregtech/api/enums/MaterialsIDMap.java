@@ -299,7 +299,7 @@ public class MaterialsIDMap extends Int2ObjectOpenHashMap<Materials> {
         r(414, Materials.IlmeniteSlag);
         r(415, Materials.GreenSapphireJuice);
         r(416, Materials.SapphireJuice);
-        r(417, Materials.RubyJuice);
+        r(417, Materials.RawWroughtIron);
         r(425, Materials.MTBEMixtureAlt);
         r(460, Materials.HydricSulfide);
         r(470, Materials.Epoxid);

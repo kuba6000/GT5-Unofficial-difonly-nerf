@@ -37,6 +37,7 @@ import gregtech.api.enums.TierEU;
 import gregtech.api.objects.OreDictItemStack;
 import gregtech.api.util.GTModHandler;
 import gregtech.api.util.GTOreDictUnificator;
+import gregtech.api.util.GTUtility;
 import gtPlusPlus.core.material.MaterialsAlloy;
 import gtPlusPlus.core.material.MaterialsElements;
 import mods.railcraft.common.blocks.aesthetics.cube.EnumCube;
@@ -1766,6 +1767,16 @@ public class MixerRecipes implements Runnable {
             .fluidInputs(Materials.DTR.getFluid(5_000))
             .duration(15 * SECONDS)
             .eut((int) TierEU.RECIPE_UMV)
+            .addTo(mixerRecipes);
+
+        GTValues.RA.stdBuilder()
+            .itemInputs(
+                GTOreDictUnificator.get(OrePrefixes.dust, Materials.Iron, 50),
+                GTOreDictUnificator.get(OrePrefixes.dust, Materials.Carbon, 2),
+                GTUtility.getIntegratedCircuit(1))
+            .itemOutputs(GTOreDictUnificator.get(OrePrefixes.dust, Materials.RawWroughtIron, 50))
+            .duration(120 * SECONDS)
+            .eut(30)
             .addTo(mixerRecipes);
     }
 }

@@ -1,17 +1,13 @@
 package gregtech.loaders.postload.chains;
 
 import static gregtech.api.recipe.RecipeMaps.centrifugeRecipes;
-import static gregtech.api.recipe.RecipeMaps.chemicalBathRecipes;
 import static gregtech.api.recipe.RecipeMaps.fluidHeaterRecipes;
 import static gregtech.api.recipe.RecipeMaps.mixerRecipes;
 import static gregtech.api.recipe.RecipeMaps.multiblockChemicalReactorRecipes;
 import static gregtech.api.util.GTRecipeBuilder.SECONDS;
 import static gregtech.api.util.GTRecipeBuilder.TICKS;
 
-import net.minecraftforge.fluids.FluidStack;
-
 import gregtech.api.enums.GTValues;
-import gregtech.api.enums.ItemList;
 import gregtech.api.enums.Materials;
 import gregtech.api.enums.OrePrefixes;
 import gregtech.api.enums.TierEU;
@@ -80,35 +76,16 @@ public class BauxiteRefineChain {
             .addTo(centrifugeRecipes);
 
         GTValues.RA.stdBuilder()
-            .itemInputs(GTOreDictUnificator.get(OrePrefixes.crushedPurified, Materials.Ilmenite, 1))
-            .itemOutputs(Materials.Rutile.getDust(2), Materials.IlmeniteSlag.getDust(1))
-            .outputChances(10000, 3000)
-            .fluidInputs(Materials.SulfuricAcid.getFluid(1_000))
-            .fluidOutputs(new FluidStack(ItemList.sGreenVitriol, 2_000))
-            .duration(21 * SECONDS)
-            .eut(1000)
-            .addTo(chemicalBathRecipes);
-
-        GTValues.RA.stdBuilder()
-            .itemInputs(GTOreDictUnificator.get(OrePrefixes.crushed, Materials.Ilmenite, 1))
-            .itemOutputs(Materials.Rutile.getDust(2), Materials.IlmeniteSlag.getDust(1))
-            .outputChances(10000, 6000)
-            .fluidInputs(Materials.SulfuricAcid.getFluid(1_000))
-            .fluidOutputs(new FluidStack(ItemList.sGreenVitriol, 2_000))
-            .duration(21 * SECONDS)
-            .eut(1000)
-            .addTo(chemicalBathRecipes);
-
-        GTValues.RA.stdBuilder()
             .itemInputs(Materials.IlmeniteSlag.getDust(1))
             .itemOutputs(
                 Materials.Iron.getDust(1),
                 Materials.Niobium.getDust(1),
                 Materials.Tantalum.getDust(1),
                 Materials.Manganese.getDust(1),
-                Materials.Magnesium.getDust(1))
-            .outputChances(8000, 500, 2000, 5000, 6000)
-            .duration(2 * SECONDS)
+                Materials.Magnesium.getDust(1),
+                Materials.Gallium.getDust(1))
+            .outputChances(8000, 500, 2000, 5000, 6000, 1000)
+            .duration(10 * SECONDS)
             .eut(TierEU.RECIPE_MV)
             .addTo(centrifugeRecipes);
 
@@ -140,17 +117,6 @@ public class BauxiteRefineChain {
 
             GTValues.RA.stdBuilder()
                 .itemInputs(
-                    GTOreDictUnificator.get(ore, Materials.Ruby, 1),
-                    GTOreDictUnificator.get(OrePrefixes.dustTiny, Materials.SodiumHydroxide, 1))
-                .circuit(1)
-                .fluidInputs(Materials.HydrochloricAcid.getFluid(1_000))
-                .fluidOutputs(Materials.RubyJuice.getFluid(1_000))
-                .duration(2 * SECONDS)
-                .eut(TierEU.RECIPE_MV)
-                .addTo(mixerRecipes);
-
-            GTValues.RA.stdBuilder()
-                .itemInputs(
                     GTOreDictUnificator.get(ore, Materials.Sapphire, 9),
                     GTOreDictUnificator.get(OrePrefixes.dust, Materials.SodiumHydroxide, 1))
                 .circuit(9)
@@ -171,16 +137,6 @@ public class BauxiteRefineChain {
                 .eut(TierEU.RECIPE_HV)
                 .addTo(mixerRecipes);
 
-            GTValues.RA.stdBuilder()
-                .itemInputs(
-                    GTOreDictUnificator.get(ore, Materials.Ruby, 9),
-                    GTOreDictUnificator.get(OrePrefixes.dust, Materials.SodiumHydroxide, 1))
-                .circuit(9)
-                .fluidInputs(Materials.HydrochloricAcid.getFluid(9_000))
-                .fluidOutputs(Materials.RubyJuice.getFluid(9_000))
-                .duration(3 * SECONDS)
-                .eut(TierEU.RECIPE_HV)
-                .addTo(mixerRecipes);
         }
 
         GTValues.RA.stdBuilder()
@@ -207,21 +163,6 @@ public class BauxiteRefineChain {
                 Materials.Beryllium.getDust(1))
             .outputChances(10000, 300, 200, 200, 200)
             .fluidInputs(Materials.GreenSapphireJuice.getFluid(1_000))
-            .fluidOutputs(Materials.HydrochloricAcid.getFluid(1_000))
-            .duration(2 * SECONDS + 5 * TICKS)
-            .eut(100)
-            .addTo(centrifugeRecipes);
-
-        GTValues.RA.stdBuilder()
-            .circuit(1)
-            .itemOutputs(
-                Materials.Aluminiumhydroxide.getDust(2),
-                Materials.Chrome.getDust(1),
-                Materials.Iron.getDust(1),
-                Materials.Vanadium.getDust(1),
-                Materials.Magnesium.getDust(1))
-            .outputChances(10000, 5000, 300, 200, 200)
-            .fluidInputs(Materials.RubyJuice.getFluid(1_000))
             .fluidOutputs(Materials.HydrochloricAcid.getFluid(1_000))
             .duration(2 * SECONDS + 5 * TICKS)
             .eut(100)

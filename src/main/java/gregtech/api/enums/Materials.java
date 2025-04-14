@@ -1050,7 +1050,7 @@ public class Materials implements IColorModulationContainer, IOreMaterial {
     public static Materials IlmeniteSlag;
     public static Materials GreenSapphireJuice;
     public static Materials SapphireJuice;
-    public static Materials RubyJuice;
+    public static Materials RawWroughtIron;
     // endregion
 
     // region UEV+ Materials

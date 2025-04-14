@@ -506,5 +506,13 @@ public class ArcFurnaceRecipes implements Runnable {
             .eut(TierEU.RECIPE_UIV)
             .metadata(RECYCLE, true)
             .addTo(UniversalArcFurnace);
+
+        GTValues.RA.stdBuilder()
+            .itemInputs(GTOreDictUnificator.get(OrePrefixes.dust, Materials.RawWroughtIron, 1L))
+            .itemOutputs(GTOreDictUnificator.get(OrePrefixes.ingot, Materials.WroughtIron, 1L))
+            .duration(10 * TICKS)
+            .eut(TierEU.RECIPE_LV)
+            .metadata(RECYCLE, false)
+            .addTo(UniversalArcFurnace);
     }
 }

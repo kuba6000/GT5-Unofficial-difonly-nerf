@@ -702,7 +702,7 @@ public class ChemicalRecipes implements Runnable {
             .circuit(1)
             .itemOutputs(
                 GTOreDictUnificator.get(OrePrefixes.dust, Materials.SiliconSG, 1),
-                GTOreDictUnificator.get(OrePrefixes.dust, Materials.Salt, 8))
+                GTOreDictUnificator.get(OrePrefixes.dust, Materials.Salt, 7))
             .fluidInputs(Materials.SiliconTetrachloride.getFluid(1_000))
             .duration(5 * SECONDS)
             .eut(TierEU.RECIPE_LV)
@@ -715,7 +715,7 @@ public class ChemicalRecipes implements Runnable {
             .circuit(1)
             .itemOutputs(GTOreDictUnificator.get(OrePrefixes.dust, Materials.SiliconSG, 1), ItemList.Cell_Empty.get(2))
             .fluidInputs(Materials.Trichlorosilane.getFluid(1_000))
-            .fluidOutputs(Materials.HydrochloricAcid.getFluid(3_000))
+            .fluidOutputs(Materials.HydrochloricAcid.getFluid(2_000))
             .duration(15 * SECONDS)
             .eut(TierEU.RECIPE_LV)
             .addTo(UniversalChemical);
@@ -725,7 +725,7 @@ public class ChemicalRecipes implements Runnable {
             .circuit(1)
             .itemOutputs(GTOreDictUnificator.get(OrePrefixes.dust, Materials.SiliconSG, 1), ItemList.Cell_Empty.get(1))
             .fluidInputs(Materials.Hydrogen.getGas(2_000))
-            .fluidOutputs(Materials.HydrochloricAcid.getFluid(3_000))
+            .fluidOutputs(Materials.HydrochloricAcid.getFluid(2_000))
             .duration(15 * SECONDS)
             .eut(TierEU.RECIPE_LV)
             .addTo(chemicalReactorRecipes);
@@ -3769,7 +3769,7 @@ public class ChemicalRecipes implements Runnable {
             .circuit(1)
             .itemOutputs(
                 GTOreDictUnificator.get(OrePrefixes.dust, Materials.SiliconSG, 1),
-                new ItemStack(WerkstoffLoader.items.get(OrePrefixes.dust), 6, 10052))
+                new ItemStack(WerkstoffLoader.items.get(OrePrefixes.dust), 5, 10052))
             .fluidInputs(Materials.SiliconTetrachloride.getFluid(1_000))
             .duration(20 * SECONDS)
             .eut(TierEU.RECIPE_LV)

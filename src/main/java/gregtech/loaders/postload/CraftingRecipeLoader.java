@@ -1994,5 +1994,11 @@ public class CraftingRecipeLoader implements Runnable {
                 new Object[] { "s ", " P", 'P', GTModHandler.getModItem(EtFuturumRequiem.ID, "wood_slab", 1, 3), 's',
                     "craftingToolSaw" });
         }
+
+        GTModHandler.addCraftingRecipe(
+            GTOreDictUnificator.get(OrePrefixes.dust, Materials.RawWroughtIron, 4L),
+            GTModHandler.RecipeBits.BUFFERED,
+            new Object[] { "III", "ICI", "III", 'I', OrePrefixes.dust.get(Materials.Iron), 'C',
+                OrePrefixes.dust.get(Materials.Coal) });
     }
 }
