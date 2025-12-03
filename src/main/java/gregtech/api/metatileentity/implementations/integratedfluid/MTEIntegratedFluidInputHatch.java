@@ -44,11 +44,7 @@ public class MTEIntegratedFluidInputHatch extends MTEHatch implements IIntegrate
             aTier,
             0, // No inventory slots
             new String[] { "Integrated Fluid Input Hatch", "Adds fluid to the Integrated Fluid Network",
-                "Connect with Integrated Fluid Pipes",
-                EnumChatFormatting.AQUA + "Network Capacity: "
-                    + EnumChatFormatting.WHITE
-                    + GTUtility.formatNumbers(IntegratedFluidNetwork.MAX_CAPACITY)
-                    + "L" });
+                "Connect with Integrated Fluid Pipes", "Each hatch adds 10,000L of network capacity" });
     }
 
     public MTEIntegratedFluidInputHatch(String aName, int aTier, String[] aDescription, ITexture[][][] aTextures) {
@@ -192,6 +188,7 @@ public class MTEIntegratedFluidInputHatch extends MTEHatch implements IIntegrate
         if (network != null) {
             tag.setBoolean("hasNetwork", true);
             tag.setInteger("memberCount", network.getMemberCount());
+            tag.setInteger("maxCapacity", network.getMaxCapacity());
             tag.setFloat("pressure", network.getPressure());
             tag.setFloat("temperature", network.getTemperature());
             FluidStack fluid = network.getStoredFluid();
@@ -220,7 +217,7 @@ public class MTEIntegratedFluidInputHatch extends MTEHatch implements IIntegrate
                         "Amount: " + EnumChatFormatting.GREEN
                             + GTUtility.formatNumbers(fluid.amount)
                             + "/"
-                            + GTUtility.formatNumbers(IntegratedFluidNetwork.MAX_CAPACITY)
+                            + GTUtility.formatNumbers(tag.getInteger("maxCapacity"))
                             + " L"
                             + EnumChatFormatting.RESET);
                 } else {
@@ -263,6 +260,12 @@ public class MTEIntegratedFluidInputHatch extends MTEHatch implements IIntegrate
         if (getBaseMetaTileEntity() != null) {
             getBaseMetaTileEntity().issueTextureUpdate();
         }
+    }
+
+    @Override
+    public int getCapacityContribution() {
+        // Each input hatch adds 10,000L (10,000 mB) of capacity
+        return 10000;
     }
 
     /**

@@ -44,11 +44,8 @@ public class MTEIntegratedFluidInjectorHatch extends MTEHatch implements IIntegr
             aTier,
             0, // No inventory slots
             new String[] { "Integrated Fluid Injector Hatch", "Bridges GT Fluid Pipes with Integrated Fluid Network",
-                "Accepts fluid from GT pipes and injects into network",
-                EnumChatFormatting.AQUA + "Network Capacity: "
-                    + EnumChatFormatting.WHITE
-                    + GTUtility.formatNumbers(IntegratedFluidNetwork.MAX_CAPACITY)
-                    + "L" });
+                "Accepts fluid from GT pipes and injects into network", "Injector hatch does not add network capacity",
+                "Only works at 1.00 bar pressure" });
     }
 
     public MTEIntegratedFluidInjectorHatch(String aName, int aTier, String[] aDescription, ITexture[][][] aTextures) {
@@ -194,6 +191,7 @@ public class MTEIntegratedFluidInjectorHatch extends MTEHatch implements IIntegr
         if (network != null) {
             tag.setBoolean("hasNetwork", true);
             tag.setInteger("memberCount", network.getMemberCount());
+            tag.setInteger("maxCapacity", network.getMaxCapacity());
             tag.setFloat("pressure", network.getPressure());
             tag.setFloat("temperature", network.getTemperature());
             FluidStack fluid = network.getStoredFluid();
@@ -222,7 +220,7 @@ public class MTEIntegratedFluidInjectorHatch extends MTEHatch implements IIntegr
                         "Amount: " + EnumChatFormatting.GREEN
                             + GTUtility.formatNumbers(fluid.amount)
                             + "/"
-                            + GTUtility.formatNumbers(IntegratedFluidNetwork.MAX_CAPACITY)
+                            + GTUtility.formatNumbers(tag.getInteger("maxCapacity"))
                             + " L"
                             + EnumChatFormatting.RESET);
                 } else {
@@ -273,6 +271,12 @@ public class MTEIntegratedFluidInjectorHatch extends MTEHatch implements IIntegr
         }
     }
 
+    @Override
+    public int getCapacityContribution() {
+        // Injector hatch adds 0L (0 mB) of capacity
+        return 0;
+    }
+
     // IFluidHandler implementation - allows GT fluid pipes to push fluid into us
 
     @Override
@@ -318,8 +322,10 @@ public class MTEIntegratedFluidInjectorHatch extends MTEHatch implements IIntegr
     public FluidTankInfo[] getTankInfo(ForgeDirection from) {
         if (network != null) {
             FluidStack stored = network.getStoredFluid();
-            return new FluidTankInfo[] { new FluidTankInfo(stored, IntegratedFluidNetwork.MAX_CAPACITY) };
+            int capacity = network.getMaxCapacity();
+            return new FluidTankInfo[] { new FluidTankInfo(stored, capacity) };
         }
-        return new FluidTankInfo[] { new FluidTankInfo(null, IntegratedFluidNetwork.MAX_CAPACITY) };
+        // Return a default capacity if network not available yet
+        return new FluidTankInfo[] { new FluidTankInfo(null, 0) };
     }
 }
