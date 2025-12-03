@@ -17,6 +17,7 @@ import gregtech.api.metatileentity.implementations.MTECable;
 import gregtech.api.metatileentity.implementations.MTEFluidPipe;
 import gregtech.api.metatileentity.implementations.MTEFrame;
 import gregtech.api.metatileentity.implementations.MTEItemPipe;
+import gregtech.api.metatileentity.implementations.integratedfluid.MTEIntegratedFluidInjectorHatch;
 import gregtech.api.metatileentity.implementations.integratedfluid.MTEIntegratedFluidInputHatch;
 import gregtech.api.metatileentity.implementations.integratedfluid.MTEIntegratedFluidOutputHatch;
 import gregtech.api.metatileentity.implementations.integratedfluid.MTEIntegratedFluidPipe;
@@ -1506,6 +1507,7 @@ public final class LoaderMetaPipeEntities implements Runnable {
      * - Integrated Fluid Pipe: Connects hatches in a network
      * - Integrated Fluid Input Hatch: Adds fluid to the network
      * - Integrated Fluid Output Hatch: Outputs fluid from the network
+     * - Integrated Fluid Injector Hatch: Bridges GT fluid pipes with integrated fluid network
      * 
      * IDs used: 5770-5779 (reserved for this system)
      */
@@ -1518,5 +1520,12 @@ public final class LoaderMetaPipeEntities implements Runnable {
 
         // ID 5772: Integrated Fluid Output Hatch (Tier 1/LV)
         new MTEIntegratedFluidOutputHatch(5772, "hatch.integrated_fluid_output", "Integrated Fluid Output Hatch", 1);
+
+        // ID 5773: Integrated Fluid Injector Hatch (Tier 1/LV) - bridges GT pipes with integrated network
+        new MTEIntegratedFluidInjectorHatch(
+            5773,
+            "hatch.integrated_fluid_injector",
+            "Integrated Fluid Injector Hatch",
+            1);
     }
 }

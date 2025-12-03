@@ -8,10 +8,12 @@ import java.util.List;
 import java.util.Set;
 
 import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumChatFormatting;
+import net.minecraft.world.World;
 import net.minecraftforge.common.util.ForgeDirection;
 import net.minecraftforge.fluids.FluidStack;
 
@@ -175,6 +177,25 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
     }
 
     @Override
+    public boolean onWrenchRightClick(ForgeDirection side, ForgeDirection wrenchingSide, EntityPlayer aPlayer, float aX,
+        float aY, float aZ, ItemStack aTool) {
+        if (GTMod.proxy.gt6Pipe) {
+            final ForgeDirection tSide = GTUtility.determineWrenchingSide(side, aX, aY, aZ);
+            if (isConnectedAtSide(tSide)) {
+                disconnect(tSide);
+                GTUtility.sendChatToPlayer(aPlayer, GTUtility.trans("215", "Disconnected"));
+            } else {
+                if (connect(tSide) > 0) {
+                    GTUtility.sendChatToPlayer(aPlayer, GTUtility.trans("214", "Connected"));
+                }
+            }
+            rebuildNetwork();
+            return true;
+        }
+        return false;
+    }
+
+    @Override
     public boolean letsIn(Cover cover) {
         return cover.letsFluidIn(null);
     }
@@ -226,24 +247,46 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
     }
 
     @Override
-    public void getWailaBody(ItemStack itemStack, List<String> currenttip, IWailaDataAccessor accessor,
-        IWailaConfigHandler config) {
+    public void getWailaNBTData(EntityPlayerMP player, TileEntity tile, NBTTagCompound tag, World world, int x, int y,
+        int z) {
+        super.getWailaNBTData(player, tile, tag, world, x, y, z);
+        // Send network data to client for WAILA display
         if (network != null) {
+            tag.setBoolean("hasNetwork", true);
+            tag.setInteger("memberCount", network.getMemberCount());
             FluidStack fluid = network.getStoredFluid();
             if (fluid != null) {
-                currenttip
-                    .add("Fluid: " + EnumChatFormatting.AQUA + fluid.getLocalizedName() + EnumChatFormatting.RESET);
-                currenttip.add(
-                    "Amount: " + EnumChatFormatting.GREEN
-                        + GTUtility.formatNumbers(fluid.amount)
-                        + "/"
-                        + GTUtility.formatNumbers(network.getMaxCapacity())
-                        + " L"
-                        + EnumChatFormatting.RESET);
+                tag.setTag("networkFluid", fluid.writeToNBT(new NBTTagCompound()));
+            }
+        } else {
+            tag.setBoolean("hasNetwork", false);
+        }
+    }
+
+    @Override
+    public void getWailaBody(ItemStack itemStack, List<String> currenttip, IWailaDataAccessor accessor,
+        IWailaConfigHandler config) {
+        NBTTagCompound tag = accessor.getNBTData();
+        if (tag.getBoolean("hasNetwork")) {
+            if (tag.hasKey("networkFluid")) {
+                FluidStack fluid = FluidStack.loadFluidStackFromNBT(tag.getCompoundTag("networkFluid"));
+                if (fluid != null) {
+                    currenttip
+                        .add("Fluid: " + EnumChatFormatting.AQUA + fluid.getLocalizedName() + EnumChatFormatting.RESET);
+                    currenttip.add(
+                        "Amount: " + EnumChatFormatting.GREEN
+                            + GTUtility.formatNumbers(fluid.amount)
+                            + "/"
+                            + GTUtility.formatNumbers(IntegratedFluidNetwork.MAX_CAPACITY)
+                            + " L"
+                            + EnumChatFormatting.RESET);
+                } else {
+                    currenttip.add("Empty");
+                }
             } else {
                 currenttip.add("Empty");
             }
-            currenttip.add("Network Members: " + network.getMemberCount());
+            currenttip.add("Network Members: " + tag.getInteger("memberCount"));
         } else {
             currenttip.add(EnumChatFormatting.RED + "No network" + EnumChatFormatting.RESET);
         }

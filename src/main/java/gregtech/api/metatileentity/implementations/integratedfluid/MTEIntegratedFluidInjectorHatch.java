@@ -1,6 +1,7 @@
 package gregtech.api.metatileentity.implementations.integratedfluid;
 
 import static gregtech.api.enums.Textures.BlockIcons.OVERLAY_PIPE_IN;
+import static gregtech.api.enums.Textures.BlockIcons.OVERLAY_PIPE_OUT;
 
 import java.util.List;
 
@@ -13,6 +14,8 @@ import net.minecraft.util.EnumChatFormatting;
 import net.minecraft.world.World;
 import net.minecraftforge.common.util.ForgeDirection;
 import net.minecraftforge.fluids.FluidStack;
+import net.minecraftforge.fluids.FluidTankInfo;
+import net.minecraftforge.fluids.IFluidHandler;
 
 import gregtech.api.enums.Dyes;
 import gregtech.api.interfaces.ITexture;
@@ -25,51 +28,50 @@ import mcp.mobius.waila.api.IWailaConfigHandler;
 import mcp.mobius.waila.api.IWailaDataAccessor;
 
 /**
- * Integrated Fluid Input Hatch - Adds fluid to the integrated fluid network.
- * This hatch can be connected to integrated fluid pipes to share fluid data
- * across a tree-structured network.
- * 
- * For now, this hatch adds no fluid automatically but provides the infrastructure
- * for the network system.
+ * Integrated Fluid Injector Hatch - Bridges normal GT fluid pipes with the integrated fluid network.
+ * This hatch can receive fluid from normal GT fluid pipes and inject it into the integrated fluid network.
+ * It acts as an IFluidHandler to accept fluids from connected GT pipes.
  */
-public class MTEIntegratedFluidInputHatch extends MTEHatch implements IIntegratedFluidMember {
+public class MTEIntegratedFluidInjectorHatch extends MTEHatch implements IIntegratedFluidMember, IFluidHandler {
 
     private IntegratedFluidNetwork network;
 
-    public MTEIntegratedFluidInputHatch(int aID, String aName, String aNameRegional, int aTier) {
+    public MTEIntegratedFluidInjectorHatch(int aID, String aName, String aNameRegional, int aTier) {
         super(
             aID,
             aName,
             aNameRegional,
             aTier,
             0, // No inventory slots
-            new String[] { "Integrated Fluid Input Hatch", "Adds fluid to the Integrated Fluid Network",
-                "Connect with Integrated Fluid Pipes",
+            new String[] { "Integrated Fluid Injector Hatch", "Bridges GT Fluid Pipes with Integrated Fluid Network",
+                "Accepts fluid from GT pipes and injects into network",
                 EnumChatFormatting.AQUA + "Network Capacity: "
                     + EnumChatFormatting.WHITE
                     + GTUtility.formatNumbers(IntegratedFluidNetwork.MAX_CAPACITY)
                     + "L" });
     }
 
-    public MTEIntegratedFluidInputHatch(String aName, int aTier, String[] aDescription, ITexture[][][] aTextures) {
+    public MTEIntegratedFluidInjectorHatch(String aName, int aTier, String[] aDescription, ITexture[][][] aTextures) {
         super(aName, aTier, 0, aDescription, aTextures);
     }
 
     @Override
     public IMetaTileEntity newMetaEntity(IGregTechTileEntity aTileEntity) {
-        return new MTEIntegratedFluidInputHatch(mName, mTier, mDescriptionArray, mTextures);
+        return new MTEIntegratedFluidInjectorHatch(mName, mTier, mDescriptionArray, mTextures);
     }
 
     @Override
     public ITexture[] getTexturesActive(ITexture aBaseTexture) {
         return new ITexture[] { aBaseTexture,
-            TextureFactory.of(OVERLAY_PIPE_IN, Dyes.getModulation(-1, new short[] { 64, 255, 64, 255 })) };
+            TextureFactory.of(OVERLAY_PIPE_IN, Dyes.getModulation(-1, new short[] { 255, 255, 64, 255 })),
+            TextureFactory.of(OVERLAY_PIPE_OUT, Dyes.getModulation(-1, new short[] { 64, 255, 255, 255 })) };
     }
 
     @Override
     public ITexture[] getTexturesInactive(ITexture aBaseTexture) {
         return new ITexture[] { aBaseTexture,
-            TextureFactory.of(OVERLAY_PIPE_IN, Dyes.getModulation(-1, new short[] { 64, 192, 64, 255 })) };
+            TextureFactory.of(OVERLAY_PIPE_IN, Dyes.getModulation(-1, new short[] { 192, 192, 64, 255 })),
+            TextureFactory.of(OVERLAY_PIPE_OUT, Dyes.getModulation(-1, new short[] { 64, 192, 192, 255 })) };
     }
 
     @Override
@@ -253,20 +255,50 @@ public class MTEIntegratedFluidInputHatch extends MTEHatch implements IIntegrate
         }
     }
 
-    /**
-     * Adds fluid to the network (for machines to call).
-     * 
-     * @param fluid    The fluid to add
-     * @param simulate If true, only simulates the operation
-     * @return The amount of fluid actually added
-     */
-    public int addFluidToNetwork(FluidStack fluid, boolean simulate) {
+    // IFluidHandler implementation - allows GT fluid pipes to push fluid into us
+
+    @Override
+    public int fill(ForgeDirection from, FluidStack resource, boolean doFill) {
         if (network == null) {
             findAndJoinNetwork();
         }
-        if (network != null) {
-            return network.addFluid(fluid, simulate);
+        if (network != null && resource != null) {
+            return network.addFluid(resource, !doFill);
         }
         return 0;
+    }
+
+    @Override
+    public FluidStack drain(ForgeDirection from, FluidStack resource, boolean doDrain) {
+        // We don't allow draining from the network via GT pipes
+        return null;
+    }
+
+    @Override
+    public FluidStack drain(ForgeDirection from, int maxDrain, boolean doDrain) {
+        // We don't allow draining from the network via GT pipes
+        return null;
+    }
+
+    @Override
+    public boolean canFill(ForgeDirection from, net.minecraftforge.fluids.Fluid fluid) {
+        if (network == null) return true; // Allow fill if we can potentially join a network
+        FluidStack stored = network.getStoredFluid();
+        if (stored == null) return true; // Empty network accepts any fluid
+        return stored.getFluid() == fluid; // Only accept matching fluid
+    }
+
+    @Override
+    public boolean canDrain(ForgeDirection from, net.minecraftforge.fluids.Fluid fluid) {
+        return false; // Don't allow draining via GT pipes
+    }
+
+    @Override
+    public FluidTankInfo[] getTankInfo(ForgeDirection from) {
+        if (network != null) {
+            FluidStack stored = network.getStoredFluid();
+            return new FluidTankInfo[] { new FluidTankInfo(stored, IntegratedFluidNetwork.MAX_CAPACITY) };
+        }
+        return new FluidTankInfo[] { new FluidTankInfo(null, IntegratedFluidNetwork.MAX_CAPACITY) };
     }
 }
