@@ -38,8 +38,7 @@ public class MTEIntegratedFluidOutputHatch extends MTEHatch implements IIntegrat
             aNameRegional,
             aTier,
             0, // No inventory slots
-            new String[] { "Integrated Fluid Output Hatch",
-                "Outputs fluid from the Integrated Fluid Network",
+            new String[] { "Integrated Fluid Output Hatch", "Outputs fluid from the Integrated Fluid Network",
                 "Connect with Integrated Fluid Pipes",
                 EnumChatFormatting.AQUA + "Network Capacity: "
                     + EnumChatFormatting.WHITE
@@ -79,11 +78,6 @@ public class MTEIntegratedFluidOutputHatch extends MTEHatch implements IIntegrat
     }
 
     @Override
-    public boolean isSimpleMachine() {
-        return true;
-    }
-
-    @Override
     public boolean isValidSlot(int aIndex) {
         return false;
     }
@@ -93,8 +87,10 @@ public class MTEIntegratedFluidOutputHatch extends MTEHatch implements IIntegrat
         super.saveNBTData(aNBT);
         // Save network fluid data if we are the "primary" holder
         if (network != null && network.getStoredFluid() != null) {
-            aNBT.setTag("networkFluid", network.getStoredFluid()
-                .writeToNBT(new NBTTagCompound()));
+            aNBT.setTag(
+                "networkFluid",
+                network.getStoredFluid()
+                    .writeToNBT(new NBTTagCompound()));
         }
     }
 
@@ -191,9 +187,7 @@ public class MTEIntegratedFluidOutputHatch extends MTEHatch implements IIntegrat
             FluidStack fluid = network.getStoredFluid();
             if (fluid != null) {
                 currenttip.add(
-                    "Network Fluid: " + EnumChatFormatting.AQUA
-                        + fluid.getLocalizedName()
-                        + EnumChatFormatting.RESET);
+                    "Network Fluid: " + EnumChatFormatting.AQUA + fluid.getLocalizedName() + EnumChatFormatting.RESET);
                 currenttip.add(
                     "Amount: " + EnumChatFormatting.GREEN
                         + GTUtility.formatNumbers(fluid.amount)
