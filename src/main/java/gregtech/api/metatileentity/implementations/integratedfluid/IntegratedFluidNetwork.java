@@ -180,6 +180,8 @@ public class IntegratedFluidNetwork {
             storedFluid.amount -= amountToDrain;
             if (storedFluid.amount <= 0) {
                 storedFluid = null;
+                // Reset temperature to default when network is empty
+                temperature = DEFAULT_TEMPERATURE;
             }
         }
 
@@ -250,9 +252,9 @@ public class IntegratedFluidNetwork {
             return;
         }
 
-        // Transfer fluid from other network
+        // Transfer fluid from other network with its temperature
         if (other.storedFluid != null) {
-            addFluid(other.storedFluid, false);
+            addFluid(other.storedFluid, false, other.getTemperature());
             other.storedFluid = null;
         }
 
