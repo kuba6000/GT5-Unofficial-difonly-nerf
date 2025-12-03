@@ -254,6 +254,8 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
         if (network != null) {
             tag.setBoolean("hasNetwork", true);
             tag.setInteger("memberCount", network.getMemberCount());
+            tag.setFloat("pressure", network.getPressure());
+            tag.setFloat("temperature", network.getTemperature());
             FluidStack fluid = network.getStoredFluid();
             if (fluid != null) {
                 tag.setTag("networkFluid", fluid.writeToNBT(new NBTTagCompound()));
@@ -287,6 +289,16 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
                 currenttip.add("Empty");
             }
             currenttip.add("Network Members: " + tag.getInteger("memberCount"));
+            currenttip.add(
+                "Pressure: " + EnumChatFormatting.YELLOW
+                    + String.format("%.2f", tag.getFloat("pressure"))
+                    + " bar"
+                    + EnumChatFormatting.RESET);
+            currenttip.add(
+                "Temperature: " + EnumChatFormatting.RED
+                    + String.format("%.1f", tag.getFloat("temperature"))
+                    + " K"
+                    + EnumChatFormatting.RESET);
         } else {
             currenttip.add(EnumChatFormatting.RED + "No network" + EnumChatFormatting.RESET);
         }
@@ -317,6 +329,14 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
             return;
         }
 
+        // Store the old network information before rebuilding
+        IntegratedFluidNetwork oldNetwork = network;
+        FluidStack oldFluid = oldNetwork != null ? oldNetwork.getStoredFluid() : null;
+        int oldMemberCount = oldNetwork != null ? oldNetwork.getMemberCount() : 0;
+        float oldPressure = oldNetwork != null ? oldNetwork.getPressure() : IntegratedFluidNetwork.DEFAULT_PRESSURE;
+        float oldTemperature = oldNetwork != null ? oldNetwork.getTemperature()
+            : IntegratedFluidNetwork.DEFAULT_TEMPERATURE;
+
         // Create new network and traverse to find all connected members
         Set<IIntegratedFluidMember> visited = new HashSet<>();
         List<IIntegratedFluidMember> toVisit = new ArrayList<>();
@@ -324,10 +344,9 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
 
         IntegratedFluidNetwork newNetwork = new IntegratedFluidNetwork();
 
-        // If we had a network with fluid, preserve it
-        if (network != null && network.getStoredFluid() != null) {
-            newNetwork.addFluid(network.getStoredFluid(), false);
-        }
+        // Preserve pressure and temperature
+        newNetwork.setPressure(oldPressure);
+        newNetwork.setTemperature(oldTemperature);
 
         while (!toVisit.isEmpty()) {
             IIntegratedFluidMember current = toVisit.remove(0);
@@ -335,17 +354,6 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
                 continue;
             }
             visited.add(current);
-
-            // If this member had a network with fluid and our new network is empty, take its fluid
-            if (current.getNetwork() != null && current.getNetwork() != newNetwork
-                && current.getNetwork()
-                    .getStoredFluid() != null
-                && newNetwork.getStoredFluid() == null) {
-                newNetwork.addFluid(
-                    current.getNetwork()
-                        .getStoredFluid(),
-                    false);
-            }
 
             newNetwork.addMember(current);
 
@@ -365,6 +373,19 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
                         }
                     }
                 }
+            }
+        }
+
+        // Handle fluid distribution
+        if (oldFluid != null && oldMemberCount > 0) {
+            // If this is a split (new network has fewer members than old), distribute proportionally
+            if (newNetwork.getMemberCount() < oldMemberCount) {
+                FluidStack proportionalFluid = oldFluid.copy();
+                newNetwork.addFluid(proportionalFluid, false);
+                newNetwork.distributeFluidProportionally(oldMemberCount);
+            } else {
+                // Otherwise, preserve the fluid as-is
+                newNetwork.addFluid(oldFluid, false);
             }
         }
 

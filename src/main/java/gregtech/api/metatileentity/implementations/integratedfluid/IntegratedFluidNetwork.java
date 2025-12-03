@@ -18,6 +18,16 @@ public class IntegratedFluidNetwork {
     public static final int MAX_CAPACITY = 10000;
 
     /**
+     * Default pressure in bar.
+     */
+    public static final float DEFAULT_PRESSURE = 1.0f;
+
+    /**
+     * Default temperature in Kelvin.
+     */
+    public static final float DEFAULT_TEMPERATURE = 300.0f;
+
+    /**
      * The fluid stored in this network segment.
      */
     private FluidStack storedFluid;
@@ -27,8 +37,20 @@ public class IntegratedFluidNetwork {
      */
     private final Set<IIntegratedFluidMember> members = new HashSet<>();
 
+    /**
+     * Current pressure of the network in bar.
+     */
+    private float pressure;
+
+    /**
+     * Current temperature of the network in Kelvin.
+     */
+    private float temperature;
+
     public IntegratedFluidNetwork() {
         this.storedFluid = null;
+        this.pressure = DEFAULT_PRESSURE;
+        this.temperature = DEFAULT_TEMPERATURE;
     }
 
     /**
@@ -161,6 +183,41 @@ public class IntegratedFluidNetwork {
     }
 
     /**
+     * Gets the current pressure in bar.
+     */
+    public float getPressure() {
+        return pressure;
+    }
+
+    /**
+     * Sets the pressure in bar.
+     */
+    public void setPressure(float pressure) {
+        this.pressure = pressure;
+    }
+
+    /**
+     * Gets the current temperature in Kelvin.
+     */
+    public float getTemperature() {
+        return temperature;
+    }
+
+    /**
+     * Sets the temperature in Kelvin.
+     */
+    public void setTemperature(float temperature) {
+        this.temperature = temperature;
+    }
+
+    /**
+     * Gets all members in this network.
+     */
+    public Set<IIntegratedFluidMember> getMembers() {
+        return new HashSet<>(members);
+    }
+
+    /**
      * Merges another network into this one.
      */
     public void merge(IntegratedFluidNetwork other) {
@@ -178,6 +235,27 @@ public class IntegratedFluidNetwork {
         for (IIntegratedFluidMember member : new HashSet<>(other.members)) {
             other.removeMember(member);
             addMember(member);
+        }
+    }
+
+    /**
+     * Distributes fluid proportionally when creating a split network.
+     * This is used when a network is severed into multiple segments.
+     * 
+     * @param totalMembers The total number of members before the split
+     */
+    public void distributeFluidProportionally(int totalMembers) {
+        if (storedFluid == null || totalMembers <= 0 || members.size() <= 0) {
+            return;
+        }
+
+        // Calculate the proportional amount for this segment
+        int proportionalAmount = (storedFluid.amount * members.size()) / totalMembers;
+
+        if (proportionalAmount <= 0) {
+            storedFluid = null;
+        } else {
+            storedFluid.amount = proportionalAmount;
         }
     }
 
