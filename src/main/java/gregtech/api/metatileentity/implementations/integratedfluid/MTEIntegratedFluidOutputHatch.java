@@ -5,10 +5,12 @@ import static gregtech.api.enums.Textures.BlockIcons.OVERLAY_PIPE_OUT;
 import java.util.List;
 
 import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumChatFormatting;
+import net.minecraft.world.World;
 import net.minecraftforge.common.util.ForgeDirection;
 import net.minecraftforge.fluids.FluidStack;
 
@@ -180,25 +182,49 @@ public class MTEIntegratedFluidOutputHatch extends MTEHatch implements IIntegrat
     }
 
     @Override
+    public void getWailaNBTData(EntityPlayerMP player, TileEntity tile, NBTTagCompound tag, World world, int x, int y,
+        int z) {
+        super.getWailaNBTData(player, tile, tag, world, x, y, z);
+        // Send network data to client for WAILA display
+        if (network != null) {
+            tag.setBoolean("hasNetwork", true);
+            tag.setInteger("memberCount", network.getMemberCount());
+            FluidStack fluid = network.getStoredFluid();
+            if (fluid != null) {
+                tag.setTag("networkFluid", fluid.writeToNBT(new NBTTagCompound()));
+            }
+        } else {
+            tag.setBoolean("hasNetwork", false);
+        }
+    }
+
+    @Override
     public void getWailaBody(ItemStack itemStack, List<String> currenttip, IWailaDataAccessor accessor,
         IWailaConfigHandler config) {
         super.getWailaBody(itemStack, currenttip, accessor, config);
-        if (network != null) {
-            FluidStack fluid = network.getStoredFluid();
-            if (fluid != null) {
-                currenttip.add(
-                    "Network Fluid: " + EnumChatFormatting.AQUA + fluid.getLocalizedName() + EnumChatFormatting.RESET);
-                currenttip.add(
-                    "Amount: " + EnumChatFormatting.GREEN
-                        + GTUtility.formatNumbers(fluid.amount)
-                        + "/"
-                        + GTUtility.formatNumbers(network.getMaxCapacity())
-                        + " L"
-                        + EnumChatFormatting.RESET);
+        NBTTagCompound tag = accessor.getNBTData();
+        if (tag.getBoolean("hasNetwork")) {
+            if (tag.hasKey("networkFluid")) {
+                FluidStack fluid = FluidStack.loadFluidStackFromNBT(tag.getCompoundTag("networkFluid"));
+                if (fluid != null) {
+                    currenttip.add(
+                        "Network Fluid: " + EnumChatFormatting.AQUA
+                            + fluid.getLocalizedName()
+                            + EnumChatFormatting.RESET);
+                    currenttip.add(
+                        "Amount: " + EnumChatFormatting.GREEN
+                            + GTUtility.formatNumbers(fluid.amount)
+                            + "/"
+                            + GTUtility.formatNumbers(IntegratedFluidNetwork.MAX_CAPACITY)
+                            + " L"
+                            + EnumChatFormatting.RESET);
+                } else {
+                    currenttip.add("Network: Empty");
+                }
             } else {
                 currenttip.add("Network: Empty");
             }
-            currenttip.add("Network Members: " + network.getMemberCount());
+            currenttip.add("Network Members: " + tag.getInteger("memberCount"));
         } else {
             currenttip.add(EnumChatFormatting.RED + "No network connected" + EnumChatFormatting.RESET);
         }
