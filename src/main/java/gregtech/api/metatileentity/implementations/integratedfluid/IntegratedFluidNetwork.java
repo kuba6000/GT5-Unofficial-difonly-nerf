@@ -8,14 +8,9 @@ import net.minecraftforge.fluids.FluidStack;
 /**
  * Manages a network of connected integrated fluid hatches and pipes.
  * All hatches connected by the same segment of pipes share fluid data.
- * The network has a maximum capacity of 10,000L.
+ * The network capacity is dynamic and depends on the number and type of members.
  */
 public class IntegratedFluidNetwork {
-
-    /**
-     * Maximum capacity of the network in mB (millibuckets).
-     */
-    public static final int MAX_CAPACITY = 10000;
 
     /**
      * Default pressure in bar.
@@ -86,17 +81,25 @@ public class IntegratedFluidNetwork {
     }
 
     /**
-     * Gets the maximum capacity of this network.
+     * Gets the maximum capacity of this network in mB (millibuckets).
+     * Capacity is calculated dynamically based on members:
+     * - Each pipe adds 100L (100 mB)
+     * - Each hatch adds 10,000L (10,000 mB)
+     * - Injector hatches add 0L (0 mB)
      */
     public int getMaxCapacity() {
-        return MAX_CAPACITY;
+        int totalCapacity = 0;
+        for (IIntegratedFluidMember member : members) {
+            totalCapacity += member.getCapacityContribution();
+        }
+        return totalCapacity;
     }
 
     /**
      * Gets the available space in the network.
      */
     public int getAvailableSpace() {
-        return MAX_CAPACITY - getStoredAmount();
+        return getMaxCapacity() - getStoredAmount();
     }
 
     /**

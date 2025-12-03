@@ -239,11 +239,7 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
     @Override
     public String[] getDescription() {
         return new String[] { "Integrated Fluid Pipe", "Connects Integrated Fluid Hatches in a network",
-            EnumChatFormatting.AQUA + "Network Capacity: "
-                + EnumChatFormatting.WHITE
-                + GTUtility.formatNumbers(IntegratedFluidNetwork.MAX_CAPACITY)
-                + "L"
-                + EnumChatFormatting.GRAY };
+            "Each pipe adds 100L of capacity", "Each hatch adds 10,000L of capacity" + EnumChatFormatting.GRAY };
     }
 
     @Override
@@ -254,6 +250,7 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
         if (network != null) {
             tag.setBoolean("hasNetwork", true);
             tag.setInteger("memberCount", network.getMemberCount());
+            tag.setInteger("maxCapacity", network.getMaxCapacity());
             tag.setFloat("pressure", network.getPressure());
             tag.setFloat("temperature", network.getTemperature());
             FluidStack fluid = network.getStoredFluid();
@@ -270,6 +267,7 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
         IWailaConfigHandler config) {
         NBTTagCompound tag = accessor.getNBTData();
         if (tag.getBoolean("hasNetwork")) {
+            int maxCapacity = tag.getInteger("maxCapacity");
             if (tag.hasKey("networkFluid")) {
                 FluidStack fluid = FluidStack.loadFluidStackFromNBT(tag.getCompoundTag("networkFluid"));
                 if (fluid != null) {
@@ -279,14 +277,14 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
                         "Amount: " + EnumChatFormatting.GREEN
                             + GTUtility.formatNumbers(fluid.amount)
                             + "/"
-                            + GTUtility.formatNumbers(IntegratedFluidNetwork.MAX_CAPACITY)
+                            + GTUtility.formatNumbers(maxCapacity)
                             + " L"
                             + EnumChatFormatting.RESET);
                 } else {
-                    currenttip.add("Empty");
+                    currenttip.add("Empty (Capacity: " + GTUtility.formatNumbers(maxCapacity) + " L)");
                 }
             } else {
-                currenttip.add("Empty");
+                currenttip.add("Empty (Capacity: " + GTUtility.formatNumbers(maxCapacity) + " L)");
             }
             currenttip.add("Network Members: " + tag.getInteger("memberCount"));
             currenttip.add(
@@ -321,6 +319,12 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
         // Could trigger visual updates if needed
     }
 
+    @Override
+    public int getCapacityContribution() {
+        // Each pipe adds 100L (100 mB) of capacity
+        return 100;
+    }
+
     /**
      * Rebuilds the network by traversing connected pipes and hatches.
      */
@@ -340,13 +344,13 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
         // Create new network and traverse to find all connected members
         Set<IIntegratedFluidMember> visited = new HashSet<>();
         List<IIntegratedFluidMember> toVisit = new ArrayList<>();
+        Set<IntegratedFluidNetwork> existingNetworks = new HashSet<>();
         toVisit.add(this);
 
         IntegratedFluidNetwork newNetwork = new IntegratedFluidNetwork();
 
-        // Preserve pressure and temperature
+        // Preserve pressure (use old network's pressure for now)
         newNetwork.setPressure(oldPressure);
-        newNetwork.setTemperature(oldTemperature);
 
         while (!toVisit.isEmpty()) {
             IIntegratedFluidMember current = toVisit.remove(0);
@@ -354,6 +358,11 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
                 continue;
             }
             visited.add(current);
+
+            // Track all existing networks that will be merged
+            if (current.getNetwork() != null && !existingNetworks.contains(current.getNetwork())) {
+                existingNetworks.add(current.getNetwork());
+            }
 
             newNetwork.addMember(current);
 
@@ -376,19 +385,49 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
             }
         }
 
-        // Handle fluid distribution
-        if (oldFluid != null && oldMemberCount > 0) {
-            // If this is a split (new network has fewer members than old), distribute proportionally
-            if (newNetwork.getMemberCount() < oldMemberCount) {
-                FluidStack proportionalFluid = oldFluid.copy();
-                // Calculate proportional amount before adding
-                int proportionalAmount = (proportionalFluid.amount * newNetwork.getMemberCount()) / oldMemberCount;
-                proportionalFluid.amount = proportionalAmount;
-                newNetwork.addFluid(proportionalFluid, false);
-            } else {
-                // Otherwise, preserve the fluid as-is
-                newNetwork.addFluid(oldFluid, false);
+        // Merge all fluids from existing networks with weighted temperature averaging
+        int totalFluid = 0;
+        double weightedTemperature = 0.0;
+        FluidStack combinedFluid = null;
+
+        for (IntegratedFluidNetwork existingNet : existingNetworks) {
+            FluidStack fluid = existingNet.getStoredFluid();
+            if (fluid != null) {
+                if (combinedFluid == null) {
+                    combinedFluid = fluid.copy();
+                    totalFluid = fluid.amount;
+                    weightedTemperature = fluid.amount * existingNet.getTemperature();
+                } else if (combinedFluid.isFluidEqual(fluid)) {
+                    // Same fluid type - combine amounts and temperatures
+                    totalFluid += fluid.amount;
+                    weightedTemperature += fluid.amount * existingNet.getTemperature();
+                    combinedFluid.amount += fluid.amount;
+                } else {
+                    // Different fluid types - can't merge, keep the larger one
+                    // This shouldn't normally happen but handle it gracefully
+                    if (fluid.amount > combinedFluid.amount) {
+                        combinedFluid = fluid.copy();
+                        totalFluid = fluid.amount;
+                        weightedTemperature = fluid.amount * existingNet.getTemperature();
+                    }
+                }
             }
+        }
+
+        // If this is a split (new network has fewer members than old), distribute proportionally
+        if (combinedFluid != null && oldMemberCount > 0 && newNetwork.getMemberCount() < oldMemberCount) {
+            int proportionalAmount = (combinedFluid.amount * newNetwork.getMemberCount()) / oldMemberCount;
+            combinedFluid.amount = proportionalAmount;
+            totalFluid = proportionalAmount;
+        }
+
+        // Add the combined fluid to the new network with averaged temperature
+        if (combinedFluid != null && totalFluid > 0) {
+            float avgTemperature = (float) (weightedTemperature / totalFluid);
+            newNetwork.addFluid(combinedFluid, false, avgTemperature);
+        } else {
+            // No fluid, just set default temperature
+            newNetwork.setTemperature(IntegratedFluidNetwork.DEFAULT_TEMPERATURE);
         }
 
         // Notify all members of the update
