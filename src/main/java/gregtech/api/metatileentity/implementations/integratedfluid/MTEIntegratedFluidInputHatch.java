@@ -13,7 +13,6 @@ import net.minecraftforge.common.util.ForgeDirection;
 import net.minecraftforge.fluids.FluidStack;
 
 import gregtech.api.enums.Dyes;
-import gregtech.api.enums.Textures;
 import gregtech.api.interfaces.ITexture;
 import gregtech.api.interfaces.metatileentity.IMetaTileEntity;
 import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
@@ -42,8 +41,7 @@ public class MTEIntegratedFluidInputHatch extends MTEHatch implements IIntegrate
             aNameRegional,
             aTier,
             0, // No inventory slots
-            new String[] { "Integrated Fluid Input Hatch",
-                "Adds fluid to the Integrated Fluid Network",
+            new String[] { "Integrated Fluid Input Hatch", "Adds fluid to the Integrated Fluid Network",
                 "Connect with Integrated Fluid Pipes",
                 EnumChatFormatting.AQUA + "Network Capacity: "
                     + EnumChatFormatting.WHITE
@@ -83,11 +81,6 @@ public class MTEIntegratedFluidInputHatch extends MTEHatch implements IIntegrate
     }
 
     @Override
-    public boolean isSimpleMachine() {
-        return true;
-    }
-
-    @Override
     public boolean isValidSlot(int aIndex) {
         return false;
     }
@@ -97,8 +90,10 @@ public class MTEIntegratedFluidInputHatch extends MTEHatch implements IIntegrate
         super.saveNBTData(aNBT);
         // Save network fluid data if we are the "primary" holder
         if (network != null && network.getStoredFluid() != null) {
-            aNBT.setTag("networkFluid", network.getStoredFluid()
-                .writeToNBT(new NBTTagCompound()));
+            aNBT.setTag(
+                "networkFluid",
+                network.getStoredFluid()
+                    .writeToNBT(new NBTTagCompound()));
         }
     }
 
@@ -195,9 +190,7 @@ public class MTEIntegratedFluidInputHatch extends MTEHatch implements IIntegrate
             FluidStack fluid = network.getStoredFluid();
             if (fluid != null) {
                 currenttip.add(
-                    "Network Fluid: " + EnumChatFormatting.AQUA
-                        + fluid.getLocalizedName()
-                        + EnumChatFormatting.RESET);
+                    "Network Fluid: " + EnumChatFormatting.AQUA + fluid.getLocalizedName() + EnumChatFormatting.RESET);
                 currenttip.add(
                     "Amount: " + EnumChatFormatting.GREEN
                         + GTUtility.formatNumbers(fluid.amount)

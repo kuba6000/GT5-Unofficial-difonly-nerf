@@ -67,8 +67,7 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
         // Use a simple machine casing texture with a colored overlay to distinguish from regular pipes
         if (active) {
             // Connected side - show the "active" texture
-            return new ITexture[] { TextureFactory.of(
-                Textures.BlockIcons.MACHINE_CASINGS[1][colorIndex + 1]),
+            return new ITexture[] { TextureFactory.of(Textures.BlockIcons.MACHINE_CASINGS[1][colorIndex + 1]),
                 TextureFactory.of(
                     Textures.BlockIcons.OVERLAY_PIPE_IN,
                     Dyes.getModulation(colorIndex, new short[] { 64, 192, 255, 255 })) };
@@ -95,8 +94,10 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
         }
         // Network fluid data is saved at the network level, but we store a reference
         if (network != null && network.getStoredFluid() != null) {
-            aNBT.setTag("networkFluid", network.getStoredFluid()
-                .writeToNBT(new NBTTagCompound()));
+            aNBT.setTag(
+                "networkFluid",
+                network.getStoredFluid()
+                    .writeToNBT(new NBTTagCompound()));
             aNBT.setInteger("networkAmount", network.getStoredAmount());
         }
     }
@@ -216,8 +217,7 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
 
     @Override
     public String[] getDescription() {
-        return new String[] { "Integrated Fluid Pipe",
-            "Connects Integrated Fluid Hatches in a network",
+        return new String[] { "Integrated Fluid Pipe", "Connects Integrated Fluid Hatches in a network",
             EnumChatFormatting.AQUA + "Network Capacity: "
                 + EnumChatFormatting.WHITE
                 + GTUtility.formatNumbers(IntegratedFluidNetwork.MAX_CAPACITY)
@@ -231,10 +231,8 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
         if (network != null) {
             FluidStack fluid = network.getStoredFluid();
             if (fluid != null) {
-                currenttip.add(
-                    "Fluid: " + EnumChatFormatting.AQUA
-                        + fluid.getLocalizedName()
-                        + EnumChatFormatting.RESET);
+                currenttip
+                    .add("Fluid: " + EnumChatFormatting.AQUA + fluid.getLocalizedName() + EnumChatFormatting.RESET);
                 currenttip.add(
                     "Amount: " + EnumChatFormatting.GREEN
                         + GTUtility.formatNumbers(fluid.amount)

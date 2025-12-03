@@ -1511,23 +1511,12 @@ public final class LoaderMetaPipeEntities implements Runnable {
      */
     private static void registerIntegratedFluidSystem() {
         // ID 5770: Integrated Fluid Pipe
-        new MTEIntegratedFluidPipe(
-            5770,
-            "pipe.integrated_fluid",
-            "Integrated Fluid Pipe");
+        new MTEIntegratedFluidPipe(5770, "pipe.integrated_fluid", "Integrated Fluid Pipe");
 
         // ID 5771: Integrated Fluid Input Hatch (Tier 1/LV)
-        new MTEIntegratedFluidInputHatch(
-            5771,
-            "hatch.integrated_fluid_input",
-            "Integrated Fluid Input Hatch",
-            1);
+        new MTEIntegratedFluidInputHatch(5771, "hatch.integrated_fluid_input", "Integrated Fluid Input Hatch", 1);
 
         // ID 5772: Integrated Fluid Output Hatch (Tier 1/LV)
-        new MTEIntegratedFluidOutputHatch(
-            5772,
-            "hatch.integrated_fluid_output",
-            "Integrated Fluid Output Hatch",
-            1);
+        new MTEIntegratedFluidOutputHatch(5772, "hatch.integrated_fluid_output", "Integrated Fluid Output Hatch", 1);
     }
 }
