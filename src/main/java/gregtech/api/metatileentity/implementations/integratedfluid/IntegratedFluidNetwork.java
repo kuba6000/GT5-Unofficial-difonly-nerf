@@ -107,6 +107,19 @@ public class IntegratedFluidNetwork {
      * @return The amount of fluid actually added
      */
     public int addFluid(FluidStack fluid, boolean simulate) {
+        return addFluid(fluid, simulate, DEFAULT_TEMPERATURE);
+    }
+
+    /**
+     * Attempts to add fluid to the network with a specified temperature.
+     * The network temperature will be updated using weighted averaging.
+     * 
+     * @param fluid        The fluid to add
+     * @param simulate     If true, only simulates the fill
+     * @param incomingTemp The temperature of the incoming fluid in Kelvin
+     * @return The amount of fluid actually added
+     */
+    public int addFluid(FluidStack fluid, boolean simulate, float incomingTemp) {
         if (fluid == null || fluid.amount <= 0) {
             return 0;
         }
@@ -127,8 +140,20 @@ public class IntegratedFluidNetwork {
             if (storedFluid == null) {
                 storedFluid = fluid.copy();
                 storedFluid.amount = amountToAdd;
+                // Set temperature to incoming temperature for first fluid
+                temperature = incomingTemp;
             } else {
+                int existingAmount = storedFluid.amount;
+                float existingTemp = temperature;
+
+                // Calculate weighted average temperature
+                // Formula: T_new = (T_existing * amount_existing + T_incoming * amount_incoming) / (amount_existing +
+                // amount_incoming)
+                float newTemperature = (existingTemp * existingAmount + incomingTemp * amountToAdd)
+                    / (existingAmount + amountToAdd);
+
                 storedFluid.amount += amountToAdd;
+                temperature = newTemperature;
             }
         }
 
