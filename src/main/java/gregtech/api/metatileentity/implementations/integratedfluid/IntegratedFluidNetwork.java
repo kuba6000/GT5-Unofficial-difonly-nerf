@@ -239,27 +239,6 @@ public class IntegratedFluidNetwork {
     }
 
     /**
-     * Distributes fluid proportionally when creating a split network.
-     * This is used when a network is severed into multiple segments.
-     * 
-     * @param totalMembers The total number of members before the split
-     */
-    public void distributeFluidProportionally(int totalMembers) {
-        if (storedFluid == null || totalMembers <= 0 || members.size() <= 0) {
-            return;
-        }
-
-        // Calculate the proportional amount for this segment
-        int proportionalAmount = (storedFluid.amount * members.size()) / totalMembers;
-
-        if (proportionalAmount <= 0) {
-            storedFluid = null;
-        } else {
-            storedFluid.amount = proportionalAmount;
-        }
-    }
-
-    /**
      * Clears all members from this network (for cleanup).
      */
     public void clear() {

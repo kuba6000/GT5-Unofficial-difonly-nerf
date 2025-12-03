@@ -381,8 +381,10 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
             // If this is a split (new network has fewer members than old), distribute proportionally
             if (newNetwork.getMemberCount() < oldMemberCount) {
                 FluidStack proportionalFluid = oldFluid.copy();
+                // Calculate proportional amount before adding
+                int proportionalAmount = (proportionalFluid.amount * newNetwork.getMemberCount()) / oldMemberCount;
+                proportionalFluid.amount = proportionalAmount;
                 newNetwork.addFluid(proportionalFluid, false);
-                newNetwork.distributeFluidProportionally(oldMemberCount);
             } else {
                 // Otherwise, preserve the fluid as-is
                 newNetwork.addFluid(oldFluid, false);
