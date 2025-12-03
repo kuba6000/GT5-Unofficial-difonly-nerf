@@ -17,6 +17,9 @@ import gregtech.api.metatileentity.implementations.MTECable;
 import gregtech.api.metatileentity.implementations.MTEFluidPipe;
 import gregtech.api.metatileentity.implementations.MTEFrame;
 import gregtech.api.metatileentity.implementations.MTEItemPipe;
+import gregtech.api.metatileentity.implementations.integratedfluid.MTEIntegratedFluidInputHatch;
+import gregtech.api.metatileentity.implementations.integratedfluid.MTEIntegratedFluidOutputHatch;
+import gregtech.api.metatileentity.implementations.integratedfluid.MTEIntegratedFluidPipe;
 import gregtech.api.util.GTModHandler;
 import gregtech.api.util.GTOreDictUnificator;
 import gregtech.common.blocks.BlockFrameBox;
@@ -29,6 +32,7 @@ public final class LoaderMetaPipeEntities implements Runnable {
         registerWiresAndCables();
         registerFluidPipes();
         registerItemPipes();
+        registerIntegratedFluidSystem();
     }
 
     private static void registerFrames() {
@@ -1511,5 +1515,35 @@ public final class LoaderMetaPipeEntities implements Runnable {
                     true).renameMaterial(displayName)
                         .getStackForm(1L));
         }
+    }
+
+    /**
+     * Registers the Integrated Fluid System components:
+     * - Integrated Fluid Pipe: Connects hatches in a network
+     * - Integrated Fluid Input Hatch: Adds fluid to the network
+     * - Integrated Fluid Output Hatch: Outputs fluid from the network
+     *
+     * IDs used: 5770-5779 (reserved for this system)
+     */
+    private static void registerIntegratedFluidSystem() {
+        // ID 5770: Integrated Fluid Pipe
+        new MTEIntegratedFluidPipe(
+            5770,
+            "pipe.integrated_fluid",
+            "Integrated Fluid Pipe");
+
+        // ID 5771: Integrated Fluid Input Hatch (Tier 1/LV)
+        new MTEIntegratedFluidInputHatch(
+            5771,
+            "hatch.integrated_fluid_input",
+            "Integrated Fluid Input Hatch",
+            1);
+
+        // ID 5772: Integrated Fluid Output Hatch (Tier 1/LV)
+        new MTEIntegratedFluidOutputHatch(
+            5772,
+            "hatch.integrated_fluid_output",
+            "Integrated Fluid Output Hatch",
+            1);
     }
 }
