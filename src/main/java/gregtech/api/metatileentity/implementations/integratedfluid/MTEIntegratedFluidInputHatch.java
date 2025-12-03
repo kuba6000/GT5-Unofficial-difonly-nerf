@@ -192,6 +192,8 @@ public class MTEIntegratedFluidInputHatch extends MTEHatch implements IIntegrate
         if (network != null) {
             tag.setBoolean("hasNetwork", true);
             tag.setInteger("memberCount", network.getMemberCount());
+            tag.setFloat("pressure", network.getPressure());
+            tag.setFloat("temperature", network.getTemperature());
             FluidStack fluid = network.getStoredFluid();
             if (fluid != null) {
                 tag.setTag("networkFluid", fluid.writeToNBT(new NBTTagCompound()));
@@ -228,6 +230,16 @@ public class MTEIntegratedFluidInputHatch extends MTEHatch implements IIntegrate
                 currenttip.add("Network: Empty");
             }
             currenttip.add("Network Members: " + tag.getInteger("memberCount"));
+            currenttip.add(
+                "Pressure: " + EnumChatFormatting.YELLOW
+                    + String.format("%.2f", tag.getFloat("pressure"))
+                    + " bar"
+                    + EnumChatFormatting.RESET);
+            currenttip.add(
+                "Temperature: " + EnumChatFormatting.RED
+                    + String.format("%.1f", tag.getFloat("temperature"))
+                    + " K"
+                    + EnumChatFormatting.RESET);
         } else {
             currenttip.add(EnumChatFormatting.RED + "No network connected" + EnumChatFormatting.RESET);
         }

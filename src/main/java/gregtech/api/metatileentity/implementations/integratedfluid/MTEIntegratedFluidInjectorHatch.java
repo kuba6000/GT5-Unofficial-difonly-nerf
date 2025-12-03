@@ -194,6 +194,8 @@ public class MTEIntegratedFluidInjectorHatch extends MTEHatch implements IIntegr
         if (network != null) {
             tag.setBoolean("hasNetwork", true);
             tag.setInteger("memberCount", network.getMemberCount());
+            tag.setFloat("pressure", network.getPressure());
+            tag.setFloat("temperature", network.getTemperature());
             FluidStack fluid = network.getStoredFluid();
             if (fluid != null) {
                 tag.setTag("networkFluid", fluid.writeToNBT(new NBTTagCompound()));
@@ -230,6 +232,22 @@ public class MTEIntegratedFluidInjectorHatch extends MTEHatch implements IIntegr
                 currenttip.add("Network: Empty");
             }
             currenttip.add("Network Members: " + tag.getInteger("memberCount"));
+            float pressure = tag.getFloat("pressure");
+            currenttip.add(
+                "Pressure: " + EnumChatFormatting.YELLOW
+                    + String.format("%.2f", pressure)
+                    + " bar"
+                    + EnumChatFormatting.RESET);
+            // Add warning if pressure is not 1 bar (injector won't work)
+            if (Math.abs(pressure - 1.0f) >= 0.01f) {
+                currenttip.add(
+                    EnumChatFormatting.RED + "WARNING: Injector only works at 1.00 bar!" + EnumChatFormatting.RESET);
+            }
+            currenttip.add(
+                "Temperature: " + EnumChatFormatting.RED
+                    + String.format("%.1f", tag.getFloat("temperature"))
+                    + " K"
+                    + EnumChatFormatting.RESET);
         } else {
             currenttip.add(EnumChatFormatting.RED + "No network connected" + EnumChatFormatting.RESET);
         }
@@ -263,7 +281,10 @@ public class MTEIntegratedFluidInjectorHatch extends MTEHatch implements IIntegr
             findAndJoinNetwork();
         }
         if (network != null && resource != null) {
-            return network.addFluid(resource, !doFill);
+            // Only allow filling if pressure is at 1 bar
+            if (Math.abs(network.getPressure() - 1.0f) < 0.01f) {
+                return network.addFluid(resource, !doFill);
+            }
         }
         return 0;
     }
