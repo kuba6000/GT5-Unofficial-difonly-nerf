@@ -310,13 +310,6 @@ public class MTEIntegratedFluidOutputHatch extends MTEHatch implements IIntegrat
     }
 
     @Override
-    public void onBlockDestroyed() {
-        super.onBlockDestroyed();
-        // Call onRemoval to handle network cleanup
-        onRemoval();
-    }
-
-    @Override
     public void onRemoval() {
         super.onRemoval();
         // Remove this hatch from the network and notify connected pipes
