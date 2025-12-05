@@ -479,4 +479,11 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
         // Trigger network rebuild on both sides
         rebuildNetwork();
     }
+
+    @Override
+    public void onMachineBlockUpdate() {
+        // This is called when a neighbor block changes (including when blocks are destroyed)
+        // Trigger a network rebuild to update connections
+        rebuildNetwork();
+    }
 }

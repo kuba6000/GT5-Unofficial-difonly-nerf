@@ -331,4 +331,11 @@ public class MTEIntegratedFluidOutputHatch extends MTEHatch implements IIntegrat
             }
         }
     }
+
+    @Override
+    public void onMachineBlockUpdate() {
+        // This is called when a neighbor block changes (including when blocks are destroyed)
+        // Try to rejoin the network if we lost connection
+        findAndJoinNetwork();
+    }
 }
