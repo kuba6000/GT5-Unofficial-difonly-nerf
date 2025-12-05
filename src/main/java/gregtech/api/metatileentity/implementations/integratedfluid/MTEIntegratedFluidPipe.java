@@ -437,6 +437,38 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
     }
 
     @Override
+    public void onRemoval() {
+        super.onRemoval();
+        // Remove this pipe from the network and trigger rebuild for all connected neighbors
+        if (network != null) {
+            network.removeMember(this);
+        }
+
+        // Notify all connected neighbors to rebuild their networks
+        IGregTechTileEntity baseTile = getBaseMetaTileEntity();
+        if (baseTile != null) {
+            for (ForgeDirection side : ForgeDirection.VALID_DIRECTIONS) {
+                if (isConnectedAtSide(side)) {
+                    TileEntity neighbor = baseTile.getTileEntityAtSide(side);
+                    if (neighbor instanceof IGregTechTileEntity gtNeighbor) {
+                        IMetaTileEntity mte = gtNeighbor.getMetaTileEntity();
+                        if (mte instanceof MTEIntegratedFluidPipe pipe) {
+                            pipe.rebuildNetwork();
+                        } else if (mte instanceof IIntegratedFluidMember member) {
+                            // For hatches, remove from network and force them to find a new one
+                            if (member.getNetwork() != null) {
+                                member.getNetwork()
+                                    .removeMember(member);
+                                member.setNetwork(null);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Override
     public void disconnect(ForgeDirection side) {
         super.disconnect(side);
         // Trigger network rebuild on both sides
