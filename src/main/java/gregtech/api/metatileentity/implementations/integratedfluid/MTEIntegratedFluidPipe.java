@@ -441,13 +441,6 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
     }
 
     @Override
-    public void onBlockDestroyed() {
-        super.onBlockDestroyed();
-        // Call onRemoval to handle network cleanup
-        onRemoval();
-    }
-
-    @Override
     public void onRemoval() {
         super.onRemoval();
         // Remove this pipe from the network and trigger rebuild for all connected neighbors
