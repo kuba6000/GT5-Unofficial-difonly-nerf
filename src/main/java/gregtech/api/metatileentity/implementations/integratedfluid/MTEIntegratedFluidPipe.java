@@ -450,11 +450,6 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
             avgTemperature = (float) (weightedTemperature / totalFluid);
         }
 
-        // Clear fluid from all old networks to prevent duplication when split networks rebuild
-        for (IntegratedFluidNetwork existingNet : existingNetworks) {
-            existingNet.clearFluid();
-        }
-
         // If this is a split (new network has fewer members than old), distribute proportionally by CAPACITY
         if (combinedFluid != null && oldMemberCount > 0 && newNetwork.getMemberCount() < oldMemberCount) {
             // Calculate capacity for this new network
@@ -466,9 +461,35 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
                 int proportionalAmount = (combinedFluid.amount * newNetworkCapacity) / totalOldCapacity;
                 // Cap at the new network's capacity to avoid overflow
                 proportionalAmount = Math.min(proportionalAmount, newNetworkCapacity);
-                combinedFluid.amount = proportionalAmount;
+
+                // Take this amount from the old network(s)
+                // This leaves the remainder for other segments that haven't rebuilt yet
+                for (IntegratedFluidNetwork existingNet : existingNetworks) {
+                    FluidStack existingFluid = existingNet.getStoredFluid();
+                    if (existingFluid != null && existingFluid.amount > 0) {
+                        int toTake = Math.min(proportionalAmount, existingFluid.amount);
+                        existingFluid.amount -= toTake;
+                        proportionalAmount -= toTake;
+
+                        // Update the network's fluid
+                        if (existingFluid.amount == 0) {
+                            existingNet.clearFluid();
+                        }
+
+                        if (proportionalAmount == 0) break;
+                    }
+                }
+
+                combinedFluid.amount = (combinedFluid.amount * newNetworkCapacity) / totalOldCapacity;
+                combinedFluid.amount = Math.min(combinedFluid.amount, newNetworkCapacity);
             }
             // Temperature stays the same - it's the average of all the fluid that was present
+        } else {
+            // Not a split - this is a merge or initial connection
+            // Clear fluid from all old networks since we're combining them into the new network
+            for (IntegratedFluidNetwork existingNet : existingNetworks) {
+                existingNet.clearFluid();
+            }
         }
 
         // Add the combined fluid to the new network with averaged temperature
