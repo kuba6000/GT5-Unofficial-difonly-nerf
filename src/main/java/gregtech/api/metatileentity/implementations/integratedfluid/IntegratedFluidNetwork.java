@@ -241,6 +241,15 @@ public class IntegratedFluidNetwork {
     }
 
     /**
+     * Clears all fluid from the network.
+     * Used during network splits to prevent duplication.
+     */
+    public void clearFluid() {
+        storedFluid = null;
+        temperature = DEFAULT_TEMPERATURE;
+    }
+
+    /**
      * Gets all members in this network.
      */
     public Set<IIntegratedFluidMember> getMembers() {
