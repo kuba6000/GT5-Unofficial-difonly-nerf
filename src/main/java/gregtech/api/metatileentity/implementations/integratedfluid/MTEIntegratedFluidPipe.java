@@ -400,7 +400,10 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
                 // All members are already in the same network with no new members - no rebuild needed
                 // Just ensure all members have the correct network reference
                 for (IIntegratedFluidMember member : visited) {
-                    member.setNetwork(singleNetwork);
+                    if (member.getNetwork() != singleNetwork) {
+                        // Should not happen, but be safe
+                        singleNetwork.addMember(member);
+                    }
                 }
                 return;
             }
