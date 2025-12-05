@@ -351,4 +351,11 @@ public class MTEIntegratedFluidInjectorHatch extends MTEHatch implements IIntegr
             }
         }
     }
+
+    @Override
+    public void onMachineBlockUpdate() {
+        // This is called when a neighbor block changes (including when blocks are destroyed)
+        // Try to rejoin the network if we lost connection
+        findAndJoinNetwork();
+    }
 }
