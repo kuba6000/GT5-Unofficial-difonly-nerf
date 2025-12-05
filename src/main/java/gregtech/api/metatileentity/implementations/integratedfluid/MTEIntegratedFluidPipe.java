@@ -404,10 +404,25 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
             avgTemperature = (float) (weightedTemperature / totalFluid);
         }
 
-        // If this is a split (new network has fewer members than old), distribute proportionally
+        // If this is a split (new network has fewer members than old), distribute proportionally by CAPACITY
         if (combinedFluid != null && oldMemberCount > 0 && newNetwork.getMemberCount() < oldMemberCount) {
-            int proportionalAmount = (combinedFluid.amount * newNetwork.getMemberCount()) / oldMemberCount;
-            combinedFluid.amount = proportionalAmount;
+            // Calculate total capacity across all old networks
+            int totalOldCapacity = 0;
+            for (IntegratedFluidNetwork existingNet : existingNetworks) {
+                totalOldCapacity += existingNet.getMaxCapacity();
+            }
+
+            // Calculate capacity for this new network
+            int newNetworkCapacity = newNetwork.getMaxCapacity();
+
+            // Distribute fluid proportionally by capacity, not member count
+            // This prevents voiding when a smaller-capacity segment splits off
+            if (totalOldCapacity > 0) {
+                int proportionalAmount = (combinedFluid.amount * newNetworkCapacity) / totalOldCapacity;
+                // Cap at the new network's capacity to avoid overflow
+                proportionalAmount = Math.min(proportionalAmount, newNetworkCapacity);
+                combinedFluid.amount = proportionalAmount;
+            }
             // Temperature stays the same - it's the average of all the fluid that was present
         }
 
@@ -423,6 +438,13 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
         for (IIntegratedFluidMember member : visited) {
             member.onNetworkUpdate();
         }
+    }
+
+    @Override
+    public void onBlockDestroyed() {
+        super.onBlockDestroyed();
+        // Call onRemoval to handle network cleanup
+        onRemoval();
     }
 
     @Override
