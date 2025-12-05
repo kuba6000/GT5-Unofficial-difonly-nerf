@@ -398,12 +398,14 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
             // AND the network size matches (no new members being added)
             if (singleNetwork.getMemberCount() == visited.size()) {
                 // All members are already in the same network with no new members - no rebuild needed
-                // Just ensure all members have the correct network reference
+                // Just ensure all members have the correct network reference and notify them
                 for (IIntegratedFluidMember member : visited) {
                     if (member.getNetwork() != singleNetwork) {
                         // Should not happen, but be safe
                         singleNetwork.addMember(member);
                     }
+                    // Notify each member so they update their display/state
+                    member.onNetworkUpdate();
                 }
                 return;
             }
@@ -413,7 +415,7 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
         int totalFluid = 0;
         double weightedTemperature = 0.0;
         FluidStack combinedFluid = null;
-        
+
         // Track total capacity across all networks being merged
         int totalOldCapacity = 0;
 
