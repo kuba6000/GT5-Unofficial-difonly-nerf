@@ -391,14 +391,16 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
         // Check if all visited members are already in the same single network
         // If so, we don't need to rebuild - this prevents fluid duplication when
         // connecting two pipes that are already part of the same network
-        if (existingNetworks.size() == 1 && visited.size() == oldMemberCount && oldNetwork != null) {
+        if (existingNetworks.size() == 1) {
             IntegratedFluidNetwork singleNetwork = existingNetworks.iterator()
                 .next();
-            if (singleNetwork == oldNetwork) {
-                // All members are already in the same network - no rebuild needed
+            // Check if all visited members are already in this single network
+            // AND the network size matches (no new members being added)
+            if (singleNetwork.getMemberCount() == visited.size()) {
+                // All members are already in the same network with no new members - no rebuild needed
                 // Just ensure all members have the correct network reference
                 for (IIntegratedFluidMember member : visited) {
-                    member.setNetwork(oldNetwork);
+                    member.setNetwork(singleNetwork);
                 }
                 return;
             }
