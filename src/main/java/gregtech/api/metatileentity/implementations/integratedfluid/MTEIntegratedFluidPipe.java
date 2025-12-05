@@ -93,13 +93,14 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
         if (GTMod.proxy.gt6Pipe) {
             aNBT.setByte("mConnections", mConnections);
         }
-        // Network fluid data is saved at the network level, but we store a reference
-        if (network != null && network.getStoredFluid() != null) {
-            aNBT.setTag(
-                "networkFluid",
-                network.getStoredFluid()
-                    .writeToNBT(new NBTTagCompound()));
-            aNBT.setInteger("networkAmount", network.getStoredAmount());
+        // Save complete network data including temperature and pressure
+        if (network != null) {
+            FluidStack fluid = network.getStoredFluid();
+            if (fluid != null) {
+                aNBT.setTag("networkFluid", fluid.writeToNBT(new NBTTagCompound()));
+            }
+            aNBT.setFloat("networkPressure", network.getPressure());
+            aNBT.setFloat("networkTemperature", network.getTemperature());
         }
     }
 
@@ -108,14 +109,31 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
         if (GTMod.proxy.gt6Pipe) {
             mConnections = aNBT.getByte("mConnections");
         }
-        // Network will be rebuilt on first tick, but we can restore fluid data
-        if (aNBT.hasKey("networkFluid")) {
-            FluidStack fluid = FluidStack.loadFluidStackFromNBT(aNBT.getCompoundTag("networkFluid"));
-            if (fluid != null && network == null) {
-                network = new IntegratedFluidNetwork();
-                network.addFluid(fluid, false);
-                network.addMember(this);
+        // Restore network data - will be merged during rebuild on first tick
+        if (aNBT.hasKey("networkPressure") || aNBT.hasKey("networkFluid")) {
+            network = new IntegratedFluidNetwork();
+
+            // Restore pressure and temperature
+            if (aNBT.hasKey("networkPressure")) {
+                network.setPressure(aNBT.getFloat("networkPressure"));
             }
+            if (aNBT.hasKey("networkTemperature")) {
+                network.setTemperature(aNBT.getFloat("networkTemperature"));
+            } else {
+                // If no temperature saved, use default
+                network.setTemperature(IntegratedFluidNetwork.DEFAULT_TEMPERATURE);
+            }
+
+            // Restore fluid
+            if (aNBT.hasKey("networkFluid")) {
+                FluidStack fluid = FluidStack.loadFluidStackFromNBT(aNBT.getCompoundTag("networkFluid"));
+                if (fluid != null) {
+                    // Add fluid with the restored temperature
+                    network.addFluid(fluid, false, network.getTemperature());
+                }
+            }
+
+            network.addMember(this);
         }
     }
 
