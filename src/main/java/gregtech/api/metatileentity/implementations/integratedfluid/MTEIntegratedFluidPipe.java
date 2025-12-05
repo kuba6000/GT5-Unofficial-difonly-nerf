@@ -26,7 +26,6 @@ import gregtech.api.interfaces.metatileentity.IMetaTileEntity;
 import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
 import gregtech.api.metatileentity.MetaPipeEntity;
 import gregtech.api.render.TextureFactory;
-import gregtech.api.util.GTModHandler;
 import gregtech.api.util.GTUtility;
 import gregtech.common.covers.Cover;
 import mcp.mobius.waila.api.IWailaConfigHandler;
@@ -141,38 +140,14 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
     @Override
     public boolean onWireCutterRightClick(ForgeDirection side, ForgeDirection wrenchingSide, EntityPlayer aPlayer,
         float aX, float aY, float aZ, ItemStack aTool) {
-        if (GTMod.proxy.gt6Pipe
-            && GTModHandler.damageOrDechargeItem(aPlayer.inventory.getCurrentItem(), 1, 500, aPlayer)) {
-            if (isConnectedAtSide(wrenchingSide)) {
-                disconnect(wrenchingSide);
-                GTUtility.sendChatToPlayer(aPlayer, GTUtility.trans("215", "Disconnected"));
-            } else if (!GTMod.proxy.costlyCableConnection) {
-                if (connect(wrenchingSide) > 0) {
-                    GTUtility.sendChatToPlayer(aPlayer, GTUtility.trans("214", "Connected"));
-                }
-            }
-            rebuildNetwork();
-            return true;
-        }
+        // Only wrenches should be able to connect/disconnect integrated fluid pipes
         return false;
     }
 
     @Override
     public boolean onSolderingToolRightClick(ForgeDirection side, ForgeDirection wrenchingSide, EntityPlayer aPlayer,
         float aX, float aY, float aZ, ItemStack aTool) {
-        if (GTMod.proxy.gt6Pipe
-            && GTModHandler.damageOrDechargeItem(aPlayer.inventory.getCurrentItem(), 1, 500, aPlayer)) {
-            if (isConnectedAtSide(wrenchingSide)) {
-                disconnect(wrenchingSide);
-                GTUtility.sendChatToPlayer(aPlayer, GTUtility.trans("215", "Disconnected"));
-            } else if (!GTMod.proxy.costlyCableConnection || GTModHandler.consumeSolderingMaterial(aPlayer)) {
-                if (connect(wrenchingSide) > 0) {
-                    GTUtility.sendChatToPlayer(aPlayer, GTUtility.trans("214", "Connected"));
-                }
-            }
-            rebuildNetwork();
-            return true;
-        }
+        // Only wrenches should be able to connect/disconnect integrated fluid pipes
         return false;
     }
 
@@ -423,16 +398,21 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
             }
         }
 
+        // Calculate average temperature BEFORE adjusting for splits
+        float avgTemperature = IntegratedFluidNetwork.DEFAULT_TEMPERATURE;
+        if (totalFluid > 0) {
+            avgTemperature = (float) (weightedTemperature / totalFluid);
+        }
+
         // If this is a split (new network has fewer members than old), distribute proportionally
         if (combinedFluid != null && oldMemberCount > 0 && newNetwork.getMemberCount() < oldMemberCount) {
             int proportionalAmount = (combinedFluid.amount * newNetwork.getMemberCount()) / oldMemberCount;
             combinedFluid.amount = proportionalAmount;
-            totalFluid = proportionalAmount;
+            // Temperature stays the same - it's the average of all the fluid that was present
         }
 
         // Add the combined fluid to the new network with averaged temperature
-        if (combinedFluid != null && totalFluid > 0) {
-            float avgTemperature = (float) (weightedTemperature / totalFluid);
+        if (combinedFluid != null && combinedFluid.amount > 0) {
             newNetwork.addFluid(combinedFluid, false, avgTemperature);
         } else {
             // No fluid, just set default temperature
@@ -464,7 +444,8 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
                         if (mte instanceof MTEIntegratedFluidPipe pipe) {
                             pipe.rebuildNetwork();
                         } else if (mte instanceof IIntegratedFluidMember member) {
-                            // For hatches, remove from network and force them to find a new one
+                            // For hatches, remove from network and mark for rebuild
+                            // They will rejoin on next update
                             if (member.getNetwork() != null) {
                                 member.getNetwork()
                                     .removeMember(member);
