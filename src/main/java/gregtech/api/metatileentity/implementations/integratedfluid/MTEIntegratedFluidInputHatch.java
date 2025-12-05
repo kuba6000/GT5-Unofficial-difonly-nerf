@@ -284,4 +284,27 @@ public class MTEIntegratedFluidInputHatch extends MTEHatch implements IIntegrate
         }
         return 0;
     }
+
+    @Override
+    public void onRemoval() {
+        super.onRemoval();
+        // Remove this hatch from the network and notify connected pipes
+        if (network != null) {
+            network.removeMember(this);
+        }
+
+        // Notify connected pipes to rebuild their networks
+        IGregTechTileEntity baseTile = getBaseMetaTileEntity();
+        if (baseTile != null) {
+            for (ForgeDirection side : ForgeDirection.VALID_DIRECTIONS) {
+                TileEntity neighbor = baseTile.getTileEntityAtSide(side);
+                if (neighbor instanceof IGregTechTileEntity gtNeighbor) {
+                    IMetaTileEntity mte = gtNeighbor.getMetaTileEntity();
+                    if (mte instanceof MTEIntegratedFluidPipe pipe) {
+                        pipe.rebuildNetwork();
+                    }
+                }
+            }
+        }
+    }
 }
