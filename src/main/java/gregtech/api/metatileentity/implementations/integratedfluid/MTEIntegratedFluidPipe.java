@@ -196,6 +196,15 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
     }
 
     @Override
+    public boolean onRightclick(IGregTechTileEntity baseMetaTileEntity, EntityPlayer player, ForgeDirection side,
+        float x, float y, float z) {
+        // Only allow wrench interactions - all other tools should not interact
+        // The wrench handling is done by BaseMetaPipeEntity.onRightclick() which checks
+        // for wrenches and calls onWrenchRightClick()
+        return false;
+    }
+
+    @Override
     public boolean letsIn(Cover cover) {
         return cover.letsFluidIn(null);
     }
