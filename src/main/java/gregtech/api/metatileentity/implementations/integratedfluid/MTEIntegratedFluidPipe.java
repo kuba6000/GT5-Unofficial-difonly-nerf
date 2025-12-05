@@ -413,8 +413,12 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
         int totalFluid = 0;
         double weightedTemperature = 0.0;
         FluidStack combinedFluid = null;
+        
+        // Track total capacity across all networks being merged
+        int totalOldCapacity = 0;
 
         for (IntegratedFluidNetwork existingNet : existingNetworks) {
+            totalOldCapacity += existingNet.getMaxCapacity();
             FluidStack fluid = existingNet.getStoredFluid();
             if (fluid != null) {
                 if (combinedFluid == null) {
@@ -444,14 +448,13 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
             avgTemperature = (float) (weightedTemperature / totalFluid);
         }
 
+        // Clear fluid from all old networks to prevent duplication when split networks rebuild
+        for (IntegratedFluidNetwork existingNet : existingNetworks) {
+            existingNet.clearFluid();
+        }
+
         // If this is a split (new network has fewer members than old), distribute proportionally by CAPACITY
         if (combinedFluid != null && oldMemberCount > 0 && newNetwork.getMemberCount() < oldMemberCount) {
-            // Calculate total capacity across all old networks
-            int totalOldCapacity = 0;
-            for (IntegratedFluidNetwork existingNet : existingNetworks) {
-                totalOldCapacity += existingNet.getMaxCapacity();
-            }
-
             // Calculate capacity for this new network
             int newNetworkCapacity = newNetwork.getMaxCapacity();
 
