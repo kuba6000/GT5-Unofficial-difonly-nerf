@@ -362,7 +362,8 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
             visited.add(current);
 
             // Track all existing networks that will be merged
-            if (current.getNetwork() != null && !existingNetworks.contains(current.getNetwork())) {
+            // Use identity-based set to ensure we only count each network instance once
+            if (current.getNetwork() != null) {
                 existingNetworks.add(current.getNetwork());
             }
 
@@ -384,6 +385,22 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
                         }
                     }
                 }
+            }
+        }
+
+        // Check if all visited members are already in the same single network
+        // If so, we don't need to rebuild - this prevents fluid duplication when
+        // connecting two pipes that are already part of the same network
+        if (existingNetworks.size() == 1 && visited.size() == oldMemberCount && oldNetwork != null) {
+            IntegratedFluidNetwork singleNetwork = existingNetworks.iterator()
+                .next();
+            if (singleNetwork == oldNetwork) {
+                // All members are already in the same network - no rebuild needed
+                // Just ensure all members have the correct network reference
+                for (IIntegratedFluidMember member : visited) {
+                    member.setNetwork(oldNetwork);
+                }
+                return;
             }
         }
 
