@@ -1534,6 +1534,7 @@ public enum ItemList implements IItemContainer {
 
     Machine_Multi_Lathe,
     Machine_Multi_Autoclave,
+    Machine_HeatPump,
     Casing_Autoclave,
 
     Machine_Multi_NanochipAssemblyComplex,

@@ -212,6 +212,7 @@ import gregtech.common.tileentities.machines.multi.MTELargeTurbineHPSteamLegacy;
 import gregtech.common.tileentities.machines.multi.MTELargeTurbinePlasmaLegacy;
 import gregtech.common.tileentities.machines.multi.MTELargeTurbineSteamLegacy;
 import gregtech.common.tileentities.machines.multi.MTELatex;
+import gregtech.common.tileentities.machines.multi.MTEHeatPump;
 import gregtech.common.tileentities.machines.multi.MTEMassSolidifier;
 import gregtech.common.tileentities.machines.multi.MTEMegaChemicalReactor;
 import gregtech.common.tileentities.machines.multi.MTEMegaDistillationTower;
@@ -683,6 +684,10 @@ public class LoaderMetaTileEntities implements Runnable { // TODO CHECK CIRCUIT 
 
         ItemList.Machine_Multi_Autoclave.set(
             new MTEMultiAutoclave(MULTI_AUTOCLAVE_CONTROLLER.ID, "multimachine.autoclave", "Industrial Autoclave")
+                .getStackForm(1));
+
+        ItemList.Machine_HeatPump.set(
+            new MTEHeatPump(HEAT_PUMP_CONTROLLER.ID, "multimachine.heatpump", "Heat Pump")
                 .getStackForm(1));
 
         ItemList.LargeFluidExtractor.set(
