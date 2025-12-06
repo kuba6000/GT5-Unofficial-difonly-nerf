@@ -147,10 +147,14 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
                     if (tile instanceof IGregTechTileEntity gtTile) {
                         IMetaTileEntity mte = gtTile.getMetaTileEntity();
                         if (mte != null) {
-                            if (mte instanceof MTEIntegratedFluidInputHatch) {
-                                mIntegratedInputHatches.add((MTEIntegratedFluidInputHatch) mte);
-                            } else if (mte instanceof MTEIntegratedFluidOutputHatch) {
-                                mIntegratedOutputHatches.add((MTEIntegratedFluidOutputHatch) mte);
+                            if (mte instanceof MTEIntegratedFluidInputHatch hatch) {
+                                mIntegratedInputHatches.add(hatch);
+                                // Set texture to match multiblock casing (Steel Machine Casing texture index = 16)
+                                hatch.updateTexture(((BlockCasings2) GregTechAPI.sBlockCasings2).getTextureIndex(0));
+                            } else if (mte instanceof MTEIntegratedFluidOutputHatch hatch) {
+                                mIntegratedOutputHatches.add(hatch);
+                                // Set texture to match multiblock casing (Steel Machine Casing texture index = 16)
+                                hatch.updateTexture(((BlockCasings2) GregTechAPI.sBlockCasings2).getTextureIndex(0));
                             }
                         }
                     }
