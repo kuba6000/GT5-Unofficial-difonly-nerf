@@ -129,7 +129,8 @@ public class MTEIntegratedFluidOutputHatch extends MTEHatch implements IIntegrat
     public void onFirstTick(IGregTechTileEntity aBaseMetaTileEntity) {
         super.onFirstTick(aBaseMetaTileEntity);
         if (aBaseMetaTileEntity.isServerSide()) {
-            findAndJoinNetwork();
+            NetworkManager manager = NetworkManager.getInstance(aBaseMetaTileEntity.getWorld());
+            manager.onMemberAdded(this);
         }
     }
 
@@ -138,24 +139,30 @@ public class MTEIntegratedFluidOutputHatch extends MTEHatch implements IIntegrat
         super.onPostTick(aBaseMetaTileEntity, aTick);
         if (aBaseMetaTileEntity.isServerSide() && aTick % 20 == 0) {
             // Periodically check network connectivity
+            NetworkManager manager = NetworkManager.getInstance(aBaseMetaTileEntity.getWorld());
+
+            // AGGRESSIVE INITIALIZATION: Always try to join/create network
             if (network == null) {
-                findAndJoinNetwork();
+                manager.onMemberAdded(this);
+            } else {
+                // Check if any neighbors have different networks
+                List<IIntegratedFluidMember> neighbors = manager.findConnectedNeighbors(this);
+                boolean shouldMerge = false;
+
+                for (IIntegratedFluidMember neighbor : neighbors) {
+                    if (neighbor.getNetwork() != null && neighbor.getNetwork() != network) {
+                        shouldMerge = true;
+                        break;
+                    }
+                }
+
+                if (shouldMerge) {
+                    manager.onMemberAdded(this);
+                }
             }
         }
     }
 
-    /**
-     * Finds adjacent integrated fluid pipes and joins their network.
-     * @deprecated Use NetworkManager instead
-     */
-    @Deprecated
-    private void findAndJoinNetwork() {
-        IGregTechTileEntity baseTile = getBaseMetaTileEntity();
-        if (baseTile != null && baseTile.isServerSide()) {
-            NetworkManager manager = NetworkManager.getInstance(baseTile.getWorld());
-            manager.onMemberAdded(this);
-        }
-    }
 
     @Override
     public boolean allowPullStack(IGregTechTileEntity aBaseMetaTileEntity, int aIndex, ForgeDirection side,
@@ -245,7 +252,11 @@ public class MTEIntegratedFluidOutputHatch extends MTEHatch implements IIntegrat
 
     @Override
     public void onNetworkUpdate() {
-        // Could trigger visual updates if needed
+        // IMPORTANT: Cap fluid to capacity whenever network is updated
+        if (network != null) {
+            network.capFluidToCapacity();
+        }
+        // Trigger visual updates
         if (getBaseMetaTileEntity() != null) {
             getBaseMetaTileEntity().issueTextureUpdate();
         }
@@ -266,7 +277,8 @@ public class MTEIntegratedFluidOutputHatch extends MTEHatch implements IIntegrat
      */
     public FluidStack drainFluidFromNetwork(int maxDrain, boolean simulate) {
         if (network == null) {
-            findAndJoinNetwork();
+            NetworkManager manager = NetworkManager.getInstance(getBaseMetaTileEntity().getWorld());
+            manager.onMemberAdded(this);
         }
         if (network != null) {
             return network.drainFluid(maxDrain, simulate);
@@ -283,7 +295,8 @@ public class MTEIntegratedFluidOutputHatch extends MTEHatch implements IIntegrat
      */
     public FluidStack drainFluidFromNetwork(FluidStack fluid, boolean simulate) {
         if (network == null) {
-            findAndJoinNetwork();
+            NetworkManager manager = NetworkManager.getInstance(getBaseMetaTileEntity().getWorld());
+            manager.onMemberAdded(this);
         }
         if (network != null) {
             return network.drainFluid(fluid, simulate);
@@ -304,34 +317,17 @@ public class MTEIntegratedFluidOutputHatch extends MTEHatch implements IIntegrat
     @Override
     public void onRemoval() {
         super.onRemoval();
-        // Remove this hatch from the network and notify connected pipes
-        if (network != null) {
-            network.removeMember(this);
-        }
-
-        // Notify connected pipes to rebuild their networks
+        // Use NetworkManager to properly handle removal
         IGregTechTileEntity baseTile = getBaseMetaTileEntity();
-        if (baseTile != null) {
-            for (ForgeDirection side : ForgeDirection.VALID_DIRECTIONS) {
-                TileEntity neighbor = baseTile.getTileEntityAtSide(side);
-                if (neighbor instanceof IGregTechTileEntity gtNeighbor) {
-                    IMetaTileEntity mte = gtNeighbor.getMetaTileEntity();
-                    if (mte instanceof MTEIntegratedFluidPipe pipe) {
-                        pipe.rebuildNetwork();
-                    }
-                }
-            }
+        if (baseTile != null && baseTile.isServerSide()) {
+            NetworkManager manager = NetworkManager.getInstance(baseTile.getWorld());
+            manager.onMemberRemoved(this);
         }
     }
 
     @Override
     public void onMachineBlockUpdate() {
-        // This is called when a neighbor block changes (including when blocks are destroyed)
-        // Try to rejoin the network if we lost connection
-        IGregTechTileEntity baseTile = getBaseMetaTileEntity();
-        if (baseTile != null && baseTile.isServerSide()) {
-            NetworkManager manager = NetworkManager.getInstance(baseTile.getWorld());
-            manager.onConnectionChanged(this);
-        }
+        // DON'T rebuild network here - causes fluid scaling issues
+        // Network is properly managed via onFirstTick/onMemberAdded
     }
 }

@@ -104,7 +104,7 @@ public class IntegratedFluidNetwork {
 
     /**
      * Attempts to add fluid to the network.
-     * 
+     *
      * @param fluid    The fluid to add
      * @param simulate If true, only simulates the fill
      * @return The amount of fluid actually added
@@ -116,7 +116,7 @@ public class IntegratedFluidNetwork {
     /**
      * Attempts to add fluid to the network with a specified temperature.
      * The network temperature will be updated using weighted averaging.
-     * 
+     *
      * @param fluid        The fluid to add
      * @param simulate     If true, only simulates the fill
      * @param incomingTemp The temperature of the incoming fluid in Kelvin
@@ -165,7 +165,7 @@ public class IntegratedFluidNetwork {
 
     /**
      * Attempts to drain fluid from the network.
-     * 
+     *
      * @param maxDrain The maximum amount to drain
      * @param simulate If true, only simulates the drain
      * @return The fluid that was drained
@@ -193,7 +193,7 @@ public class IntegratedFluidNetwork {
 
     /**
      * Drains a specific fluid from the network.
-     * 
+     *
      * @param fluid    The fluid to drain (must match stored fluid)
      * @param simulate If true, only simulates the drain
      * @return The fluid that was drained
@@ -264,17 +264,40 @@ public class IntegratedFluidNetwork {
             return;
         }
 
-        // Transfer fluid from other network with its temperature
-        if (other.storedFluid != null) {
-            addFluid(other.storedFluid, false, other.getTemperature());
-            other.storedFluid = null;
-        }
+        // Save other network's fluid data before any modifications
+        FluidStack otherFluid = other.storedFluid != null ? other.storedFluid.copy() : null;
+        float otherTemp = other.getTemperature();
 
-        // Transfer all members to this network
+        // Transfer all members to this network FIRST (this increases capacity)
         for (IIntegratedFluidMember member : new HashSet<>(other.members)) {
             other.removeMember(member);
             addMember(member);
         }
+
+        // Now add fluid from other network with increased capacity
+        if (otherFluid != null) {
+            addFluid(otherFluid, false, otherTemp);
+        }
+
+        // Clear other network's fluid (already transferred)
+        other.storedFluid = null;
+    }
+
+    /**
+     * Caps the stored fluid to the network's maximum capacity.
+     * Call this after removing members to prevent overflow.
+     *
+     * @return The amount of fluid that was removed (voided)
+     */
+    public int capFluidToCapacity() {
+        if (storedFluid == null) return 0;
+
+        int capacity = getMaxCapacity();
+        if (storedFluid.amount <= capacity) return 0;
+
+        int excess = storedFluid.amount - capacity;
+        storedFluid.amount = capacity;
+        return excess;
     }
 
     /**

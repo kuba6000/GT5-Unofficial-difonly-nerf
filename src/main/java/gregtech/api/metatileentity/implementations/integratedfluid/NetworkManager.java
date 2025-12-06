@@ -51,33 +51,101 @@ public class NetworkManager {
     public void onMemberAdded(IIntegratedFluidMember member) {
         if (member == null) return;
 
-        NetworkNode node = new NetworkNode(member);
+        // Find connected neighbors
         List<IIntegratedFluidMember> neighbors = findConnectedNeighbors(member);
 
-        if (neighbors.isEmpty()) {
-            // No neighbors - create new isolated network
-            createNewNetwork(member);
-        } else {
-            // Has neighbors - merge with their networks
-            Set<IntegratedFluidNetwork> neighborNetworks = neighbors.stream()
-                .map(IIntegratedFluidMember::getNetwork)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toSet());
+        // FORCE AWAKENING: Trigger onPostTick check on all neighbors
+        // This ensures they re-evaluate their networks immediately
+        for (IIntegratedFluidMember neighbor : neighbors) {
+            if (neighbor != null) {
+                neighbor.onNetworkUpdate();
+            }
+        }
 
-            if (neighborNetworks.isEmpty()) {
-                // Neighbors exist but have no networks - create new network with all of them
-                createNewNetwork(member);
-                for (IIntegratedFluidMember neighbor : neighbors) {
-                    addToNetwork(neighbor, member.getNetwork());
+        // Collect EXISTING networks from neighbors (ignore member's own network if it has one from NBT)
+        IntegratedFluidNetwork memberOldNetwork = member.getNetwork();
+        Set<IntegratedFluidNetwork> neighborNetworks = neighbors.stream()
+            .map(IIntegratedFluidMember::getNetwork)
+            .filter(Objects::nonNull)
+            .filter(net -> net != memberOldNetwork) // Ignore member's NBT network
+            .collect(Collectors.toSet());
+
+        // Check if we have neighbors but they don't have networks yet (during world load)
+        boolean hasNeighborsWithoutNetworks = !neighbors.isEmpty() && neighborNetworks.isEmpty();
+
+        if (neighborNetworks.isEmpty()) {
+            // No existing networks nearby
+            if (hasNeighborsWithoutNetworks) {
+                // Neighbors exist but don't have networks yet - they're probably loading
+                // Keep member's NBT network temporarily if it exists, otherwise create new one
+                // The neighbors will merge with us when they load, or we'll merge in onPostTick
+                if (memberOldNetwork != null) {
+                    // Keep NBT network temporarily
+                    allNetworks.add(memberOldNetwork);
+                } else {
+                    // Create temporary network - will merge later
+                    createNewNetwork(member);
                 }
-            } else if (neighborNetworks.size() == 1) {
-                // All neighbors in same network - just add to it
-                IntegratedFluidNetwork network = neighborNetworks.iterator().next();
-                addToNetwork(member, network);
+            } else if (memberOldNetwork != null) {
+                // No neighbors at all - member has NBT network (from save)
+                // Keep it if it has fluid, otherwise discard
+                if (memberOldNetwork.getStoredFluid() != null && memberOldNetwork.getStoredFluid().amount > 0) {
+                    // Keep NBT network with fluid
+                    allNetworks.add(memberOldNetwork);
+                } else {
+                    // Discard empty NBT network and create fresh one
+                    memberOldNetwork.clear();
+                    createNewNetwork(member);
+                }
             } else {
-                // Multiple networks - merge them all
-                IntegratedFluidNetwork mainNetwork = mergeNetworks(neighborNetworks);
-                addToNetwork(member, mainNetwork);
+                // Brand new member - create new network
+                createNewNetwork(member);
+            }
+        } else if (neighborNetworks.size() == 1) {
+            // Single existing network - just add member to it
+            IntegratedFluidNetwork existingNetwork = neighborNetworks.iterator().next();
+
+            // If member has NBT network, ALWAYS discard it (existing network is the truth)
+            if (memberOldNetwork != null && memberOldNetwork != existingNetwork) {
+                memberOldNetwork.clear();
+            }
+
+            // Add member to existing network (this does NOT duplicate fluid!)
+            existingNetwork.addMember(member);
+            member.setNetwork(existingNetwork);
+            member.onNetworkUpdate();
+
+            // IMPORTANT: Cap fluid to capacity (member might be removed, decreasing capacity)
+            int voided = existingNetwork.capFluidToCapacity();
+            if (voided > 0) {
+                // Fluid was voided due to capacity decrease
+                // This happens when removing members
+            }
+        } else {
+            // Multiple existing networks - merge them
+            IntegratedFluidNetwork mainNetwork = mergeNetworks(neighborNetworks);
+
+            // If member has NBT network, discard it
+            if (memberOldNetwork != null && memberOldNetwork != mainNetwork) {
+                memberOldNetwork.clear();
+            }
+
+            // Add member to merged network
+            mainNetwork.addMember(member);
+            member.setNetwork(mainNetwork);
+            member.onNetworkUpdate();
+
+            // IMPORTANT: Cap fluid to capacity after merge
+            int voided = mainNetwork.capFluidToCapacity();
+            if (voided > 0) {
+                // Fluid was voided due to capacity constraints
+            }
+        }
+
+        // FORCE AWAKENING AGAIN: After network changes, wake up neighbors
+        for (IIntegratedFluidMember neighbor : neighbors) {
+            if (neighbor != null) {
+                neighbor.onNetworkUpdate();
             }
         }
     }
@@ -114,18 +182,32 @@ public class NetworkManager {
         List<Set<IIntegratedFluidMember>> components = findConnectedComponents(remainingMembers);
 
         if (components.size() == 1) {
-            // Still connected - nothing to do
+            // Still connected - but capacity changed!
+            // IMPORTANT: Cap fluid to new capacity and notify all members
+            int voided = oldNetwork.capFluidToCapacity();
+
+            // Notify all remaining members to update
+            for (IIntegratedFluidMember remainingMember : remainingMembers) {
+                remainingMember.onNetworkUpdate();
+            }
+
             return;
         }
 
         // Network split into multiple components
-        // Clear old network and create new ones
+        // Save old network data BEFORE clearing
         FluidStack oldFluid = oldNetwork.getStoredFluid();
+        FluidStack fluidCopy = oldFluid != null ? oldFluid.copy() : null;
         float oldPressure = oldNetwork.getPressure();
         float oldTemperature = oldNetwork.getTemperature();
         int oldCapacity = oldNetwork.getMaxCapacity();
 
-        oldNetwork.clear();
+        // Remove all members from old network (but don't clear fluid yet)
+        for (IIntegratedFluidMember remainingMember : remainingMembers) {
+            oldNetwork.removeMember(remainingMember);
+            remainingMember.setNetwork(null);
+        }
+
         allNetworks.remove(oldNetwork);
 
         // Create new network for each component
@@ -140,23 +222,45 @@ public class NetworkManager {
             }
 
             // Distribute fluid proportionally by capacity
-            if (oldFluid != null && oldFluid.amount > 0) {
+            if (fluidCopy != null && fluidCopy.amount > 0 && oldCapacity > 0) {
                 int newCapacity = newNetwork.getMaxCapacity();
-                int proportionalAmount = (int) ((long) oldFluid.amount * newCapacity / oldCapacity);
+                int proportionalAmount = (int) ((long) fluidCopy.amount * newCapacity / oldCapacity);
+
+                // CAP to network capacity to prevent overflow
+                proportionalAmount = Math.min(proportionalAmount, newCapacity);
 
                 if (proportionalAmount > 0) {
-                    FluidStack splitFluid = oldFluid.copy();
+                    FluidStack splitFluid = fluidCopy.copy();
                     splitFluid.amount = proportionalAmount;
                     newNetwork.addFluid(splitFluid, false, oldTemperature);
                 }
             }
 
-            // Preserve pressure
-            newNetwork.setPressure(oldPressure);
+            // SAFETY: Cap fluid to capacity in case of rounding errors
+            int voided = newNetwork.capFluidToCapacity();
+            if (voided > 0) {
+                // Log that fluid was voided due to capacity
+                // This shouldn't normally happen with proportional distribution
+                // but it's a safety measure
+            }
 
-            // Notify members
+            // Preserve pressure and temperature
+            newNetwork.setPressure(oldPressure);
+            if (fluidCopy == null || fluidCopy.amount == 0) {
+                newNetwork.setTemperature(oldTemperature);
+            }
+
+            // Notify members AND wake up neighbors
             for (IIntegratedFluidMember componentMember : component) {
                 componentMember.onNetworkUpdate();
+
+                // FORCE AWAKENING: Wake up all neighbors of this member
+                List<IIntegratedFluidMember> neighbors = findConnectedNeighbors(componentMember);
+                for (IIntegratedFluidMember neighbor : neighbors) {
+                    if (neighbor != null && !component.contains(neighbor)) {
+                        neighbor.onNetworkUpdate();
+                    }
+                }
             }
         }
     }
@@ -168,30 +272,88 @@ public class NetworkManager {
     public void onConnectionChanged(IIntegratedFluidMember member) {
         if (member == null) return;
 
-        // Get old network
-        IntegratedFluidNetwork oldNetwork = member.getNetwork();
-        List<IIntegratedFluidMember> oldMembers = oldNetwork != null
-            ? new ArrayList<>(oldNetwork.getMembers())
-            : Collections.singletonList(member);
+        // Find ALL potentially affected members by checking neighbors
+        Set<IIntegratedFluidMember> allAffectedMembers = new HashSet<>();
+        Set<IntegratedFluidNetwork> affectedNetworks = new HashSet<>();
 
-        // Remove all members from old network
-        if (oldNetwork != null) {
-            for (IIntegratedFluidMember oldMember : oldMembers) {
-                oldNetwork.removeMember(oldMember);
-                oldMember.setNetwork(null);
-            }
-            allNetworks.remove(oldNetwork);
+        // Start with the member and its network
+        if (member.getNetwork() != null) {
+            affectedNetworks.add(member.getNetwork());
+            allAffectedMembers.addAll(member.getNetwork().getMembers());
+        } else {
+            allAffectedMembers.add(member);
         }
 
-        // Rebuild networks from scratch using flood-fill
-        Set<IIntegratedFluidMember> processed = new HashSet<>();
-        List<Set<IIntegratedFluidMember>> components = findConnectedComponents(oldMembers);
+        // Also check all neighbors and their networks
+        List<IIntegratedFluidMember> neighbors = findConnectedNeighbors(member);
+        for (IIntegratedFluidMember neighbor : neighbors) {
+            if (neighbor.getNetwork() != null) {
+                affectedNetworks.add(neighbor.getNetwork());
+                allAffectedMembers.addAll(neighbor.getNetwork().getMembers());
+            } else {
+                allAffectedMembers.add(neighbor);
+            }
+        }
 
-        // Store old network data for distribution
-        FluidStack oldFluid = oldNetwork != null ? oldNetwork.getStoredFluid() : null;
-        float oldPressure = oldNetwork != null ? oldNetwork.getPressure() : IntegratedFluidNetwork.DEFAULT_PRESSURE;
-        float oldTemperature = oldNetwork != null ? oldNetwork.getTemperature() : IntegratedFluidNetwork.DEFAULT_TEMPERATURE;
-        int oldCapacity = oldNetwork != null ? oldNetwork.getMaxCapacity() : 0;
+        // Save data from ALL affected networks BEFORE any modifications
+        int totalFluidAmount = 0;
+        double weightedTemperature = 0.0;
+        FluidStack combinedFluid = null;
+        float avgPressure = 0.0f;
+        int totalCapacity = 0;
+        int networkCount = 0;
+
+        for (IntegratedFluidNetwork net : affectedNetworks) {
+            FluidStack fluid = net.getStoredFluid();
+            if (fluid != null) {
+                if (combinedFluid == null) {
+                    combinedFluid = fluid.copy();
+                    totalFluidAmount = fluid.amount;
+                    weightedTemperature = fluid.amount * net.getTemperature();
+                } else if (combinedFluid.isFluidEqual(fluid)) {
+                    totalFluidAmount += fluid.amount;
+                    weightedTemperature += fluid.amount * net.getTemperature();
+                    combinedFluid.amount += fluid.amount;
+                } else {
+                    // Different fluids - keep the larger one
+                    if (fluid.amount > combinedFluid.amount) {
+                        combinedFluid = fluid.copy();
+                        totalFluidAmount = fluid.amount;
+                        weightedTemperature = fluid.amount * net.getTemperature();
+                    }
+                }
+            }
+            avgPressure += net.getPressure();
+            totalCapacity += net.getMaxCapacity();
+            networkCount++;
+        }
+
+        if (networkCount > 0) {
+            avgPressure /= networkCount;
+        } else {
+            avgPressure = IntegratedFluidNetwork.DEFAULT_PRESSURE;
+        }
+
+        float finalTemperature = IntegratedFluidNetwork.DEFAULT_TEMPERATURE;
+        if (totalFluidAmount > 0) {
+            finalTemperature = (float) (weightedTemperature / totalFluidAmount);
+        }
+
+        // Remove all members from ALL affected networks
+        for (IntegratedFluidNetwork net : affectedNetworks) {
+            for (IIntegratedFluidMember m : new ArrayList<>(net.getMembers())) {
+                net.removeMember(m);
+                m.setNetwork(null);
+            }
+            allNetworks.remove(net);
+        }
+
+        // Rebuild networks from scratch using flood-fill on ALL affected members
+        List<Set<IIntegratedFluidMember>> components = findConnectedComponents(new ArrayList<>(allAffectedMembers));
+
+        // If we're merging networks (components = 1 from multiple networks), give all the fluid to the merged network
+        // If we're splitting (components > 1), distribute proportionally
+        boolean isMerge = components.size() == 1 && affectedNetworks.size() > 1;
 
         for (Set<IIntegratedFluidMember> component : components) {
             IntegratedFluidNetwork newNetwork = new IntegratedFluidNetwork();
@@ -200,22 +362,31 @@ public class NetworkManager {
             for (IIntegratedFluidMember componentMember : component) {
                 newNetwork.addMember(componentMember);
                 componentMember.setNetwork(newNetwork);
-                processed.add(componentMember);
             }
 
-            // Distribute fluid proportionally
-            if (oldFluid != null && oldFluid.amount > 0 && oldCapacity > 0) {
-                int newCapacity = newNetwork.getMaxCapacity();
-                int proportionalAmount = (int) ((long) oldFluid.amount * newCapacity / oldCapacity);
+            // Add fluid
+            if (combinedFluid != null && combinedFluid.amount > 0) {
+                if (isMerge) {
+                    // Merging networks - give ALL fluid to the merged network
+                    FluidStack mergedFluid = combinedFluid.copy();
+                    newNetwork.addFluid(mergedFluid, false, finalTemperature);
+                } else if (totalCapacity > 0) {
+                    // Splitting network - distribute proportionally
+                    int newCapacity = newNetwork.getMaxCapacity();
+                    int proportionalAmount = (int) ((long) combinedFluid.amount * newCapacity / totalCapacity);
 
-                if (proportionalAmount > 0) {
-                    FluidStack splitFluid = oldFluid.copy();
-                    splitFluid.amount = proportionalAmount;
-                    newNetwork.addFluid(splitFluid, false, oldTemperature);
+                    if (proportionalAmount > 0) {
+                        FluidStack splitFluid = combinedFluid.copy();
+                        splitFluid.amount = proportionalAmount;
+                        newNetwork.addFluid(splitFluid, false, finalTemperature);
+                    }
                 }
             }
 
-            newNetwork.setPressure(oldPressure);
+            newNetwork.setPressure(avgPressure);
+            if (combinedFluid == null || combinedFluid.amount == 0) {
+                newNetwork.setTemperature(finalTemperature);
+            }
 
             // Notify all members
             for (IIntegratedFluidMember componentMember : component) {
@@ -226,10 +397,12 @@ public class NetworkManager {
 
     /**
      * Finds all connected neighbors of a member.
+     * Public so members can check their neighbors in onPostTick.
      */
-    private List<IIntegratedFluidMember> findConnectedNeighbors(IIntegratedFluidMember member) {
+    public List<IIntegratedFluidMember> findConnectedNeighbors(IIntegratedFluidMember member) {
         List<IIntegratedFluidMember> neighbors = new ArrayList<>();
 
+        // Check if member is a pipe
         if (member instanceof MetaPipeEntity pipe) {
             IGregTechTileEntity baseTile = pipe.getBaseMetaTileEntity();
             if (baseTile != null) {
@@ -239,6 +412,30 @@ public class NetworkManager {
                         if (neighbor instanceof IGregTechTileEntity gtNeighbor) {
                             IMetaTileEntity mte = gtNeighbor.getMetaTileEntity();
                             if (mte instanceof IIntegratedFluidMember neighborMember) {
+                                neighbors.add(neighborMember);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        // Also check if member is a hatch or other tile entity
+        else if (member instanceof IMetaTileEntity mte) {
+            IGregTechTileEntity baseTile = mte.getBaseMetaTileEntity();
+            if (baseTile != null) {
+                for (ForgeDirection side : ForgeDirection.VALID_DIRECTIONS) {
+                    TileEntity neighbor = baseTile.getTileEntityAtSide(side);
+                    if (neighbor instanceof IGregTechTileEntity gtNeighbor) {
+                        IMetaTileEntity neighborMTE = gtNeighbor.getMetaTileEntity();
+                        if (neighborMTE instanceof IIntegratedFluidMember neighborMember) {
+                            // For non-pipes, also check if the neighbor (if it's a pipe) is connected to us
+                            if (neighborMTE instanceof MetaPipeEntity neighborPipe) {
+                                // Check if pipe is connected to us on the opposite side
+                                if (neighborPipe.isConnectedAtSide(side.getOpposite())) {
+                                    neighbors.add(neighborMember);
+                                }
+                            } else {
+                                // Both are non-pipes (hatches), they're neighbors
                                 neighbors.add(neighborMember);
                             }
                         }

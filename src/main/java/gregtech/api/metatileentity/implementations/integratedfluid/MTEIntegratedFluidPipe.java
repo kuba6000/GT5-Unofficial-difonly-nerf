@@ -109,7 +109,8 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
         if (GTMod.proxy.gt6Pipe) {
             mConnections = aNBT.getByte("mConnections");
         }
-        // Restore network data - will be merged during rebuild on first tick
+        // Load network data from NBT but mark it for careful handling
+        // NetworkManager will decide whether to keep or discard this based on neighbors
         if (aNBT.hasKey("networkPressure") || aNBT.hasKey("networkFluid")) {
             network = new IntegratedFluidNetwork();
 
@@ -120,7 +121,6 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
             if (aNBT.hasKey("networkTemperature")) {
                 network.setTemperature(aNBT.getFloat("networkTemperature"));
             } else {
-                // If no temperature saved, use default
                 network.setTemperature(IntegratedFluidNetwork.DEFAULT_TEMPERATURE);
             }
 
@@ -128,7 +128,6 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
             if (aNBT.hasKey("networkFluid")) {
                 FluidStack fluid = FluidStack.loadFluidStackFromNBT(aNBT.getCompoundTag("networkFluid"));
                 if (fluid != null) {
-                    // Add fluid with the restored temperature
                     network.addFluid(fluid, false, network.getTemperature());
                 }
             }
@@ -141,7 +140,8 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
     public void onFirstTick(IGregTechTileEntity aBaseMetaTileEntity) {
         super.onFirstTick(aBaseMetaTileEntity);
         if (aBaseMetaTileEntity.isServerSide()) {
-            rebuildNetwork();
+            NetworkManager manager = NetworkManager.getInstance(aBaseMetaTileEntity.getWorld());
+            manager.onMemberAdded(this);
         }
     }
 
@@ -149,8 +149,33 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
     public void onPostTick(IGregTechTileEntity aBaseMetaTileEntity, long aTick) {
         super.onPostTick(aBaseMetaTileEntity, aTick);
         if (aBaseMetaTileEntity.isServerSide()) {
-            if (aTick % 20 == 0 && (!GTMod.proxy.gt6Pipe || mCheckConnections)) {
-                checkConnections();
+            if (aTick % 20 == 0) {
+                if (!GTMod.proxy.gt6Pipe || mCheckConnections) {
+                    checkConnections();
+                }
+
+                NetworkManager manager = NetworkManager.getInstance(aBaseMetaTileEntity.getWorld());
+
+                // AGGRESSIVE INITIALIZATION: If no network, force join/create
+                if (network == null) {
+                    manager.onMemberAdded(this);
+                } else {
+                    // Check if we should merge with neighbors
+                    List<IIntegratedFluidMember> neighbors = manager.findConnectedNeighbors(this);
+                    boolean shouldMerge = false;
+
+                    for (IIntegratedFluidMember neighbor : neighbors) {
+                        if (neighbor.getNetwork() != null && neighbor.getNetwork() != network) {
+                            shouldMerge = true;
+                            break;
+                        }
+                    }
+
+                    if (shouldMerge) {
+                        // We have neighbors with different networks - merge!
+                        manager.onMemberAdded(this);
+                    }
+                }
             }
         }
     }
@@ -182,7 +207,9 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
                     GTUtility.sendChatToPlayer(aPlayer, GTUtility.trans("214", "Connected"));
                 }
             }
-            rebuildNetwork();
+            // Connection changed - use NetworkManager
+            NetworkManager manager = NetworkManager.getInstance(getBaseMetaTileEntity().getWorld());
+            manager.onConnectionChanged(this);
             return true;
         }
         return false;
@@ -318,7 +345,10 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
 
     @Override
     public void onNetworkUpdate() {
-        // Could trigger visual updates if needed
+        // IMPORTANT: Cap fluid to capacity whenever network is updated
+        if (network != null) {
+            network.capFluidToCapacity();
+        }
     }
 
     @Override
@@ -327,215 +357,15 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
         return 100;
     }
 
-    /**
-     * Rebuilds the network by traversing connected pipes and hatches.
-     */
-    public void rebuildNetwork() {
-        if (getBaseMetaTileEntity() == null || !getBaseMetaTileEntity().isServerSide()) {
-            return;
-        }
-
-        // Store the old network information before rebuilding
-        IntegratedFluidNetwork oldNetwork = network;
-        FluidStack oldFluid = oldNetwork != null ? oldNetwork.getStoredFluid() : null;
-        int oldMemberCount = oldNetwork != null ? oldNetwork.getMemberCount() : 0;
-        float oldPressure = oldNetwork != null ? oldNetwork.getPressure() : IntegratedFluidNetwork.DEFAULT_PRESSURE;
-        float oldTemperature = oldNetwork != null ? oldNetwork.getTemperature()
-            : IntegratedFluidNetwork.DEFAULT_TEMPERATURE;
-
-        // Create new network and traverse to find all connected members
-        Set<IIntegratedFluidMember> visited = new HashSet<>();
-        List<IIntegratedFluidMember> toVisit = new ArrayList<>();
-        Set<IntegratedFluidNetwork> existingNetworks = new HashSet<>();
-        toVisit.add(this);
-
-        IntegratedFluidNetwork newNetwork = new IntegratedFluidNetwork();
-
-        // Preserve pressure (use old network's pressure for now)
-        newNetwork.setPressure(oldPressure);
-
-        while (!toVisit.isEmpty()) {
-            IIntegratedFluidMember current = toVisit.remove(0);
-            if (visited.contains(current)) {
-                continue;
-            }
-            visited.add(current);
-
-            // Track all existing networks that will be merged
-            // Use identity-based set to ensure we only count each network instance once
-            if (current.getNetwork() != null) {
-                existingNetworks.add(current.getNetwork());
-            }
-
-            newNetwork.addMember(current);
-
-            // Find connected members
-            if (current instanceof MetaPipeEntity pipe) {
-                IGregTechTileEntity baseTile = pipe.getBaseMetaTileEntity();
-                if (baseTile != null) {
-                    for (ForgeDirection side : ForgeDirection.VALID_DIRECTIONS) {
-                        if (pipe.isConnectedAtSide(side)) {
-                            TileEntity neighbor = baseTile.getTileEntityAtSide(side);
-                            if (neighbor instanceof IGregTechTileEntity gtNeighbor) {
-                                IMetaTileEntity mte = gtNeighbor.getMetaTileEntity();
-                                if (mte instanceof IIntegratedFluidMember member && !visited.contains(member)) {
-                                    toVisit.add(member);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // Check if all visited members are already in the same single network
-        // If so, we don't need to rebuild - this prevents fluid duplication when
-        // connecting two pipes that are already part of the same network
-        if (existingNetworks.size() == 1) {
-            IntegratedFluidNetwork singleNetwork = existingNetworks.iterator()
-                .next();
-            // Check if all visited members are already in this single network
-            // AND the network size matches (no new members being added)
-            if (singleNetwork.getMemberCount() == visited.size()) {
-                // All members are already in the same network with no new members - no rebuild needed
-                // Just ensure all members have the correct network reference and notify them
-                for (IIntegratedFluidMember member : visited) {
-                    if (member.getNetwork() != singleNetwork) {
-                        // Should not happen, but be safe
-                        singleNetwork.addMember(member);
-                    }
-                    // Notify each member so they update their display/state
-                    member.onNetworkUpdate();
-                }
-                return;
-            }
-        }
-
-        // Merge all fluids from existing networks with weighted temperature averaging
-        int totalFluid = 0;
-        double weightedTemperature = 0.0;
-        FluidStack combinedFluid = null;
-
-        // Track total capacity across all networks being merged
-        int totalOldCapacity = 0;
-
-        for (IntegratedFluidNetwork existingNet : existingNetworks) {
-            totalOldCapacity += existingNet.getMaxCapacity();
-            FluidStack fluid = existingNet.getStoredFluid();
-            if (fluid != null) {
-                if (combinedFluid == null) {
-                    combinedFluid = fluid.copy();
-                    totalFluid = fluid.amount;
-                    weightedTemperature = fluid.amount * existingNet.getTemperature();
-                } else if (combinedFluid.isFluidEqual(fluid)) {
-                    // Same fluid type - combine amounts and temperatures
-                    totalFluid += fluid.amount;
-                    weightedTemperature += fluid.amount * existingNet.getTemperature();
-                    combinedFluid.amount += fluid.amount;
-                } else {
-                    // Different fluid types - can't merge, keep the larger one
-                    // This shouldn't normally happen but handle it gracefully
-                    if (fluid.amount > combinedFluid.amount) {
-                        combinedFluid = fluid.copy();
-                        totalFluid = fluid.amount;
-                        weightedTemperature = fluid.amount * existingNet.getTemperature();
-                    }
-                }
-            }
-        }
-
-        // Calculate average temperature BEFORE adjusting for splits
-        float avgTemperature = IntegratedFluidNetwork.DEFAULT_TEMPERATURE;
-        if (totalFluid > 0) {
-            avgTemperature = (float) (weightedTemperature / totalFluid);
-        }
-
-        // If this is a split (new network has fewer members than old), distribute proportionally by CAPACITY
-        if (combinedFluid != null && oldMemberCount > 0 && newNetwork.getMemberCount() < oldMemberCount) {
-            // Calculate capacity for this new network
-            int newNetworkCapacity = newNetwork.getMaxCapacity();
-
-            // Distribute fluid proportionally by capacity, not member count
-            // This prevents voiding when a smaller-capacity segment splits off
-            if (totalOldCapacity > 0) {
-                int proportionalAmount = (combinedFluid.amount * newNetworkCapacity) / totalOldCapacity;
-                // Cap at the new network's capacity to avoid overflow
-                proportionalAmount = Math.min(proportionalAmount, newNetworkCapacity);
-
-                // Take this amount from the old network(s)
-                // This leaves the remainder for other segments that haven't rebuilt yet
-                for (IntegratedFluidNetwork existingNet : existingNetworks) {
-                    FluidStack existingFluid = existingNet.getStoredFluid();
-                    if (existingFluid != null && existingFluid.amount > 0) {
-                        int toTake = Math.min(proportionalAmount, existingFluid.amount);
-                        existingFluid.amount -= toTake;
-                        proportionalAmount -= toTake;
-
-                        // Update the network's fluid
-                        if (existingFluid.amount == 0) {
-                            existingNet.clearFluid();
-                        }
-
-                        if (proportionalAmount == 0) break;
-                    }
-                }
-
-                combinedFluid.amount = (combinedFluid.amount * newNetworkCapacity) / totalOldCapacity;
-                combinedFluid.amount = Math.min(combinedFluid.amount, newNetworkCapacity);
-            }
-            // Temperature stays the same - it's the average of all the fluid that was present
-        } else {
-            // Not a split - this is a merge or initial connection
-            // Clear fluid from all old networks since we're combining them into the new network
-            for (IntegratedFluidNetwork existingNet : existingNetworks) {
-                existingNet.clearFluid();
-            }
-        }
-
-        // Add the combined fluid to the new network with averaged temperature
-        if (combinedFluid != null && combinedFluid.amount > 0) {
-            newNetwork.addFluid(combinedFluid, false, avgTemperature);
-        } else {
-            // No fluid, just set default temperature
-            newNetwork.setTemperature(IntegratedFluidNetwork.DEFAULT_TEMPERATURE);
-        }
-
-        // Notify all members of the update
-        for (IIntegratedFluidMember member : visited) {
-            member.onNetworkUpdate();
-        }
-    }
 
     @Override
     public void onRemoval() {
         super.onRemoval();
-        // Remove this pipe from the network and trigger rebuild for all connected neighbors
-        if (network != null) {
-            network.removeMember(this);
-        }
-
-        // Notify all connected neighbors to rebuild their networks
+        // Use NetworkManager to properly handle removal and split networks
         IGregTechTileEntity baseTile = getBaseMetaTileEntity();
-        if (baseTile != null) {
-            for (ForgeDirection side : ForgeDirection.VALID_DIRECTIONS) {
-                if (isConnectedAtSide(side)) {
-                    TileEntity neighbor = baseTile.getTileEntityAtSide(side);
-                    if (neighbor instanceof IGregTechTileEntity gtNeighbor) {
-                        IMetaTileEntity mte = gtNeighbor.getMetaTileEntity();
-                        if (mte instanceof MTEIntegratedFluidPipe pipe) {
-                            pipe.rebuildNetwork();
-                        } else if (mte instanceof IIntegratedFluidMember member) {
-                            // For hatches, remove from network and mark for rebuild
-                            // They will rejoin on next update
-                            if (member.getNetwork() != null) {
-                                member.getNetwork()
-                                    .removeMember(member);
-                                member.setNetwork(null);
-                            }
-                        }
-                    }
-                }
-            }
+        if (baseTile != null && baseTile.isServerSide()) {
+            NetworkManager manager = NetworkManager.getInstance(baseTile.getWorld());
+            manager.onMemberRemoved(this);
         }
     }
 
@@ -552,12 +382,9 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
 
     @Override
     public void onMachineBlockUpdate() {
-        // This is called when a neighbor block changes (including when blocks are destroyed)
-        // Trigger a network rebuild to update connections
-        IGregTechTileEntity baseTile = getBaseMetaTileEntity();
-        if (baseTile != null && baseTile.isServerSide()) {
-            NetworkManager manager = NetworkManager.getInstance(baseTile.getWorld());
-            manager.onConnectionChanged(this);
-        }
+        // This is called when a neighbor block changes
+        // DON'T rebuild network here - it causes fluid scaling issues
+        // Network will be properly built via onFirstTick/onMemberAdded
+        // Only manual wrench operations should trigger onConnectionChanged
     }
 }
