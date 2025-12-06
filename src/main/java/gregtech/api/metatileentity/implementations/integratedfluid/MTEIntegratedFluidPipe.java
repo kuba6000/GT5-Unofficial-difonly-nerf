@@ -238,11 +238,21 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
     public boolean canConnect(ForgeDirection side, TileEntity tileEntity) {
         if (tileEntity == null) return false;
 
-        // Can connect to other integrated fluid pipes
+        // Can connect to other integrated fluid pipes and hatches
         if (tileEntity instanceof IGregTechTileEntity gtTile) {
             IMetaTileEntity mte = gtTile.getMetaTileEntity();
             if (mte instanceof IIntegratedFluidMember) {
-                return true;
+                // If it's a pipe, always allow connection
+                if (mte instanceof MetaPipeEntity) {
+                    return true;
+                }
+                // If it's a hatch, only allow connection through its front facing (dot side)
+                else {
+                    // Check if the hatch's front facing points towards us
+                    ForgeDirection hatchFrontFacing = gtTile.getFrontFacing();
+                    // Only connect if hatch is facing us
+                    return hatchFrontFacing == side.getOpposite();
+                }
             }
         }
         return false;

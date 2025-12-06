@@ -412,7 +412,22 @@ public class NetworkManager {
                         if (neighbor instanceof IGregTechTileEntity gtNeighbor) {
                             IMetaTileEntity mte = gtNeighbor.getMetaTileEntity();
                             if (mte instanceof IIntegratedFluidMember neighborMember) {
-                                neighbors.add(neighborMember);
+                                // If neighbor is a hatch (not a pipe), check if we're connecting through its front facing
+                                if (!(mte instanceof MetaPipeEntity)) {
+                                    // This is a hatch - check if we're connecting through its dot side
+                                    IGregTechTileEntity neighborBaseTile = mte.getBaseMetaTileEntity();
+                                    if (neighborBaseTile != null) {
+                                        ForgeDirection hatchFrontFacing = neighborBaseTile.getFrontFacing();
+                                        // Only connect if the hatch's front facing points towards us
+                                        if (hatchFrontFacing == side.getOpposite()) {
+                                            neighbors.add(neighborMember);
+                                        }
+                                        // Otherwise, ignore - hatch doesn't accept connections from this side
+                                    }
+                                } else {
+                                    // Neighbor is another pipe
+                                    neighbors.add(neighborMember);
+                                }
                             }
                         }
                     }
@@ -423,20 +438,31 @@ public class NetworkManager {
         else if (member instanceof IMetaTileEntity mte) {
             IGregTechTileEntity baseTile = mte.getBaseMetaTileEntity();
             if (baseTile != null) {
-                for (ForgeDirection side : ForgeDirection.VALID_DIRECTIONS) {
-                    TileEntity neighbor = baseTile.getTileEntityAtSide(side);
-                    if (neighbor instanceof IGregTechTileEntity gtNeighbor) {
-                        IMetaTileEntity neighborMTE = gtNeighbor.getMetaTileEntity();
-                        if (neighborMTE instanceof IIntegratedFluidMember neighborMember) {
-                            // For non-pipes, also check if the neighbor (if it's a pipe) is connected to us
-                            if (neighborMTE instanceof MetaPipeEntity neighborPipe) {
-                                // Check if pipe is connected to us on the opposite side
-                                if (neighborPipe.isConnectedAtSide(side.getOpposite())) {
+                // For hatches: ONLY connect through the front facing (the dot side)
+                ForgeDirection allowedSide = baseTile.getFrontFacing();
+
+                TileEntity neighbor = baseTile.getTileEntityAtSide(allowedSide);
+                if (neighbor instanceof IGregTechTileEntity gtNeighbor) {
+                    IMetaTileEntity neighborMTE = gtNeighbor.getMetaTileEntity();
+                    if (neighborMTE instanceof IIntegratedFluidMember neighborMember) {
+                        // Check if neighbor is a pipe
+                        if (neighborMTE instanceof MetaPipeEntity neighborPipe) {
+                            // Check if pipe is connected to us on the opposite side
+                            if (neighborPipe.isConnectedAtSide(allowedSide.getOpposite())) {
+                                neighbors.add(neighborMember);
+                            }
+                        }
+                        // Or if neighbor is another hatch (not a pipe)
+                        else {
+                            // neighborMTE is IIntegratedFluidMember but not MetaPipeEntity = must be a hatch
+                            IGregTechTileEntity neighborBaseTile = neighborMTE.getBaseMetaTileEntity();
+                            if (neighborBaseTile != null) {
+                                // Check if neighbor hatch's front facing is pointing back at us
+                                ForgeDirection neighborFacing = neighborBaseTile.getFrontFacing();
+                                if (neighborFacing == allowedSide.getOpposite()) {
+                                    // Both hatches are facing each other - they can connect!
                                     neighbors.add(neighborMember);
                                 }
-                            } else {
-                                // Both are non-pipes (hatches), they're neighbors
-                                neighbors.add(neighborMember);
                             }
                         }
                     }
