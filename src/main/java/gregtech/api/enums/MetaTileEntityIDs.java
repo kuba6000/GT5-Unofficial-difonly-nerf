@@ -2075,6 +2075,7 @@ public enum MetaTileEntityIDs {
     AntimatterGenerator(32028),
     AntimatterHatch(32029),
     HEAT_PUMP_CONTROLLER(32030),
+    RADIATOR_CONTROLLER(32031),
     WireLumiium(32737),
     WireSignalium(32749),
     NeutronAcceleratorUHV(32761),

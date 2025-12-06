@@ -33,18 +33,19 @@ import gregtech.api.render.TextureFactory;
 import gregtech.api.util.MultiblockTooltipBuilder;
 import gregtech.common.blocks.BlockCasings2;
 
-public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implements ISurvivalConstructable {
+public class MTERadiator extends MTEEnhancedMultiBlockBase<MTERadiator> implements ISurvivalConstructable {
 
     private static final String STRUCTURE_PIECE_MAIN = "main";
     private static final int HEAT_CAPACITY_PER_TICK = 1000; // Max 1000L per tick
     private static final int EU_PER_TICK = 2000; // Base energy consumption
+    private static final float TARGET_TEMPERATURE = 300.0f; // Ambient temperature
 
     // Custom hatch lists for Integrated Fluid Hatches
     private final List<MTEIntegratedFluidInputHatch> mIntegratedInputHatches = new ArrayList<>();
     private final List<MTEIntegratedFluidOutputHatch> mIntegratedOutputHatches = new ArrayList<>();
 
-    private static final IStructureDefinition<MTEHeatPump> STRUCTURE_DEFINITION = StructureDefinition
-        .<MTEHeatPump>builder()
+    private static final IStructureDefinition<MTERadiator> STRUCTURE_DEFINITION = StructureDefinition
+        .<MTERadiator>builder()
         .addShape(
             STRUCTURE_PIECE_MAIN,
             transpose(
@@ -57,7 +58,7 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
             'C',
             ofChain(
                 // FIRST: Let buildHatchAdder capture Energy and Maintenance hatches
-                buildHatchAdder(MTEHeatPump.class)
+                buildHatchAdder(MTERadiator.class)
                     .atLeast(Energy, Maintenance)
                     .casingIndex(((BlockCasings2) GregTechAPI.sBlockCasings2).getTextureIndex(0))
                     .dot(1)
@@ -68,25 +69,25 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
 
     private int mCasingAmount;
 
-    public MTEHeatPump(int aID, String aName, String aNameRegional) {
+    public MTERadiator(int aID, String aName, String aNameRegional) {
         super(aID, aName, aNameRegional);
     }
 
-    public MTEHeatPump(String aName) {
+    public MTERadiator(String aName) {
         super(aName);
     }
 
     @Override
     public IMetaTileEntity newMetaEntity(IGregTechTileEntity aTileEntity) {
-        return new MTEHeatPump(this.mName);
+        return new MTERadiator(this.mName);
     }
 
     @Override
     protected MultiblockTooltipBuilder createTooltip() {
         MultiblockTooltipBuilder tt = new MultiblockTooltipBuilder();
-        tt.addMachineType("Heat Pump")
-            .addInfo("Heats fluid from Input Hatch to Output Hatch")
-            .addInfo("Increases fluid temperature by 10K")
+        tt.addMachineType("Radiator")
+            .addInfo("Cools fluid from Input Hatch to Output Hatch")
+            .addInfo("Decreases fluid temperature to 300K (ambient)")
             .addInfo("Processes up to 1000L per tick")
             .addInfo("Energy consumption: 2000 EU/t (proportional to fluid amount)")
             .addInfo("Requires Integrated Fluid Input and Output Hatches")
@@ -103,7 +104,7 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
     }
 
     @Override
-    public IStructureDefinition<MTEHeatPump> getStructureDefinition() {
+    public IStructureDefinition<MTERadiator> getStructureDefinition() {
         return STRUCTURE_DEFINITION;
     }
 
@@ -114,17 +115,16 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
             if (active) {
                 return new ITexture[] {
                     TextureFactory.of(GregTechAPI.sBlockCasings2, 0),
-                    TextureFactory.of(Textures.BlockIcons.OVERLAY_FRONT_MULTI_SMELTER_ACTIVE)
+                    TextureFactory.of(Textures.BlockIcons.OVERLAY_FRONT_VACUUM_FREEZER_ACTIVE)
                 };
             }
             return new ITexture[] {
                 TextureFactory.of(GregTechAPI.sBlockCasings2, 0),
-                TextureFactory.of(Textures.BlockIcons.OVERLAY_FRONT_MULTI_SMELTER)
+                TextureFactory.of(Textures.BlockIcons.OVERLAY_FRONT_VACUUM_FREEZER)
             };
         }
         return new ITexture[] { TextureFactory.of(GregTechAPI.sBlockCasings2, 0) };
     }
-
 
     @Override
     public boolean checkMachine(IGregTechTileEntity aBaseMetaTileEntity, ItemStack aStack) {
@@ -210,12 +210,9 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         }
 
         // Calculate proportional energy cost PER TICK
-        // EU_PER_TICK is max consumption (when processing 1000L)
-        // Scale it proportionally to actual fluid processed
         long energyPerTick = (long) EU_PER_TICK * fluidToProcess / HEAT_CAPACITY_PER_TICK;
 
         // Recipe runs for 20 ticks, so total energy will be energyPerTick * 20
-        // Check if we have enough energy for the full operation upfront
         long totalEnergyCost = energyPerTick * 20;
         if (!drainEnergyInput(totalEnergyCost)) {
             return SimpleCheckRecipeResult.ofFailure("no_energy");
@@ -227,35 +224,28 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
             return CheckRecipeResultRegistry.NO_RECIPE;
         }
 
-        // Heat the fluid (create copy for output)
-        FluidStack heatedFluid = drainedFluid.copy();
+        // Cool the fluid (create copy for output)
+        FluidStack cooledFluid = drainedFluid.copy();
 
-        // Get input temperature and increase by 10K
-        // Default to 300K if network has no fluid (temperature is 0 or invalid)
+        // Get input temperature and cool to ambient (300K)
         float inputTemperature = inputNetwork.getTemperature();
         if (inputTemperature <= 0) {
             inputTemperature = 300.0f; // Room temperature default
         }
-        float heatedTemperature = inputTemperature + 10.0f; // Increase by 10K
 
-        // Add to output network with increased temperature
-        // The network will automatically calculate weighted average if mixing with existing fluid
-        int added = outputNetwork.addFluid(heatedFluid, false, heatedTemperature);
-        if (added != heatedFluid.amount) {
+        // Add to output network with decreased temperature (cool to TARGET_TEMPERATURE = 300K)
+        int added = outputNetwork.addFluid(cooledFluid, false, TARGET_TEMPERATURE);
+        if (added != cooledFluid.amount) {
             // Couldn't add all fluid - return excess to input at original temperature
-            if (added < heatedFluid.amount) {
-                FluidStack excess = heatedFluid.copy();
-                excess.amount = heatedFluid.amount - added;
+            if (added < cooledFluid.amount) {
+                FluidStack excess = cooledFluid.copy();
+                excess.amount = cooledFluid.amount - added;
                 inputNetwork.addFluid(excess, false, inputTemperature);
             }
         }
 
         // Recipe successful - set to continuous operation
         this.mMaxProgresstime = 20; // 1 second (20 ticks)
-
-        // IMPORTANT: mEUt is EU consumed PER TICK during the recipe
-        // energyPerTick is already calculated as per-tick consumption
-        // Total energy consumed will be energyPerTick * mMaxProgresstime
         this.mEUt = (int) -energyPerTick; // Negative = consuming
 
         return CheckRecipeResultRegistry.SUCCESSFUL;
@@ -272,4 +262,5 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         return survivialBuildPiece(STRUCTURE_PIECE_MAIN, stackSize, 1, 1, 0, elementBudget, env, false, true);
     }
 }
+
 
