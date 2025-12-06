@@ -152,42 +152,14 @@ public class MTEIntegratedFluidInjectorHatch extends MTEHatch implements IIntegr
 
     /**
      * Finds adjacent integrated fluid pipes and joins their network.
+     * @deprecated Use NetworkManager instead
      */
+    @Deprecated
     private void findAndJoinNetwork() {
         IGregTechTileEntity baseTile = getBaseMetaTileEntity();
-        if (baseTile == null) return;
-
-        for (ForgeDirection side : ForgeDirection.VALID_DIRECTIONS) {
-            TileEntity neighbor = baseTile.getTileEntityAtSide(side);
-            if (neighbor instanceof IGregTechTileEntity gtNeighbor) {
-                IMetaTileEntity mte = gtNeighbor.getMetaTileEntity();
-                if (mte instanceof MTEIntegratedFluidPipe pipe) {
-                    // Check if the pipe is connected to us
-                    if (pipe.isConnectedAtSide(side.getOpposite())) {
-                        // Join the pipe's network
-                        IntegratedFluidNetwork pipeNetwork = pipe.getNetwork();
-                        if (pipeNetwork != null) {
-                            // If we had our own network with fluid, merge it
-                            if (network != null && network != pipeNetwork) {
-                                pipeNetwork.merge(network);
-                            }
-                            if (network != pipeNetwork) {
-                                if (network != null) {
-                                    network.removeMember(this);
-                                }
-                                pipeNetwork.addMember(this);
-                            }
-                            return;
-                        }
-                    }
-                }
-            }
-        }
-
-        // No connected pipe network found, create our own
-        if (network == null) {
-            network = new IntegratedFluidNetwork();
-            network.addMember(this);
+        if (baseTile != null && baseTile.isServerSide()) {
+            NetworkManager manager = NetworkManager.getInstance(baseTile.getWorld());
+            manager.onMemberAdded(this);
         }
     }
 
@@ -376,6 +348,10 @@ public class MTEIntegratedFluidInjectorHatch extends MTEHatch implements IIntegr
     public void onMachineBlockUpdate() {
         // This is called when a neighbor block changes (including when blocks are destroyed)
         // Try to rejoin the network if we lost connection
-        findAndJoinNetwork();
+        IGregTechTileEntity baseTile = getBaseMetaTileEntity();
+        if (baseTile != null && baseTile.isServerSide()) {
+            NetworkManager manager = NetworkManager.getInstance(baseTile.getWorld());
+            manager.onConnectionChanged(this);
+        }
     }
 }

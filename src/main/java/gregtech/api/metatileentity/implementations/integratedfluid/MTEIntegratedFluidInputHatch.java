@@ -28,7 +28,7 @@ import mcp.mobius.waila.api.IWailaDataAccessor;
  * Integrated Fluid Input Hatch - Adds fluid to the integrated fluid network.
  * This hatch can be connected to integrated fluid pipes to share fluid data
  * across a tree-structured network.
- * 
+ *
  * For now, this hatch adds no fluid automatically but provides the infrastructure
  * for the network system.
  */
@@ -142,7 +142,8 @@ public class MTEIntegratedFluidInputHatch extends MTEHatch implements IIntegrate
         if (aBaseMetaTileEntity.isServerSide() && aTick % 20 == 0) {
             // Periodically check network connectivity
             if (network == null) {
-                findAndJoinNetwork();
+                NetworkManager manager = NetworkManager.getInstance(aBaseMetaTileEntity.getWorld());
+                manager.onMemberAdded(this);
             }
         }
     }
@@ -290,7 +291,7 @@ public class MTEIntegratedFluidInputHatch extends MTEHatch implements IIntegrate
 
     /**
      * Adds fluid to the network (for machines to call).
-     * 
+     *
      * @param fluid    The fluid to add
      * @param simulate If true, only simulates the operation
      * @return The amount of fluid actually added
@@ -332,6 +333,10 @@ public class MTEIntegratedFluidInputHatch extends MTEHatch implements IIntegrate
     public void onMachineBlockUpdate() {
         // This is called when a neighbor block changes (including when blocks are destroyed)
         // Try to rejoin the network if we lost connection
-        findAndJoinNetwork();
+        IGregTechTileEntity baseTile = getBaseMetaTileEntity();
+        if (baseTile != null && baseTile.isServerSide()) {
+            NetworkManager manager = NetworkManager.getInstance(baseTile.getWorld());
+            manager.onConnectionChanged(this);
+        }
     }
 }

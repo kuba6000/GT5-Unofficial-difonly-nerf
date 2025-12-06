@@ -34,7 +34,7 @@ import mcp.mobius.waila.api.IWailaDataAccessor;
 /**
  * Integrated Fluid Pipe - A pipe that connects integrated fluid hatches in a tree structure.
  * These pipes transfer virtual fluid data (not actual fluid) between connected hatches.
- * 
+ *
  * Similar to GT cables in terms of connection mechanics and textures, but for
  * integrated fluid system data transfer.
  */
@@ -542,14 +542,22 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
     @Override
     public void disconnect(ForgeDirection side) {
         super.disconnect(side);
-        // Trigger network rebuild on both sides
-        rebuildNetwork();
+        // Trigger network rebuild through NetworkManager
+        IGregTechTileEntity baseTile = getBaseMetaTileEntity();
+        if (baseTile != null && baseTile.isServerSide()) {
+            NetworkManager manager = NetworkManager.getInstance(baseTile.getWorld());
+            manager.onConnectionChanged(this);
+        }
     }
 
     @Override
     public void onMachineBlockUpdate() {
         // This is called when a neighbor block changes (including when blocks are destroyed)
         // Trigger a network rebuild to update connections
-        rebuildNetwork();
+        IGregTechTileEntity baseTile = getBaseMetaTileEntity();
+        if (baseTile != null && baseTile.isServerSide()) {
+            NetworkManager manager = NetworkManager.getInstance(baseTile.getWorld());
+            manager.onConnectionChanged(this);
+        }
     }
 }

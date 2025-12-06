@@ -146,42 +146,14 @@ public class MTEIntegratedFluidOutputHatch extends MTEHatch implements IIntegrat
 
     /**
      * Finds adjacent integrated fluid pipes and joins their network.
+     * @deprecated Use NetworkManager instead
      */
+    @Deprecated
     private void findAndJoinNetwork() {
         IGregTechTileEntity baseTile = getBaseMetaTileEntity();
-        if (baseTile == null) return;
-
-        for (ForgeDirection side : ForgeDirection.VALID_DIRECTIONS) {
-            TileEntity neighbor = baseTile.getTileEntityAtSide(side);
-            if (neighbor instanceof IGregTechTileEntity gtNeighbor) {
-                IMetaTileEntity mte = gtNeighbor.getMetaTileEntity();
-                if (mte instanceof MTEIntegratedFluidPipe pipe) {
-                    // Check if the pipe is connected to us
-                    if (pipe.isConnectedAtSide(side.getOpposite())) {
-                        // Join the pipe's network
-                        IntegratedFluidNetwork pipeNetwork = pipe.getNetwork();
-                        if (pipeNetwork != null) {
-                            // If we had our own network with fluid, merge it
-                            if (network != null && network != pipeNetwork) {
-                                pipeNetwork.merge(network);
-                            }
-                            if (network != pipeNetwork) {
-                                if (network != null) {
-                                    network.removeMember(this);
-                                }
-                                pipeNetwork.addMember(this);
-                            }
-                            return;
-                        }
-                    }
-                }
-            }
-        }
-
-        // No connected pipe network found, create our own
-        if (network == null) {
-            network = new IntegratedFluidNetwork();
-            network.addMember(this);
+        if (baseTile != null && baseTile.isServerSide()) {
+            NetworkManager manager = NetworkManager.getInstance(baseTile.getWorld());
+            manager.onMemberAdded(this);
         }
     }
 
@@ -287,7 +259,7 @@ public class MTEIntegratedFluidOutputHatch extends MTEHatch implements IIntegrat
 
     /**
      * Drains fluid from the network (for machines to call).
-     * 
+     *
      * @param maxDrain The maximum amount to drain
      * @param simulate If true, only simulates the operation
      * @return The fluid that was drained
@@ -304,7 +276,7 @@ public class MTEIntegratedFluidOutputHatch extends MTEHatch implements IIntegrat
 
     /**
      * Drains a specific fluid from the network.
-     * 
+     *
      * @param fluid    The fluid to drain (must match network fluid)
      * @param simulate If true, only simulates the operation
      * @return The fluid that was drained
@@ -356,6 +328,10 @@ public class MTEIntegratedFluidOutputHatch extends MTEHatch implements IIntegrat
     public void onMachineBlockUpdate() {
         // This is called when a neighbor block changes (including when blocks are destroyed)
         // Try to rejoin the network if we lost connection
-        findAndJoinNetwork();
+        IGregTechTileEntity baseTile = getBaseMetaTileEntity();
+        if (baseTile != null && baseTile.isServerSide()) {
+            NetworkManager manager = NetworkManager.getInstance(baseTile.getWorld());
+            manager.onConnectionChanged(this);
+        }
     }
 }
