@@ -143,8 +143,18 @@ public class IntegratedFluidNetwork {
             if (storedFluid == null) {
                 storedFluid = fluid.copy();
                 storedFluid.amount = amountToAdd;
-                // Set temperature to incoming temperature for first fluid
-                temperature = incomingTemp;
+
+                // If network has a stored temperature (e.g., from previous drain), use weighted average
+                // Otherwise just use incoming temperature
+                if (temperature > 0 && temperature != DEFAULT_TEMPERATURE) {
+                    // Network was recently emptied but has temperature history
+                    // Treat it as having 0L at stored temperature
+                    // Result: temperature = incoming (since 0L has no weight)
+                    temperature = incomingTemp;
+                } else {
+                    // Brand new network or default state
+                    temperature = incomingTemp;
+                }
             } else {
                 int existingAmount = storedFluid.amount;
                 float existingTemp = temperature;
@@ -183,8 +193,8 @@ public class IntegratedFluidNetwork {
             storedFluid.amount -= amountToDrain;
             if (storedFluid.amount <= 0) {
                 storedFluid = null;
-                // Reset temperature to default when network is empty
-                temperature = DEFAULT_TEMPERATURE;
+                // Keep the temperature - don't reset to default!
+                // This preserves temperature during empty->fill cycles (e.g., Heat Pump processing)
             }
         }
 

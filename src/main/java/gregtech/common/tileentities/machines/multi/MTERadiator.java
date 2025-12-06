@@ -205,6 +205,13 @@ public class MTERadiator extends MTEEnhancedMultiBlockBase<MTERadiator> implemen
             return CheckRecipeResultRegistry.ITEM_OUTPUT_FULL;
         }
 
+        // IMPORTANT: Remember input temperature BEFORE draining!
+        // This preserves temperature for output calculation even if network becomes empty
+        float inputTemperature = inputNetwork.getTemperature();
+        if (inputTemperature <= 0) {
+            inputTemperature = 300.0f; // Room temperature default
+        }
+
         // Calculate how much fluid to process
         int fluidToProcess = Math.min(inputFluid.amount, HEAT_CAPACITY_PER_TICK);
         fluidToProcess = Math.min(fluidToProcess, availableSpace);
@@ -231,11 +238,6 @@ public class MTERadiator extends MTEEnhancedMultiBlockBase<MTERadiator> implemen
         // Cool the fluid (create copy for output)
         FluidStack cooledFluid = drainedFluid.copy();
 
-        // Get input temperature and cool to ambient (300K)
-        float inputTemperature = inputNetwork.getTemperature();
-        if (inputTemperature <= 0) {
-            inputTemperature = 300.0f; // Room temperature default
-        }
 
         // Add to output network with decreased temperature (cool to TARGET_TEMPERATURE = 300K)
         int added = outputNetwork.addFluid(cooledFluid, false, TARGET_TEMPERATURE);

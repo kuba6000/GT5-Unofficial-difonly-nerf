@@ -205,6 +205,13 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
             return CheckRecipeResultRegistry.ITEM_OUTPUT_FULL;
         }
 
+        // IMPORTANT: Remember input temperature BEFORE draining!
+        // This preserves temperature for output calculation even if network becomes empty
+        float inputTemperature = inputNetwork.getTemperature();
+        if (inputTemperature <= 0) {
+            inputTemperature = 300.0f; // Room temperature default
+        }
+
         // Calculate how much fluid to process
         int fluidToProcess = Math.min(inputFluid.amount, HEAT_CAPACITY_PER_TICK);
         fluidToProcess = Math.min(fluidToProcess, availableSpace);
@@ -234,13 +241,8 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         // Heat the fluid (create copy for output)
         FluidStack heatedFluid = drainedFluid.copy();
 
-        // Get input temperature and increase by 10K
-        // Default to 300K if network has no fluid (temperature is 0 or invalid)
-        float inputTemperature = inputNetwork.getTemperature();
-        if (inputTemperature <= 0) {
-            inputTemperature = 300.0f; // Room temperature default
-        }
-        float heatedTemperature = inputTemperature + 10.0f; // Increase by 10K
+        // Calculate heated temperature: input + 10K
+        float heatedTemperature = inputTemperature + 10.0f;
 
         // Add to output network with increased temperature
         // The network will automatically calculate weighted average if mixing with existing fluid
