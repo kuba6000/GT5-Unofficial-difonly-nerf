@@ -1,16 +1,24 @@
 package gregtech.common.gui.modularui.multiblock;
 
-import net.minecraft.util.EnumChatFormatting;
-import net.minecraft.util.StatCollector;
+import static gregtech.api.enums.Mods.GregTech;
 
+import net.minecraft.util.EnumChatFormatting;
+
+import com.cleanroommc.modularui.api.IPanelHandler;
 import com.cleanroommc.modularui.api.drawable.IKey;
 import com.cleanroommc.modularui.api.widget.IWidget;
+import com.cleanroommc.modularui.drawable.UITexture;
 import com.cleanroommc.modularui.screen.ModularPanel;
+import com.cleanroommc.modularui.utils.Alignment;
 import com.cleanroommc.modularui.value.sync.FloatSyncValue;
 import com.cleanroommc.modularui.value.sync.IntSyncValue;
 import com.cleanroommc.modularui.value.sync.PanelSyncManager;
 import com.cleanroommc.modularui.value.sync.StringSyncValue;
+import com.cleanroommc.modularui.widgets.ButtonWidget;
 import com.cleanroommc.modularui.widgets.ListWidget;
+import com.cleanroommc.modularui.widgets.TextWidget;
+import com.cleanroommc.modularui.widgets.layout.Column;
+import com.cleanroommc.modularui.widgets.layout.Flow;
 
 import gregtech.api.util.GTUtility;
 import gregtech.common.gui.modularui.multiblock.base.MTEMultiBlockBaseGui;
@@ -109,6 +117,96 @@ public class MTEHeatPumpGui extends MTEMultiBlockBaseGui<MTEHeatPump> {
 
         StringSyncValue fluidNameSync = new StringSyncValue(multiblock::getFluidName);
         syncManager.syncValue("fluidName", fluidNameSync);
+    }
+
+    @Override
+    protected Flow createRightPanelGapRow(ModularPanel parent, PanelSyncManager syncManager) {
+        return Flow.row()
+            .coverChildrenWidth()
+            .heightRel(1)
+            .align(Alignment.CenterRight)
+            .child(createSettingsPanelButton(syncManager, parent))
+            .childIf(multiblock.supportsPowerPanel(), createPowerPanelButton(syncManager, parent));
+    }
+
+    protected IWidget createSettingsPanelButton(PanelSyncManager syncManager, ModularPanel parent) {
+        IPanelHandler settingsPanel = syncManager
+            .panel("heatPumpSettings", (p_syncManager, syncHandler) -> openSettingsPanel(p_syncManager, parent), true);
+        return new ButtonWidget<>().size(18, 18)
+            .marginRight(4)
+            .overlay(UITexture.fullImage(GregTech.ID, "gui/overlay_button/settings"))
+            .onMousePressed(d -> {
+                if (!settingsPanel.isPanelOpen()) {
+                    settingsPanel.openPanel();
+                } else {
+                    settingsPanel.closePanel();
+                }
+                return true;
+            })
+            .tooltipBuilder(t -> t.addLine(IKey.str("Heat Pump Settings")));
+    }
+
+    private ModularPanel openSettingsPanel(PanelSyncManager syncManager, ModularPanel parent) {
+        return new ModularPanel("heatPumpSettings").relative(parent)
+            .leftRel(1)
+            .topRel(0)
+            .size(140, 110)
+            .child(
+                new Column().sizeRel(1)
+                    .padding(5)
+                    .child(
+                        new TextWidget<>(EnumChatFormatting.UNDERLINE + "Heat Pump Settings")
+                            .alignment(Alignment.Center)
+                            .widthRel(1)
+                            .height(18)
+                            .marginBottom(4))
+                    .child(createSettingsButton1())
+                    .child(createSettingsButton2())
+                    .child(createSettingsButton3()));
+    }
+
+    private IWidget createSettingsButton1() {
+        return new ButtonWidget<>().widthRel(1)
+            .height(18)
+            .marginBottom(4)
+            .background(UITexture.builder()
+                .location(GregTech.ID, "gui/base/button_standard")
+                .build())
+            .overlay(IKey.str("Option 1"))
+            .onMousePressed(d -> {
+                // TODO: Implement option 1 functionality
+                return true;
+            })
+            .tooltipBuilder(t -> t.addLine(IKey.str("Option 1 - Not yet implemented")));
+    }
+
+    private IWidget createSettingsButton2() {
+        return new ButtonWidget<>().widthRel(1)
+            .height(18)
+            .marginBottom(4)
+            .background(UITexture.builder()
+                .location(GregTech.ID, "gui/base/button_standard")
+                .build())
+            .overlay(IKey.str("Option 2"))
+            .onMousePressed(d -> {
+                // TODO: Implement option 2 functionality
+                return true;
+            })
+            .tooltipBuilder(t -> t.addLine(IKey.str("Option 2 - Not yet implemented")));
+    }
+
+    private IWidget createSettingsButton3() {
+        return new ButtonWidget<>().widthRel(1)
+            .height(18)
+            .background(UITexture.builder()
+                .location(GregTech.ID, "gui/base/button_standard")
+                .build())
+            .overlay(IKey.str("Option 3"))
+            .onMousePressed(d -> {
+                // TODO: Implement option 3 functionality
+                return true;
+            })
+            .tooltipBuilder(t -> t.addLine(IKey.str("Option 3 - Not yet implemented")));
     }
 }
 
