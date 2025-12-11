@@ -95,22 +95,23 @@ public class MTEHeatPumpGui extends MTEMultiBlockBaseGui<MTEHeatPump> {
                 })
                     .asWidget()
                     .setEnabledIf(w -> multiblock.getBaseMetaTileEntity().isActive()))
-            .childIf(
-                () -> modeSync.getValue() == 0,
-                IKey.dynamic(() -> EnumChatFormatting.WHITE + "Target: "
-                    + EnumChatFormatting.GOLD + String.format("%.1f", universalValueSync.getValue()) + "K")
-                    .asWidget()
-                    .setEnabledIf(w -> multiblock.getBaseMetaTileEntity().isActive()))
-            .childIf(
-                () -> modeSync.getValue() == 1,
-                IKey.dynamic(() -> EnumChatFormatting.WHITE + "Target: "
-                    + EnumChatFormatting.LIGHT_PURPLE + "COP " + String.format("%.2f", universalValueSync.getValue()))
-                    .asWidget()
-                    .setEnabledIf(w -> multiblock.getBaseMetaTileEntity().isActive()))
-            .childIf(
-                () -> modeSync.getValue() == 2,
-                IKey.dynamic(() -> EnumChatFormatting.WHITE + "Target: "
-                    + EnumChatFormatting.GOLD + GTUtility.formatNumbers(universalValueSync.getValue().intValue()) + " EU/t")
+            .child(
+                IKey.dynamic(() -> {
+                    // Dynamic target display that updates based on mode
+                    switch (modeSync.getValue()) {
+                        case 0: // TARGET_TEMPERATURE
+                            return EnumChatFormatting.WHITE + "Target: "
+                                + EnumChatFormatting.GOLD + String.format("%.1f", universalValueSync.getValue()) + "K";
+                        case 1: // TARGET_COP
+                            return EnumChatFormatting.WHITE + "Target: "
+                                + EnumChatFormatting.LIGHT_PURPLE + "COP " + String.format("%.2f", universalValueSync.getValue());
+                        case 2: // TARGET_ENERGY
+                            return EnumChatFormatting.WHITE + "Target: "
+                                + EnumChatFormatting.GOLD + GTUtility.formatNumbers(universalValueSync.getValue().intValue()) + " EU/t";
+                        default:
+                            return "";
+                    }
+                })
                     .asWidget()
                     .setEnabledIf(w -> multiblock.getBaseMetaTileEntity().isActive()))
             .child(
@@ -212,6 +213,13 @@ public class MTEHeatPumpGui extends MTEMultiBlockBaseGui<MTEHeatPump> {
         // Fluid amount per operation (in mB/L)
         IntSyncValue fluidAmountSync = new IntSyncValue(multiblock::getFluidAmountPerOperation, multiblock::setFluidAmountPerOperation);
         syncManager.syncValue("fluidAmount", fluidAmountSync);
+
+        // Temperature tolerances for passthrough mode (in K)
+        FloatSyncValue lowerToleranceSync = new FloatSyncValue(multiblock::getLowerTemperatureTolerance, multiblock::setLowerTemperatureTolerance);
+        syncManager.syncValue("lowerTolerance", lowerToleranceSync);
+
+        FloatSyncValue upperToleranceSync = new FloatSyncValue(multiblock::getUpperTemperatureTolerance, multiblock::setUpperTemperatureTolerance);
+        syncManager.syncValue("upperTolerance", upperToleranceSync);
     }
 
     @Override
@@ -229,13 +237,14 @@ public class MTEHeatPumpGui extends MTEMultiBlockBaseGui<MTEHeatPump> {
         IntSyncValue modeSync = syncManager.findSyncHandler("operatingMode", IntSyncValue.class);
         FloatSyncValue universalValueSync = syncManager.findSyncHandler("universalValue", FloatSyncValue.class);
         IntSyncValue fluidAmountSync = syncManager.findSyncHandler("fluidAmount", IntSyncValue.class);
+        FloatSyncValue lowerToleranceSync = syncManager.findSyncHandler("lowerTolerance", FloatSyncValue.class);
+        FloatSyncValue upperToleranceSync = syncManager.findSyncHandler("upperTolerance", FloatSyncValue.class);
 
         IPanelHandler settingsPanel = syncManager
-            .panel("heatPumpSettings", (p_syncManager, syncHandler) -> openSettingsPanel(parent, modeSync, universalValueSync, fluidAmountSync), true);
+            .panel("heatPumpSettings", (p_syncManager, syncHandler) -> openSettingsPanel(parent, modeSync, universalValueSync, fluidAmountSync, lowerToleranceSync, upperToleranceSync), true);
 
         return new ButtonWidget<>().size(18, 18)
             .marginRight(4)
-            .overlay(UITexture.fullImage(GregTech.ID, "gui/overlay_button/gear"))
             .onMousePressed(d -> {
                 if (!settingsPanel.isPanelOpen()) {
                     settingsPanel.openPanel();
@@ -247,11 +256,11 @@ public class MTEHeatPumpGui extends MTEMultiBlockBaseGui<MTEHeatPump> {
             .tooltipBuilder(t -> t.addLine(IKey.str("Heat Pump Settings")));
     }
 
-    private ModularPanel openSettingsPanel(ModularPanel parent, IntSyncValue modeSync, FloatSyncValue universalValueSync, IntSyncValue fluidAmountSync) {
+    private ModularPanel openSettingsPanel(ModularPanel parent, IntSyncValue modeSync, FloatSyncValue universalValueSync, IntSyncValue fluidAmountSync, FloatSyncValue lowerToleranceSync, FloatSyncValue upperToleranceSync) {
         return new ModularPanel("heatPumpSettings").relative(parent)
             .leftRel(1)
             .topRel(0)
-            .size(180, 170)
+            .size(140, 220)
             .child(
                 new Column().sizeRel(1)
                     .padding(5)
@@ -267,7 +276,9 @@ public class MTEHeatPumpGui extends MTEMultiBlockBaseGui<MTEHeatPump> {
                     // ONE universal input field with dynamic label
                     .child(createUniversalInputField(modeSync, universalValueSync))
                     // Fluid amount per operation field
-                    .child(createFluidAmountField(fluidAmountSync)));
+                    .child(createFluidAmountField(fluidAmountSync))
+                    // Temperature tolerance fields (only visible in TARGET_TEMPERATURE mode)
+                    .child(createToleranceFieldsColumn(modeSync, lowerToleranceSync, upperToleranceSync)));
     }
 
     /**
@@ -286,7 +297,7 @@ public class MTEHeatPumpGui extends MTEMultiBlockBaseGui<MTEHeatPump> {
                         default: return "Value:";
                     }
                 }).asWidget()
-                    .width(90)
+                    .width(60)
                     .alignment(Alignment.CenterLeft))
             .child(
                 // ONE text field, value interpreted by backend
@@ -304,11 +315,11 @@ public class MTEHeatPumpGui extends MTEMultiBlockBaseGui<MTEHeatPump> {
         return new Row().widthRel(1).height(18).marginTop(4)
             .child(
                 new TextWidget<>("Fluid/cycle (L):")
-                    .width(75)
+                    .width(80)
                     .alignment(Alignment.CenterLeft))
             .child(
                 new TextFieldWidget()
-                    .width(65)
+                    .width(50)
                     .height(18)
                     .setNumbers(1, 10000)
                     .value(fluidAmountSync)
@@ -319,9 +330,6 @@ public class MTEHeatPumpGui extends MTEMultiBlockBaseGui<MTEHeatPump> {
         return new ButtonWidget<>().widthRel(1)
             .height(18)
             .marginBottom(4)
-            .background(UITexture.builder()
-                .location(GregTech.ID, "gui/base/button_standard")
-                .build())
             .overlay(IKey.dynamic(() -> {
                 boolean isActive = modeSync.getValue() == 0;
                 return (isActive ? EnumChatFormatting.GREEN : EnumChatFormatting.GRAY)
@@ -335,17 +343,14 @@ public class MTEHeatPumpGui extends MTEMultiBlockBaseGui<MTEHeatPump> {
                 universalValueSync.updateCacheFromSource(true);
                 return true;
             })
-            .tooltipBuilder(t -> t.addLine(IKey.str("Set target output temperature"))
-                .addLine(IKey.str("COP and energy will be calculated")));
+            .tooltipBuilder(t -> t.addLine("Set target output temperature")
+                .addLine("COP and energy will be calculated"));
     }
 
     private IWidget createSettingsButton2(IntSyncValue modeSync, FloatSyncValue universalValueSync) {
         return new ButtonWidget<>().widthRel(1)
             .height(18)
             .marginBottom(4)
-            .background(UITexture.builder()
-                .location(GregTech.ID, "gui/base/button_standard")
-                .build())
             .overlay(IKey.dynamic(() -> {
                 boolean isActive = modeSync.getValue() == 1;
                 return (isActive ? EnumChatFormatting.GREEN : EnumChatFormatting.GRAY)
@@ -359,16 +364,13 @@ public class MTEHeatPumpGui extends MTEMultiBlockBaseGui<MTEHeatPump> {
                 universalValueSync.updateCacheFromSource(true);
                 return true;
             })
-            .tooltipBuilder(t -> t.addLine(IKey.str("Set target COP (efficiency)"))
-                .addLine(IKey.str("Temperature and energy will be calculated")));
+            .tooltipBuilder(t -> t.addLine("Set target COP (efficiency)")
+                .addLine("Temperature and energy will be calculated"));
     }
 
     private IWidget createSettingsButton3(IntSyncValue modeSync, FloatSyncValue universalValueSync) {
         return new ButtonWidget<>().widthRel(1)
             .height(18)
-            .background(UITexture.builder()
-                .location(GregTech.ID, "gui/base/button_standard")
-                .build())
             .overlay(IKey.dynamic(() -> {
                 boolean isActive = modeSync.getValue() == 2;
                 return (isActive ? EnumChatFormatting.GREEN : EnumChatFormatting.GRAY)
@@ -382,8 +384,49 @@ public class MTEHeatPumpGui extends MTEMultiBlockBaseGui<MTEHeatPump> {
                 universalValueSync.updateCacheFromSource(true);
                 return true;
             })
-            .tooltipBuilder(t -> t.addLine(IKey.str("Set target energy consumption"))
-                .addLine(IKey.str("Temperature and COP will be calculated")));
+            .tooltipBuilder(t -> t.addLine("Set target energy consumption")
+                .addLine("Temperature and COP will be calculated"));
+    }
+
+    /**
+     * Creates column with temperature tolerance fields (lower and upper).
+     * Fields are dynamically shown/hidden based on operating mode.
+     * Uses setEnabledIf to react to mode changes.
+     */
+    private IWidget createToleranceFieldsColumn(IntSyncValue modeSync, FloatSyncValue lowerToleranceSync, FloatSyncValue upperToleranceSync) {
+        return new Column().widthRel(1)
+            .marginTop(4)
+            // Lower tolerance field
+            .child(new Row().widthRel(1).height(18)
+                .setEnabledIf(w -> modeSync.getValue() == 0) // Show only in TARGET_TEMPERATURE mode
+                .child(
+                    new TextWidget<>("Lower (K):")
+                        .width(80)
+                        .alignment(Alignment.CenterLeft))
+                .child(
+                    new TextFieldWidget()
+                        .width(50)
+                        .height(18)
+                        .value(lowerToleranceSync)
+                        .setTextAlignment(Alignment.Center)))
+            // Upper tolerance field
+            .child(new Row().widthRel(1).height(18).marginTop(2)
+                .setEnabledIf(w -> modeSync.getValue() == 0) // Show only in TARGET_TEMPERATURE mode
+                .child(
+                    new TextWidget<>("Upper (K):")
+                        .width(80)
+                        .alignment(Alignment.CenterLeft))
+                .child(
+                    new TextFieldWidget()
+                        .width(50)
+                        .height(18)
+                        .value(upperToleranceSync)
+                        .setTextAlignment(Alignment.Center)))
+            .tooltipBuilder(t -> t.addLine("Temperature tolerance for passthrough mode")
+                .addLine("Lower: allow temp below target (target - lower)")
+                .addLine("Upper: allow temp above target (target + upper)")
+                .addLine("Fluid within range won't be processed")
+                .addLine("Default: 0.5K, Range: 0-50K"));
     }
 }
 

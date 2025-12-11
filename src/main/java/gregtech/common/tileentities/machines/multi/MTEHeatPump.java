@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import net.minecraft.item.ItemStack;
+import net.minecraft.nbt.NBTTagCompound;
 import net.minecraftforge.common.util.ForgeDirection;
 import net.minecraftforge.fluids.FluidStack;
 
@@ -39,7 +40,7 @@ import gregtech.common.gui.modularui.multiblock.base.MTEMultiBlockBaseGui;
 public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implements ISurvivalConstructable {
 
     private static final String STRUCTURE_PIECE_MAIN = "main";
-    private static final int HEAT_CAPACITY_PER_TICK = 1000; // Max 1000L per tick
+    private static final int MAX_FLUID_PER_OPERATION = 1000; // Maximum fluid amount per operation (in mB)
     private static final float COLD_RESERVOIR_TEMPERATURE = 300.0f; // Ambient temperature for COP calculation
     private static final float DEFAULT_TARGET_TEMPERATURE = 310.0f; // Default target output temperature (310K)
     private static final float DEFAULT_TARGET_COP = 5.0f; // Default COP target
@@ -54,12 +55,18 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
     private float targetTemperature = DEFAULT_TARGET_TEMPERATURE; // For TARGET_TEMPERATURE mode (absolute temperature in K)
     private float targetCOP = DEFAULT_TARGET_COP; // For TARGET_COP mode
     private int targetEnergyPerTick = DEFAULT_TARGET_ENERGY_PER_TICK; // For TARGET_ENERGY mode (EU per tick)
-    private int fluidAmountPerOperation = HEAT_CAPACITY_PER_TICK; // Amount of fluid to process per operation (in mB)
+    private int fluidAmountPerOperation = MAX_FLUID_PER_OPERATION; // Amount of fluid to process per operation (in mB)
+    private float lowerTemperatureTolerance = 0.5f; // Lower temperature tolerance for passthrough (heating threshold in K)
+    private float upperTemperatureTolerance = 0.5f; // Upper temperature tolerance for passthrough (cooling threshold in K)
 
     // Current calculated values for GUI display
     private float currentCOP = 0.0f;
     private float currentOutputTemperature = 0.0f;
     private long currentEnergyUsage = 0L;
+
+    // Pending fluid - stores heated fluid that couldn't be added to output network yet
+    private FluidStack pendingOutputFluid = null;
+    private float pendingOutputTemperature = 0.0f;
 
     private static final IStructureDefinition<MTEHeatPump> STRUCTURE_DEFINITION = StructureDefinition
         .<MTEHeatPump>builder()
@@ -195,7 +202,41 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
 
     @Override
     public @NotNull CheckRecipeResult checkProcessing() {
-        // Verify we have integrated fluid hatches
+        // FIRST: Try to output any pending fluid from previous cycle
+        if (pendingOutputFluid != null && pendingOutputFluid.amount > 0) {
+            if (mIntegratedOutputHatches.isEmpty()) {
+                return CheckRecipeResultRegistry.NO_RECIPE;
+            }
+
+            MTEIntegratedFluidOutputHatch outputHatch = mIntegratedOutputHatches.get(0);
+            var outputNetwork = outputHatch.getNetwork();
+
+            if (outputNetwork == null) {
+                return SimpleCheckRecipeResult.ofFailure("no_output_network");
+            }
+
+            // Try to add pending fluid to output network
+            int added = outputNetwork.addFluid(pendingOutputFluid, false, pendingOutputTemperature);
+
+            if (added > 0) {
+                // Successfully added some or all pending fluid
+                pendingOutputFluid.amount -= added;
+
+                if (pendingOutputFluid.amount <= 0) {
+                    // All pending fluid was added - clear it and can start new recipe
+                    pendingOutputFluid = null;
+                    pendingOutputTemperature = 0.0f;
+                } else {
+                    // Still have pending fluid - can't start new recipe yet
+                    return SimpleCheckRecipeResult.ofFailure("output_full");
+                }
+            } else {
+                // Couldn't add any fluid - output is full
+                return SimpleCheckRecipeResult.ofFailure("output_full");
+            }
+        }
+
+        // THEN: Verify we have integrated fluid hatches
         if (mIntegratedInputHatches.isEmpty() || mIntegratedOutputHatches.isEmpty()) {
             return CheckRecipeResultRegistry.NO_RECIPE;
         }
@@ -260,8 +301,8 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
             inputTemperature = 300.0f; // Room temperature default
         }
 
-        // Calculate how much fluid to process
-        int fluidToProcess = Math.min(inputFluid.amount, HEAT_CAPACITY_PER_TICK);
+        // Calculate how much fluid to process - use the configured amount per operation
+        int fluidToProcess = Math.min(inputFluid.amount, fluidAmountPerOperation);
         fluidToProcess = Math.min(fluidToProcess, availableSpace);
 
         if (fluidToProcess <= 0) {
@@ -285,11 +326,13 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
                 temperatureDelta = targetTemperature - inputTemperature;
 
                 // PASSTHROUGH MODE: Check if fluid is already at target temperature
-                // Allow ±0.5K tolerance to avoid constant micro-heating
-                float tempDifference = Math.abs(inputTemperature - targetTemperature);
+                // Use configurable tolerances:
+                // - lowerTemperatureTolerance: how much BELOW target is acceptable (no heating needed)
+                // - upperTemperatureTolerance: how much ABOVE target is acceptable (no cooling needed)
 
-                if (tempDifference <= 0.5f) {
-                    // Fluid is already at target temperature - passthrough without heating!
+                if (inputTemperature >= targetTemperature - lowerTemperatureTolerance
+                    && inputTemperature <= targetTemperature + upperTemperatureTolerance) {
+                    // Fluid is within tolerance range - passthrough without heating/cooling!
                     passthroughMode = true;
                     currentCOP = 0.0f; // No heating needed
                     totalEnergyCost = 0; // Zero energy consumption
@@ -443,12 +486,23 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         // Add to output network with increased temperature
         // The network will automatically calculate weighted average if mixing with existing fluid
         int added = outputNetwork.addFluid(heatedFluid, false, heatedTemperature);
-        if (added != heatedFluid.amount) {
-            // Couldn't add all fluid - return excess to input at original temperature
-            if (added < heatedFluid.amount) {
-                FluidStack excess = heatedFluid.copy();
-                excess.amount = heatedFluid.amount - added;
-                inputNetwork.addFluid(excess, false, inputTemperature);
+
+        if (added < heatedFluid.amount) {
+            // Couldn't add all fluid - store remainder as pending for next cycle
+            // This prevents losing heated fluid and wasted energy!
+            FluidStack excess = heatedFluid.copy();
+            excess.amount = heatedFluid.amount - added;
+
+            // Store as pending fluid to be added in next cycle
+            if (pendingOutputFluid == null) {
+                pendingOutputFluid = excess;
+                pendingOutputTemperature = heatedTemperature;
+            } else {
+                // Already have pending fluid - merge with weighted temperature
+                float totalAmount = pendingOutputFluid.amount + excess.amount;
+                float newTemp = (pendingOutputFluid.amount * pendingOutputTemperature + excess.amount * heatedTemperature) / totalAmount;
+                pendingOutputFluid.amount += excess.amount;
+                pendingOutputTemperature = newTemp;
             }
         }
 
@@ -638,6 +692,23 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         this.fluidAmountPerOperation = Math.max(1, Math.min(amount, 10000));
     }
 
+    // Temperature tolerance for passthrough mode
+    public float getLowerTemperatureTolerance() {
+        return lowerTemperatureTolerance;
+    }
+
+    public void setLowerTemperatureTolerance(float tolerance) {
+        this.lowerTemperatureTolerance = Math.max(0.0f, Math.min(tolerance, 50.0f));
+    }
+
+    public float getUpperTemperatureTolerance() {
+        return upperTemperatureTolerance;
+    }
+
+    public void setUpperTemperatureTolerance(float tolerance) {
+        this.upperTemperatureTolerance = Math.max(0.0f, Math.min(tolerance, 50.0f));
+    }
+
     // ===== NBT Methods =====
     @Override
     public void saveNBTData(net.minecraft.nbt.NBTTagCompound aNBT) {
@@ -650,6 +721,15 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         aNBT.setFloat("targetTemperature", targetTemperature);
         aNBT.setFloat("targetCOP", targetCOP);
         aNBT.setInteger("targetEnergyPerTick", targetEnergyPerTick);
+        aNBT.setInteger("fluidAmountPerOperation", fluidAmountPerOperation);
+        aNBT.setFloat("lowerTemperatureTolerance", lowerTemperatureTolerance);
+        aNBT.setFloat("upperTemperatureTolerance", upperTemperatureTolerance);
+
+        // Save pending output fluid
+        if (pendingOutputFluid != null) {
+            aNBT.setTag("pendingOutputFluid", pendingOutputFluid.writeToNBT(new NBTTagCompound()));
+            aNBT.setFloat("pendingOutputTemperature", pendingOutputTemperature);
+        }
     }
 
     @Override
@@ -673,6 +753,27 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         }
         if (aNBT.hasKey("targetEnergyPerTick")) {
             targetEnergyPerTick = aNBT.getInteger("targetEnergyPerTick");
+        }
+        if (aNBT.hasKey("fluidAmountPerOperation")) {
+            fluidAmountPerOperation = aNBT.getInteger("fluidAmountPerOperation");
+        }
+        if (aNBT.hasKey("lowerTemperatureTolerance")) {
+            lowerTemperatureTolerance = aNBT.getFloat("lowerTemperatureTolerance");
+        } else if (aNBT.hasKey("targetTemperatureTolerance")) {
+            // Backward compatibility - old single tolerance becomes both
+            lowerTemperatureTolerance = aNBT.getFloat("targetTemperatureTolerance");
+            upperTemperatureTolerance = aNBT.getFloat("targetTemperatureTolerance");
+        }
+        if (aNBT.hasKey("upperTemperatureTolerance")) {
+            upperTemperatureTolerance = aNBT.getFloat("upperTemperatureTolerance");
+        }
+
+        // Load pending output fluid
+        if (aNBT.hasKey("pendingOutputFluid")) {
+            pendingOutputFluid = FluidStack.loadFluidStackFromNBT(aNBT.getCompoundTag("pendingOutputFluid"));
+            if (aNBT.hasKey("pendingOutputTemperature")) {
+                pendingOutputTemperature = aNBT.getFloat("pendingOutputTemperature");
+            }
         } else if (aNBT.hasKey("targetEnergy")) {
             // Backward compatibility - convert old total energy to per-tick
             targetEnergyPerTick = aNBT.getInteger("targetEnergy") / 20;

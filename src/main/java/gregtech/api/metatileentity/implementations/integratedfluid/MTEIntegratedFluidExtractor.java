@@ -23,15 +23,14 @@ public class MTEIntegratedFluidExtractor extends MTEHatch implements IIntegrated
 
     private IntegratedFluidNetwork network;
     private int textureIndex = 0;
-    private static final int EXTRACTION_RATE = 1000; // Extract up to 1000 mB per operation
 
     public MTEIntegratedFluidExtractor(int aID, String aName, String aNameRegional, int aTier) {
         super(aID, aName, aNameRegional, aTier, 0, new String[] {
             "Extracts fluid from Integrated Fluid Network",
             "Converts network fluid to standard fluid",
             "Removes temperature and pressure properties",
-            "Can output to adjacent machines or tanks",
-            "Extraction rate: 1000 mB/operation"
+            "Passively responds to drain requests",
+            "No extraction rate limit"
         });
     }
 
@@ -120,7 +119,6 @@ public class MTEIntegratedFluidExtractor extends MTEHatch implements IIntegrated
     @Override
     public FluidStack getFluid() {
         // Extractor doesn't store fluid locally - it pulls from network on demand
-        // Return null so Input Hatch doesn't think we're full
         return null;
     }
 
@@ -142,13 +140,33 @@ public class MTEIntegratedFluidExtractor extends MTEHatch implements IIntegrated
             return null;
         }
 
-        int amountToDrain = Math.min(maxDrain, EXTRACTION_RATE);
-        return network.drainFluid(amountToDrain, doDrain);
+        // Get stored fluid info BEFORE draining
+        FluidStack networkFluid = network.getStoredFluid();
+        if (networkFluid == null || networkFluid.amount <= 0) {
+            return null;
+        }
+
+        // Calculate how much we can actually drain
+        int actualAmount = Math.min(maxDrain, networkFluid.amount);
+
+        if (actualAmount <= 0) {
+            return null;
+        }
+
+        // IMPORTANT: IFluidHandler.drain() parameter meanings:
+        // - doDrain = true  -> actually drain (simulate = false)
+        // - doDrain = false -> simulate only (simulate = true)
+        boolean simulate = !doDrain;  // Invert the parameter!
+
+        // Drain from network
+        return network.drainFluid(actualAmount, simulate);
     }
 
     @Override
     public int fill(FluidStack resource, boolean doFill) {
-        // Extractor is output-only, cannot fill
+        // Extractor is OUTPUT-ONLY - it only extracts from network, never inputs
+        // If something tries to fill the extractor, reject it (return 0)
+        // Fluid should go to network through Input Hatches or pipes instead
         return 0;
     }
 
@@ -157,6 +175,7 @@ public class MTEIntegratedFluidExtractor extends MTEHatch implements IIntegrated
     @Override
     public void onFirstTick(IGregTechTileEntity aBaseMetaTileEntity) {
         super.onFirstTick(aBaseMetaTileEntity);
+        // Add extractor to network - it IS a member, but with 0 capacity
         if (aBaseMetaTileEntity.isServerSide()) {
             NetworkManager manager = NetworkManager.getInstance(aBaseMetaTileEntity.getWorld());
             manager.onMemberAdded(this);
@@ -176,6 +195,10 @@ public class MTEIntegratedFluidExtractor extends MTEHatch implements IIntegrated
                 manager.onMemberAdded(this);
             }
         }
+
+        // NO AUTO-OUTPUT!
+        // Extractor is PASSIVE - it only outputs when something tries to drain() from it
+        // This prevents race conditions with Heat Pump adding fluid
     }
 
     // ===== NBT =====
@@ -198,6 +221,7 @@ public class MTEIntegratedFluidExtractor extends MTEHatch implements IIntegrated
 
     @Override
     public void onRemoval() {
+        // Extractor IS a network member - remove it properly
         if (network != null) {
             network.removeMember(this);
         }
@@ -210,7 +234,7 @@ public class MTEIntegratedFluidExtractor extends MTEHatch implements IIntegrated
             return true;
         }
 
-        // Display network info
+        // Display own network info (extractor is a member)
         if (network != null) {
             FluidStack fluid = network.getStoredFluid();
             if (fluid != null) {

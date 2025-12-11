@@ -95,7 +95,8 @@ public class IntegratedFluidNetwork {
      * Gets the maximum capacity of this network in mB (millibuckets).
      * Capacity is calculated dynamically based on members:
      * - Each pipe adds 100L (100 mB)
-     * - Each hatch adds 10,000L (10,000 mB)
+     * - Each output hatch adds 10,000L (10,000 mB)
+     * - Each input hatch adds 10,000L (10,000 mB)
      * - Injector hatches add 0L (0 mB)
      */
     public int getMaxCapacity() {
