@@ -43,8 +43,7 @@ public class MTEHeatPumpGui extends MTEMultiBlockBaseGui<MTEHeatPump> {
         StringSyncValue fluidNameSync = syncManager.findSyncHandler("fluidName", StringSyncValue.class);
         FloatSyncValue copSync = syncManager.findSyncHandler("cop", FloatSyncValue.class);
         IntSyncValue modeSync = syncManager.findSyncHandler("operatingMode", IntSyncValue.class);
-        FloatSyncValue targetCOPSync = syncManager.findSyncHandler("targetCOP", FloatSyncValue.class);
-        IntSyncValue targetEnergySync = syncManager.findSyncHandler("targetEnergy", IntSyncValue.class);
+        FloatSyncValue universalValueSync = syncManager.findSyncHandler("universalValue", FloatSyncValue.class);
 
         return super.createTerminalTextWidget(syncManager, parent)
             .child(
@@ -52,6 +51,37 @@ public class MTEHeatPumpGui extends MTEMultiBlockBaseGui<MTEHeatPump> {
                     () -> EnumChatFormatting.GRAY + "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
                     .asWidget()
                     .setEnabledIf(w -> multiblock.getBaseMetaTileEntity().isActive()))
+            // Show "Awaiting Configuration" if machine is idle due to invalid config
+            .child(
+                IKey.dynamic(() -> {
+                    if (!multiblock.getBaseMetaTileEntity().isActive()) {
+                        // Check if configuration is invalid
+                        boolean invalidConfig = false;
+                        float value = universalValueSync.getValue();
+                        switch (modeSync.getValue()) {
+                            case 0: // TARGET_TEMPERATURE
+                                if (value <= 0 || value < 200.0f || value > 500.0f) {
+                                    invalidConfig = true;
+                                }
+                                break;
+                            case 1: // TARGET_COP
+                                if (value <= 0 || value < 1.1f) {
+                                    invalidConfig = true;
+                                }
+                                break;
+                            case 2: // TARGET_ENERGY
+                                if (value <= 0) {
+                                    invalidConfig = true;
+                                }
+                                break;
+                        }
+                        if (invalidConfig) {
+                            return EnumChatFormatting.YELLOW + "⚠ Awaiting Configuration";
+                        }
+                    }
+                    return "";
+                }).asWidget()
+                    .setEnabledIf(w -> !multiblock.getBaseMetaTileEntity().isActive()))
             .child(
                 IKey.dynamic(() -> {
                     String modeName = "";
@@ -66,15 +96,21 @@ public class MTEHeatPumpGui extends MTEMultiBlockBaseGui<MTEHeatPump> {
                     .asWidget()
                     .setEnabledIf(w -> multiblock.getBaseMetaTileEntity().isActive()))
             .childIf(
+                () -> modeSync.getValue() == 0,
+                IKey.dynamic(() -> EnumChatFormatting.WHITE + "Target: "
+                    + EnumChatFormatting.GOLD + String.format("%.1f", universalValueSync.getValue()) + "K")
+                    .asWidget()
+                    .setEnabledIf(w -> multiblock.getBaseMetaTileEntity().isActive()))
+            .childIf(
                 () -> modeSync.getValue() == 1,
                 IKey.dynamic(() -> EnumChatFormatting.WHITE + "Target: "
-                    + EnumChatFormatting.LIGHT_PURPLE + "COP " + String.format("%.2f", targetCOPSync.getValue()))
+                    + EnumChatFormatting.LIGHT_PURPLE + "COP " + String.format("%.2f", universalValueSync.getValue()))
                     .asWidget()
                     .setEnabledIf(w -> multiblock.getBaseMetaTileEntity().isActive()))
             .childIf(
                 () -> modeSync.getValue() == 2,
                 IKey.dynamic(() -> EnumChatFormatting.WHITE + "Target: "
-                    + EnumChatFormatting.GOLD + GTUtility.formatNumbers(targetEnergySync.getValue()) + " EU/t")
+                    + EnumChatFormatting.GOLD + GTUtility.formatNumbers(universalValueSync.getValue().intValue()) + " EU/t")
                     .asWidget()
                     .setEnabledIf(w -> multiblock.getBaseMetaTileEntity().isActive()))
             .child(
@@ -85,12 +121,19 @@ public class MTEHeatPumpGui extends MTEMultiBlockBaseGui<MTEHeatPump> {
                     .setEnabledIf(w -> multiblock.getBaseMetaTileEntity().isActive()
                         && GTUtility.isStringValid(fluidNameSync.getValue())))
             .child(
-                IKey.dynamic(
-                    () -> EnumChatFormatting.WHITE + "COP: "
-                        + EnumChatFormatting.LIGHT_PURPLE + String.format("%.2f", copSync.getValue()))
+                IKey.dynamic(() -> {
+                    if (copSync.getValue() <= 0) {
+                        // Passthrough mode - no heating needed
+                        return EnumChatFormatting.WHITE + "Mode: "
+                            + EnumChatFormatting.GREEN + "PASSTHROUGH (No Heating)";
+                    } else {
+                        // Normal operation - show COP
+                        return EnumChatFormatting.WHITE + "COP: "
+                            + EnumChatFormatting.LIGHT_PURPLE + String.format("%.2f", copSync.getValue());
+                    }
+                })
                     .asWidget()
-                    .setEnabledIf(w -> multiblock.getBaseMetaTileEntity().isActive()
-                        && copSync.getValue() > 0))
+                    .setEnabledIf(w -> multiblock.getBaseMetaTileEntity().isActive()))
             .child(
                 IKey.dynamic(
                     () -> EnumChatFormatting.WHITE + "Input Network:")
@@ -162,11 +205,9 @@ public class MTEHeatPumpGui extends MTEMultiBlockBaseGui<MTEHeatPump> {
         IntSyncValue operatingModeSync = new IntSyncValue(multiblock::getOperatingModeId, multiblock::setOperatingModeById);
         syncManager.syncValue("operatingMode", operatingModeSync);
 
-        FloatSyncValue targetCOPSync = new FloatSyncValue(multiblock::getTargetCOP, multiblock::setTargetCOP);
-        syncManager.syncValue("targetCOP", targetCOPSync);
-
-        IntSyncValue targetEnergySync = new IntSyncValue(multiblock::getTargetEnergy, multiblock::setTargetEnergy);
-        syncManager.syncValue("targetEnergy", targetEnergySync);
+        // Universal value - interpreted based on operating mode
+        FloatSyncValue universalValueSync = new FloatSyncValue(multiblock::getUniversalValue, multiblock::setUniversalValue);
+        syncManager.syncValue("universalValue", universalValueSync);
     }
 
     @Override
@@ -182,11 +223,10 @@ public class MTEHeatPumpGui extends MTEMultiBlockBaseGui<MTEHeatPump> {
     protected IWidget createSettingsPanelButton(PanelSyncManager syncManager, ModularPanel parent) {
         // Get sync handlers from parent syncManager
         IntSyncValue modeSync = syncManager.findSyncHandler("operatingMode", IntSyncValue.class);
-        FloatSyncValue targetCOPSync = syncManager.findSyncHandler("targetCOP", FloatSyncValue.class);
-        IntSyncValue targetEnergySync = syncManager.findSyncHandler("targetEnergy", IntSyncValue.class);
+        FloatSyncValue universalValueSync = syncManager.findSyncHandler("universalValue", FloatSyncValue.class);
 
         IPanelHandler settingsPanel = syncManager
-            .panel("heatPumpSettings", (p_syncManager, syncHandler) -> openSettingsPanel(parent, modeSync, targetCOPSync, targetEnergySync), true);
+            .panel("heatPumpSettings", (p_syncManager, syncHandler) -> openSettingsPanel(parent, modeSync, universalValueSync), true);
 
         return new ButtonWidget<>().size(18, 18)
             .marginRight(4)
@@ -202,9 +242,7 @@ public class MTEHeatPumpGui extends MTEMultiBlockBaseGui<MTEHeatPump> {
             .tooltipBuilder(t -> t.addLine(IKey.str("Heat Pump Settings")));
     }
 
-    private ModularPanel openSettingsPanel(ModularPanel parent, IntSyncValue modeSync,
-                                          FloatSyncValue targetCOPSync, IntSyncValue targetEnergySync) {
-
+    private ModularPanel openSettingsPanel(ModularPanel parent, IntSyncValue modeSync, FloatSyncValue universalValueSync) {
         return new ModularPanel("heatPumpSettings").relative(parent)
             .leftRel(1)
             .topRel(0)
@@ -220,45 +258,35 @@ public class MTEHeatPumpGui extends MTEMultiBlockBaseGui<MTEHeatPump> {
                             .marginBottom(4))
                     .child(createSettingsButton1(modeSync))
                     .child(createSettingsButton2(modeSync))
-                    // COP field - shown only when mode == 1
-                    .child(createTargetCOPField(targetCOPSync, modeSync))
                     .child(createSettingsButton3(modeSync))
-                    // Energy field - shown only when mode == 2
-                    .child(createTargetEnergyField(targetEnergySync, modeSync)));
+                    // ONE universal input field with dynamic label
+                    .child(createUniversalInputField(modeSync, universalValueSync)));
     }
 
-    private IWidget createTargetCOPField(FloatSyncValue targetCOPSync, IntSyncValue modeSync) {
-        return new Row().widthRel(1)
-            .height(18)
-            .marginBottom(4)
-            .setEnabledIf(w -> modeSync.getValue() == 1)
+    /**
+     * Creates ONE universal input field with dynamic label.
+     * Backend interprets the value based on operating mode.
+     */
+    private IWidget createUniversalInputField(IntSyncValue modeSync, FloatSyncValue universalValueSync) {
+        return new Row().widthRel(1).height(18).marginTop(4)
             .child(
-                new TextWidget<>("COP: ")
-                    .width(30)
+                // Dynamic label widget
+                IKey.dynamic(() -> {
+                    switch (modeSync.getValue()) {
+                        case 0: return "Target (K):";
+                        case 1: return "COP:";
+                        case 2: return "EU/t:";
+                        default: return "Value:";
+                    }
+                }).asWidget()
+                    .width(60)
                     .alignment(Alignment.CenterLeft))
             .child(
+                // ONE text field, value interpreted by backend
                 new TextFieldWidget()
                     .widthRel(1)
                     .height(18)
-                    .value(targetCOPSync)
-                    .setTextAlignment(Alignment.Center));
-    }
-
-    private IWidget createTargetEnergyField(IntSyncValue targetEnergySync, IntSyncValue modeSync) {
-        return new Row().widthRel(1)
-            .height(18)
-            .marginBottom(4)
-            .setEnabledIf(w -> modeSync.getValue() == 2)
-            .child(
-                new TextWidget<>("EU/t: ")
-                    .width(40)
-                    .alignment(Alignment.CenterLeft))
-            .child(
-                new TextFieldWidget()
-                    .widthRel(1)
-                    .height(18)
-                    .setNumbers(5, 50000)
-                    .value(targetEnergySync)
+                    .value(universalValueSync)
                     .setTextAlignment(Alignment.Center));
     }
 

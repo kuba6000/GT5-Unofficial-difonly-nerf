@@ -41,7 +41,7 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
     private static final String STRUCTURE_PIECE_MAIN = "main";
     private static final int HEAT_CAPACITY_PER_TICK = 1000; // Max 1000L per tick
     private static final float COLD_RESERVOIR_TEMPERATURE = 300.0f; // Ambient temperature for COP calculation
-    private static final float DEFAULT_TARGET_TEMPERATURE_DELTA = 10.0f; // Default +10K
+    private static final float DEFAULT_TARGET_TEMPERATURE = 310.0f; // Default target output temperature (310K)
     private static final float DEFAULT_TARGET_COP = 5.0f; // Default COP target
     private static final int DEFAULT_TARGET_ENERGY_PER_TICK = 100; // Default 100 EU/t
 
@@ -51,7 +51,7 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
 
     // Operating mode and targets
     private HeatPumpMode operatingMode = HeatPumpMode.TARGET_TEMPERATURE;
-    private float targetTemperatureDelta = DEFAULT_TARGET_TEMPERATURE_DELTA; // For TARGET_TEMPERATURE mode
+    private float targetTemperature = DEFAULT_TARGET_TEMPERATURE; // For TARGET_TEMPERATURE mode (absolute temperature in K)
     private float targetCOP = DEFAULT_TARGET_COP; // For TARGET_COP mode
     private int targetEnergyPerTick = DEFAULT_TARGET_ENERGY_PER_TICK; // For TARGET_ENERGY mode (EU per tick)
 
@@ -194,9 +194,33 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
 
     @Override
     public @NotNull CheckRecipeResult checkProcessing() {
-        // Use integrated hatch lists
+        // Verify we have integrated fluid hatches
         if (mIntegratedInputHatches.isEmpty() || mIntegratedOutputHatches.isEmpty()) {
             return CheckRecipeResultRegistry.NO_RECIPE;
+        }
+
+        // Validate configuration based on operating mode
+        switch (operatingMode) {
+            case TARGET_TEMPERATURE:
+                // Validate target temperature (must be reasonable, e.g., 200K-500K)
+                if (targetTemperature <= 0 || targetTemperature < 200.0f || targetTemperature > 500.0f) {
+                    return SimpleCheckRecipeResult.ofFailure("awaiting_configuration");
+                }
+                break;
+            case TARGET_COP:
+                // Validate COP
+                if (targetCOP <= 0 || targetCOP < 1.1f) {
+                    return SimpleCheckRecipeResult.ofFailure("awaiting_configuration");
+                }
+                break;
+            case TARGET_ENERGY:
+                // Validate energy per tick
+                if (targetEnergyPerTick <= 0) {
+                    return SimpleCheckRecipeResult.ofFailure("awaiting_configuration");
+                }
+                break;
+            default:
+                return SimpleCheckRecipeResult.ofFailure("awaiting_configuration");
         }
 
         MTEIntegratedFluidInputHatch inputHatch = mIntegratedInputHatches.get(0);
@@ -251,24 +275,42 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         float temperatureDelta;
         float outputTemperature;
         long totalEnergyCost;
+        boolean passthroughMode = false; // Flag for energy-free passthrough
 
         switch (operatingMode) {
             case TARGET_TEMPERATURE:
-                // Mode 1: User sets target temperature delta, we calculate COP and energy
-                temperatureDelta = targetTemperatureDelta;
-                outputTemperature = inputTemperature + temperatureDelta;
+                // Mode 1: User sets target output temperature (absolute), we calculate delta, COP and energy
+                outputTemperature = targetTemperature;
+                temperatureDelta = targetTemperature - inputTemperature;
 
-                currentCOP = FluidThermalProperties.calculateHeatPumpCOP(
-                    COLD_RESERVOIR_TEMPERATURE,
-                    outputTemperature
-                );
+                // PASSTHROUGH MODE: Check if fluid is already at target temperature
+                // Allow ±0.5K tolerance to avoid constant micro-heating
+                float tempDifference = Math.abs(inputTemperature - targetTemperature);
 
-                totalEnergyCost = FluidThermalProperties.calculateHeatPumpEnergy(
-                    fluidForCalculation,
-                    temperatureDelta,
-                    COLD_RESERVOIR_TEMPERATURE,
-                    outputTemperature
-                );
+                if (tempDifference <= 0.5f) {
+                    // Fluid is already at target temperature - passthrough without heating!
+                    passthroughMode = true;
+                    currentCOP = 0.0f; // No heating needed
+                    totalEnergyCost = 0; // Zero energy consumption
+                    outputTemperature = inputTemperature; // Keep current temperature
+                    temperatureDelta = 0.0f;
+                } else if (temperatureDelta < 0) {
+                    // Target is lower than input - cooling not supported yet
+                    return SimpleCheckRecipeResult.ofFailure("awaiting_configuration");
+                } else {
+                    // Normal heating operation
+                    currentCOP = FluidThermalProperties.calculateHeatPumpCOP(
+                        COLD_RESERVOIR_TEMPERATURE,
+                        outputTemperature
+                    );
+
+                    totalEnergyCost = FluidThermalProperties.calculateHeatPumpEnergy(
+                        fluidForCalculation,
+                        temperatureDelta,
+                        COLD_RESERVOIR_TEMPERATURE,
+                        outputTemperature
+                    );
+                }
                 break;
 
             case TARGET_COP:
@@ -383,10 +425,8 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         // Recipe runs for 20 ticks (1 second)
         long energyPerTick = (totalEnergyCost + 19) / 20; // Round up division
 
-        // Check if we have enough energy for the full operation upfront
-        if (!drainEnergyInput(totalEnergyCost)) {
-            return SimpleCheckRecipeResult.ofFailure("no_energy");
-        }
+        // NOTE: We DON'T drain energy upfront! GTTileEntity will drain mEUt per tick automatically.
+        // Draining upfront would cause double consumption (upfront + per tick)!
 
         // Drain fluid from input network
         FluidStack drainedFluid = inputNetwork.drainFluid(fluidToProcess, false);
@@ -413,12 +453,19 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         }
 
         // Recipe successful - set to continuous operation
-        this.mMaxProgresstime = 20; // 1 second (20 ticks)
+        if (passthroughMode) {
+            // Passthrough mode: fast transfer with zero energy
+            this.mMaxProgresstime = 5; // Only 5 ticks (0.25 seconds) for passthrough
+            this.mEUt = 0; // Zero energy consumption
+        } else {
+            // Normal heating operation
+            this.mMaxProgresstime = 20; // 1 second (20 ticks)
 
-        // IMPORTANT: mEUt is EU consumed PER TICK during the recipe
-        // energyPerTick is already calculated as per-tick consumption
-        // Total energy consumed will be energyPerTick * mMaxProgresstime
-        this.mEUt = (int) -energyPerTick; // Negative = consuming
+            // IMPORTANT: mEUt is EU consumed PER TICK during the recipe
+            // energyPerTick is already calculated as per-tick consumption
+            // Total energy consumed will be energyPerTick * mMaxProgresstime
+            this.mEUt = (int) -energyPerTick; // Negative = consuming
+        }
 
         return CheckRecipeResultRegistry.SUCCESSFUL;
     }
@@ -525,11 +572,39 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
 
     // Target value methods
     public float getTargetTemperatureDelta() {
-        return targetTemperatureDelta;
+        return targetTemperature;
     }
 
-    public void setTargetTemperatureDelta(float delta) {
-        this.targetTemperatureDelta = Math.max(0.1f, Math.min(delta, 200.0f));
+    public void setTargetTemperatureDelta(float temperature) {
+        this.targetTemperature = Math.max(200.0f, Math.min(temperature, 500.0f));
+    }
+
+    // Universal value - interpreted based on operating mode
+    public float getUniversalValue() {
+        switch (operatingMode) {
+            case TARGET_TEMPERATURE:
+                return targetTemperature;
+            case TARGET_COP:
+                return targetCOP;
+            case TARGET_ENERGY:
+                return (float) targetEnergyPerTick;
+            default:
+                return 0.0f;
+        }
+    }
+
+    public void setUniversalValue(float value) {
+        switch (operatingMode) {
+            case TARGET_TEMPERATURE:
+                this.targetTemperature = Math.max(200.0f, Math.min(value, 500.0f));
+                break;
+            case TARGET_COP:
+                this.targetCOP = Math.max(1.1f, Math.min(value, 100.0f));
+                break;
+            case TARGET_ENERGY:
+                this.targetEnergyPerTick = (int) Math.max(5, Math.min(value, 50000));
+                break;
+        }
     }
 
     public float getTargetCOP() {
@@ -557,7 +632,7 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         aNBT.setInteger("operatingMode", operatingMode.getId());
 
         // Save target values
-        aNBT.setFloat("targetTemperatureDelta", targetTemperatureDelta);
+        aNBT.setFloat("targetTemperature", targetTemperature);
         aNBT.setFloat("targetCOP", targetCOP);
         aNBT.setInteger("targetEnergyPerTick", targetEnergyPerTick);
     }
@@ -572,8 +647,11 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         }
 
         // Load target values
-        if (aNBT.hasKey("targetTemperatureDelta")) {
-            targetTemperatureDelta = aNBT.getFloat("targetTemperatureDelta");
+        if (aNBT.hasKey("targetTemperature")) {
+            targetTemperature = aNBT.getFloat("targetTemperature");
+        } else if (aNBT.hasKey("targetTemperatureDelta")) {
+            // Backward compatibility - old saves had delta, convert to absolute (assume 300K input)
+            targetTemperature = 300.0f + aNBT.getFloat("targetTemperatureDelta");
         }
         if (aNBT.hasKey("targetCOP")) {
             targetCOP = aNBT.getFloat("targetCOP");
