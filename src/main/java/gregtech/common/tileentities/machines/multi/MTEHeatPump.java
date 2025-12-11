@@ -54,6 +54,7 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
     private float targetTemperature = DEFAULT_TARGET_TEMPERATURE; // For TARGET_TEMPERATURE mode (absolute temperature in K)
     private float targetCOP = DEFAULT_TARGET_COP; // For TARGET_COP mode
     private int targetEnergyPerTick = DEFAULT_TARGET_ENERGY_PER_TICK; // For TARGET_ENERGY mode (EU per tick)
+    private int fluidAmountPerOperation = HEAT_CAPACITY_PER_TICK; // Amount of fluid to process per operation (in mB)
 
     // Current calculated values for GUI display
     private float currentCOP = 0.0f;
@@ -360,8 +361,10 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
                 break;
 
             case TARGET_ENERGY:
-                // Mode 3: User sets target energy PER TICK, we calculate temperature delta and COP
-                // Convert EU/t to total energy for 20-tick operation
+                // Mode 3: User sets target energy PER TICK directly
+                // We calculate what temperature delta this energy can achieve
+
+                // Energy per tick * 20 ticks = total energy for the cycle
                 long targetTotalEnergy = (long) targetEnergyPerTick * 20;
 
                 // Energy = (m * c * ΔT) / COP
@@ -409,8 +412,7 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
                     outputTemperature
                 );
 
-                // In TARGET_ENERGY mode, use the target energy directly
-                // Don't recalculate - that defeats the purpose of this mode!
+                // Total energy for GUI display (20 ticks worth)
                 totalEnergyCost = targetTotalEnergy;
                 break;
 
@@ -422,8 +424,6 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         currentOutputTemperature = outputTemperature;
         currentEnergyUsage = totalEnergyCost;
 
-        // Recipe runs for 20 ticks (1 second)
-        long energyPerTick = (totalEnergyCost + 19) / 20; // Round up division
 
         // NOTE: We DON'T drain energy upfront! GTTileEntity will drain mEUt per tick automatically.
         // Draining upfront would cause double consumption (upfront + per tick)!
@@ -460,11 +460,17 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         } else {
             // Normal heating operation
             this.mMaxProgresstime = 20; // 1 second (20 ticks)
+            this.mEfficiency = 10000; // Full efficiency
 
-            // IMPORTANT: mEUt is EU consumed PER TICK during the recipe
-            // energyPerTick is already calculated as per-tick consumption
-            // Total energy consumed will be energyPerTick * mMaxProgresstime
-            this.mEUt = (int) -energyPerTick; // Negative = consuming
+            // Set energy per tick based on mode
+            if (operatingMode == HeatPumpMode.TARGET_ENERGY) {
+                // In TARGET_ENERGY mode, use the user-specified value directly!
+                this.mEUt = -targetEnergyPerTick; // Negative = consuming
+            } else {
+                // In other modes, calculate from totalEnergyCost
+                long energyPerTick = (totalEnergyCost + 19) / 20; // Round up division
+                this.mEUt = (int) -energyPerTick; // Negative = consuming
+            }
         }
 
         return CheckRecipeResultRegistry.SUCCESSFUL;
@@ -621,6 +627,15 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
 
     public void setTargetEnergy(int energy) {
         this.targetEnergyPerTick = Math.max(5, Math.min(energy, 50000));
+    }
+
+    // Fluid amount per operation
+    public int getFluidAmountPerOperation() {
+        return fluidAmountPerOperation;
+    }
+
+    public void setFluidAmountPerOperation(int amount) {
+        this.fluidAmountPerOperation = Math.max(1, Math.min(amount, 10000));
     }
 
     // ===== NBT Methods =====

@@ -18,11 +18,11 @@ public class FluidThermalProperties {
      * This is currently hardcoded but designed to be easily replaceable with
      * fluid-specific values in the future.
      *
-     * Default value: 1.0 EU/(mB·K)
-     * This approximates water's specific heat capacity scaled to EU and millibuckets.
-     * (Roughly 1 EU per mB per Kelvin for game balance)
+     * Default value: 420.0 EU/(mB·K)
+     * High value to make fluids retain temperature longer and require more energy to heat/cool.
+     * This creates a more realistic thermal system where fluids act as thermal buffers.
      */
-    public static final float DEFAULT_SPECIFIC_HEAT_CAPACITY = 1.0f;
+    public static final float DEFAULT_SPECIFIC_HEAT_CAPACITY = 420.0f;
 
     /**
      * Gets the specific heat capacity for a given fluid.

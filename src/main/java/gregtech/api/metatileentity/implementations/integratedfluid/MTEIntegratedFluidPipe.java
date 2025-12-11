@@ -289,6 +289,7 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
         if (network != null) {
             tag.setBoolean("hasNetwork", true);
             tag.setInteger("memberCount", network.getMemberCount());
+            tag.setInteger("pipeCount", network.getPipeCount());
             tag.setInteger("maxCapacity", network.getMaxCapacity());
             tag.setFloat("pressure", network.getPressure());
             tag.setFloat("temperature", network.getTemperature());
@@ -326,6 +327,33 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
                 currenttip.add("Empty (Capacity: " + GTUtility.formatNumbers(maxCapacity) + " L)");
             }
             currenttip.add("Network Members: " + tag.getInteger("memberCount"));
+
+            // Display current heat loss based on actual temperature difference
+            int pipeCount = tag.getInteger("pipeCount");
+            float temperature = tag.getFloat("temperature");
+            float temperatureDelta = Math.abs(temperature - 300.0f); // 300K = ambient
+            float currentHeatLoss = pipeCount * temperatureDelta;
+
+            currenttip.add(
+                "Pipes in Network: " + EnumChatFormatting.GRAY
+                    + pipeCount
+                    + EnumChatFormatting.RESET);
+
+            if (temperatureDelta > 0.1f) {
+                currenttip.add(
+                    "Current Heat Loss: " + EnumChatFormatting.DARK_RED
+                        + String.format("%.1f", currentHeatLoss)
+                        + " EU/s"
+                        + EnumChatFormatting.RESET
+                        + " (ΔT=" + String.format("%.1f", temperatureDelta) + "K)");
+            } else {
+                currenttip.add(
+                    "Current Heat Loss: " + EnumChatFormatting.GREEN
+                        + "0 EU/s"
+                        + EnumChatFormatting.RESET
+                        + " (at ambient temp)");
+            }
+
             currenttip.add(
                 "Pressure: " + EnumChatFormatting.YELLOW
                     + String.format("%.2f", tag.getFloat("pressure"))
@@ -333,7 +361,7 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
                     + EnumChatFormatting.RESET);
             currenttip.add(
                 "Temperature: " + EnumChatFormatting.RED
-                    + String.format("%.1f", tag.getFloat("temperature"))
+                    + String.format("%.2f", tag.getFloat("temperature"))
                     + " K"
                     + EnumChatFormatting.RESET);
         } else {

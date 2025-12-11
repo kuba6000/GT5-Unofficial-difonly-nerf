@@ -25,6 +25,9 @@ public class NetworkManager {
     private final Map<NetworkNode, Set<IntegratedFluidNetwork>> nodeToNetworks = new HashMap<>();
     private final Set<IntegratedFluidNetwork> allNetworks = new HashSet<>();
 
+    // Track last tick time for heat loss application
+    private long lastHeatLossTick = 0;
+
     private NetworkManager(World world) {
         this.world = world;
     }
@@ -391,6 +394,24 @@ public class NetworkManager {
             // Notify all members
             for (IIntegratedFluidMember componentMember : component) {
                 componentMember.onNetworkUpdate();
+            }
+        }
+    }
+
+    /**
+     * Called every tick to handle network updates.
+     * Applies heat loss every second (20 ticks).
+     */
+    public void onWorldTick(long worldTick) {
+        // Apply heat loss every 20 ticks (1 second)
+        if (worldTick - lastHeatLossTick >= 20) {
+            lastHeatLossTick = worldTick;
+
+            // Apply heat loss to all networks
+            for (IntegratedFluidNetwork network : new HashSet<>(allNetworks)) {
+                if (network != null) {
+                    network.applyHeatLoss();
+                }
             }
         }
     }

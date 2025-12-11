@@ -1242,6 +1242,9 @@ public class GTProxy implements IFuelHandler {
         FMLCommonHandler.instance().bus().register(cameraViewportManager);
         MinecraftForge.EVENT_BUS.register(cameraViewportManager);
         FMLCommonHandler.instance().bus().register(wirelessEnergyHatchManager);
+
+        // Register Integrated Fluid Network event handler for heat loss
+        FMLCommonHandler.instance().bus().register(new gregtech.api.metatileentity.implementations.integratedfluid.IntegratedFluidNetworkEventHandler());
         // spotless:off
     }
 

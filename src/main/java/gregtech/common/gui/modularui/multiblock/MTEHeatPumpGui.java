@@ -208,6 +208,10 @@ public class MTEHeatPumpGui extends MTEMultiBlockBaseGui<MTEHeatPump> {
         // Universal value - interpreted based on operating mode
         FloatSyncValue universalValueSync = new FloatSyncValue(multiblock::getUniversalValue, multiblock::setUniversalValue);
         syncManager.syncValue("universalValue", universalValueSync);
+
+        // Fluid amount per operation (in mB/L)
+        IntSyncValue fluidAmountSync = new IntSyncValue(multiblock::getFluidAmountPerOperation, multiblock::setFluidAmountPerOperation);
+        syncManager.syncValue("fluidAmount", fluidAmountSync);
     }
 
     @Override
@@ -224,9 +228,10 @@ public class MTEHeatPumpGui extends MTEMultiBlockBaseGui<MTEHeatPump> {
         // Get sync handlers from parent syncManager
         IntSyncValue modeSync = syncManager.findSyncHandler("operatingMode", IntSyncValue.class);
         FloatSyncValue universalValueSync = syncManager.findSyncHandler("universalValue", FloatSyncValue.class);
+        IntSyncValue fluidAmountSync = syncManager.findSyncHandler("fluidAmount", IntSyncValue.class);
 
         IPanelHandler settingsPanel = syncManager
-            .panel("heatPumpSettings", (p_syncManager, syncHandler) -> openSettingsPanel(parent, modeSync, universalValueSync), true);
+            .panel("heatPumpSettings", (p_syncManager, syncHandler) -> openSettingsPanel(parent, modeSync, universalValueSync, fluidAmountSync), true);
 
         return new ButtonWidget<>().size(18, 18)
             .marginRight(4)
@@ -242,11 +247,11 @@ public class MTEHeatPumpGui extends MTEMultiBlockBaseGui<MTEHeatPump> {
             .tooltipBuilder(t -> t.addLine(IKey.str("Heat Pump Settings")));
     }
 
-    private ModularPanel openSettingsPanel(ModularPanel parent, IntSyncValue modeSync, FloatSyncValue universalValueSync) {
+    private ModularPanel openSettingsPanel(ModularPanel parent, IntSyncValue modeSync, FloatSyncValue universalValueSync, IntSyncValue fluidAmountSync) {
         return new ModularPanel("heatPumpSettings").relative(parent)
             .leftRel(1)
             .topRel(0)
-            .size(140, 150)
+            .size(180, 170)
             .child(
                 new Column().sizeRel(1)
                     .padding(5)
@@ -256,11 +261,13 @@ public class MTEHeatPumpGui extends MTEMultiBlockBaseGui<MTEHeatPump> {
                             .widthRel(1)
                             .height(18)
                             .marginBottom(4))
-                    .child(createSettingsButton1(modeSync))
-                    .child(createSettingsButton2(modeSync))
-                    .child(createSettingsButton3(modeSync))
+                    .child(createSettingsButton1(modeSync, universalValueSync))
+                    .child(createSettingsButton2(modeSync, universalValueSync))
+                    .child(createSettingsButton3(modeSync, universalValueSync))
                     // ONE universal input field with dynamic label
-                    .child(createUniversalInputField(modeSync, universalValueSync)));
+                    .child(createUniversalInputField(modeSync, universalValueSync))
+                    // Fluid amount per operation field
+                    .child(createFluidAmountField(fluidAmountSync)));
     }
 
     /**
@@ -279,18 +286,36 @@ public class MTEHeatPumpGui extends MTEMultiBlockBaseGui<MTEHeatPump> {
                         default: return "Value:";
                     }
                 }).asWidget()
-                    .width(60)
+                    .width(90)
                     .alignment(Alignment.CenterLeft))
             .child(
                 // ONE text field, value interpreted by backend
                 new TextFieldWidget()
-                    .widthRel(1)
+                    .width(70)
                     .height(18)
                     .value(universalValueSync)
                     .setTextAlignment(Alignment.Center));
     }
 
-    private IWidget createSettingsButton1(IntSyncValue modeSync) {
+    /**
+     * Creates field for setting fluid amount per operation.
+     */
+    private IWidget createFluidAmountField(IntSyncValue fluidAmountSync) {
+        return new Row().widthRel(1).height(18).marginTop(4)
+            .child(
+                new TextWidget<>("Fluid/cycle (L):")
+                    .width(75)
+                    .alignment(Alignment.CenterLeft))
+            .child(
+                new TextFieldWidget()
+                    .width(65)
+                    .height(18)
+                    .setNumbers(1, 10000)
+                    .value(fluidAmountSync)
+                    .setTextAlignment(Alignment.Center));
+    }
+
+    private IWidget createSettingsButton1(IntSyncValue modeSync, FloatSyncValue universalValueSync) {
         return new ButtonWidget<>().widthRel(1)
             .height(18)
             .marginBottom(4)
@@ -306,13 +331,15 @@ public class MTEHeatPumpGui extends MTEMultiBlockBaseGui<MTEHeatPump> {
                 modeSync.updateCacheFromSource(false);
                 modeSync.setValue(0);
                 modeSync.syncToServer(1, buffer -> buffer.writeVarIntToBuffer(0));
+                // Force universal value to refresh from backend
+                universalValueSync.updateCacheFromSource(true);
                 return true;
             })
             .tooltipBuilder(t -> t.addLine(IKey.str("Set target output temperature"))
                 .addLine(IKey.str("COP and energy will be calculated")));
     }
 
-    private IWidget createSettingsButton2(IntSyncValue modeSync) {
+    private IWidget createSettingsButton2(IntSyncValue modeSync, FloatSyncValue universalValueSync) {
         return new ButtonWidget<>().widthRel(1)
             .height(18)
             .marginBottom(4)
@@ -328,13 +355,15 @@ public class MTEHeatPumpGui extends MTEMultiBlockBaseGui<MTEHeatPump> {
                 modeSync.updateCacheFromSource(false);
                 modeSync.setValue(1);
                 modeSync.syncToServer(1, buffer -> buffer.writeVarIntToBuffer(1));
+                // Force universal value to refresh from backend
+                universalValueSync.updateCacheFromSource(true);
                 return true;
             })
             .tooltipBuilder(t -> t.addLine(IKey.str("Set target COP (efficiency)"))
                 .addLine(IKey.str("Temperature and energy will be calculated")));
     }
 
-    private IWidget createSettingsButton3(IntSyncValue modeSync) {
+    private IWidget createSettingsButton3(IntSyncValue modeSync, FloatSyncValue universalValueSync) {
         return new ButtonWidget<>().widthRel(1)
             .height(18)
             .background(UITexture.builder()
@@ -349,6 +378,8 @@ public class MTEHeatPumpGui extends MTEMultiBlockBaseGui<MTEHeatPump> {
                 modeSync.updateCacheFromSource(false);
                 modeSync.setValue(2);
                 modeSync.syncToServer(1, buffer -> buffer.writeVarIntToBuffer(2));
+                // Force universal value to refresh from backend
+                universalValueSync.updateCacheFromSource(true);
                 return true;
             })
             .tooltipBuilder(t -> t.addLine(IKey.str("Set target energy consumption"))

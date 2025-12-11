@@ -23,6 +23,17 @@ public class IntegratedFluidNetwork {
     public static final float DEFAULT_TEMPERATURE = 300.0f;
 
     /**
+     * Ambient temperature for heat loss calculations (in Kelvin).
+     */
+    public static final float AMBIENT_TEMPERATURE = 300.0f;
+
+    /**
+     * Heat loss per pipe per second per Kelvin difference.
+     * Each pipe loses 1 EU/(s·ΔT)
+     */
+    public static final float HEAT_LOSS_PER_PIPE_PER_SECOND = 1.0f;
+
+    /**
      * The fluid stored in this network segment.
      */
     private FluidStack storedFluid;
@@ -264,6 +275,80 @@ public class IntegratedFluidNetwork {
      */
     public Set<IIntegratedFluidMember> getMembers() {
         return new HashSet<>(members);
+    }
+
+    /**
+     * Counts the number of pipes in this network.
+     * Pipes are members that contribute capacity but are not hatches.
+     */
+    public int getPipeCount() {
+        int pipeCount = 0;
+        for (IIntegratedFluidMember member : members) {
+            // Pipes typically contribute 100 mB capacity
+            // Hatches contribute 10,000 mB or 0 mB (injectors)
+            int contribution = member.getCapacityContribution();
+            if (contribution > 0 && contribution < 1000) {
+                pipeCount++;
+            }
+        }
+        return pipeCount;
+    }
+
+    /**
+     * Applies heat loss to the network based on the number of pipes.
+     * Called every second (20 ticks) to gradually move temperature toward ambient.
+     *
+     * Heat loss formula:
+     * - Energy lost per second = pipeCount × 1 EU/(s·ΔT) × ΔT = pipeCount × ΔT EU/s
+     * - As temperature approaches ambient, ΔT decreases, so heat loss decreases
+     * - This creates natural exponential decay toward ambient temperature
+     */
+    public void applyHeatLoss() {
+        if (storedFluid == null || storedFluid.amount <= 0) {
+            // No fluid - immediately set temperature to ambient
+            // Empty pipes don't retain heat without fluid
+            temperature = AMBIENT_TEMPERATURE;
+            return;
+        }
+
+        // Calculate temperature difference from ambient
+        float temperatureDelta = temperature - AMBIENT_TEMPERATURE;
+
+        if (Math.abs(temperatureDelta) < 0.1f) {
+            // Already at ambient temperature
+            temperature = AMBIENT_TEMPERATURE;
+            return;
+        }
+
+        // Calculate energy loss per second
+        int pipeCount = getPipeCount();
+        if (pipeCount <= 0) {
+            // No pipes, no heat loss (sealed system with only hatches)
+            return;
+        }
+
+        // Energy lost = pipeCount × 1 EU/(s·ΔT) × ΔT = pipeCount × ΔT EU/s
+        // This means: larger temperature difference = more heat loss
+        // As temp approaches ambient, ΔT → 0, so heat loss → 0 (exponential decay)
+        float energyLost = pipeCount * HEAT_LOSS_PER_PIPE_PER_SECOND * Math.abs(temperatureDelta);
+
+        // Calculate temperature change from energy loss
+        // ΔT = Q / (m × c)
+        float heatCapacity = FluidThermalProperties.getTotalHeatCapacity(storedFluid);
+        if (heatCapacity <= 0) {
+            return;
+        }
+
+        float temperatureChange = energyLost / heatCapacity;
+
+        // Apply temperature change toward ambient
+        if (temperature > AMBIENT_TEMPERATURE) {
+            // Cooling down
+            temperature = Math.max(AMBIENT_TEMPERATURE, temperature - temperatureChange);
+        } else if (temperature < AMBIENT_TEMPERATURE) {
+            // Heating up (e.g., if ambient is warmer)
+            temperature = Math.min(AMBIENT_TEMPERATURE, temperature + temperatureChange);
+        }
     }
 
     /**
