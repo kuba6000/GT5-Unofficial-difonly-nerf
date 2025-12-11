@@ -1,0 +1,56 @@
+package gregtech.common.tileentities.machines.multi;
+
+/**
+ * Operating modes for Heat Pump multiblock.
+ * Each mode determines which parameter is fixed and which are calculated.
+ */
+public enum HeatPumpMode {
+    /**
+     * Target Temperature Mode - User sets desired output temperature.
+     * COP and energy usage are calculated based on this temperature.
+     */
+    TARGET_TEMPERATURE(0, "Target Temperature"),
+
+    /**
+     * Target COP Mode - User sets desired Coefficient of Performance.
+     * Output temperature and energy usage are calculated based on this COP.
+     */
+    TARGET_COP(1, "Target COP"),
+
+    /**
+     * Target Energy Mode - User sets desired energy consumption.
+     * Output temperature and COP are calculated based on this energy limit.
+     */
+    TARGET_ENERGY(2, "Target Energy Usage");
+
+    private final int id;
+    private final String displayName;
+
+    HeatPumpMode(int id, String displayName) {
+        this.id = id;
+        this.displayName = displayName;
+    }
+
+    public int getId() {
+        return id;
+    }
+
+    public String getDisplayName() {
+        return displayName;
+    }
+
+    public static HeatPumpMode fromId(int id) {
+        for (HeatPumpMode mode : values()) {
+            if (mode.id == id) {
+                return mode;
+            }
+        }
+        return TARGET_TEMPERATURE; // Default
+    }
+
+    public HeatPumpMode next() {
+        int nextId = (this.id + 1) % values().length;
+        return fromId(nextId);
+    }
+}
+

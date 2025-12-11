@@ -218,6 +218,7 @@ import gregtech.common.tileentities.machines.multi.MTEMegaChemicalReactor;
 import gregtech.common.tileentities.machines.multi.MTEMegaDistillationTower;
 import gregtech.common.tileentities.machines.multi.MTEMegaOilCracker;
 import gregtech.common.tileentities.machines.multi.MTERadiator;
+import gregtech.api.metatileentity.implementations.integratedfluid.MTEIntegratedFluidExtractor;
 import gregtech.common.tileentities.machines.multi.MTEMultiAutoclave;
 import gregtech.common.tileentities.machines.multi.MTEMultiCanner;
 import gregtech.common.tileentities.machines.multi.MTEMultiFurnace;
@@ -694,6 +695,14 @@ public class LoaderMetaTileEntities implements Runnable { // TODO CHECK CIRCUIT 
         ItemList.Machine_Radiator.set(
             new MTERadiator(RADIATOR_CONTROLLER.ID, "multimachine.radiator", "Radiator")
                 .getStackForm(1));
+
+        ItemList.Integrated_Fluid_Extractor.set(
+            new MTEIntegratedFluidExtractor(
+                INTEGRATED_FLUID_EXTRACTOR.ID,
+                "hatch.integrated_fluid_extractor",
+                "Integrated Fluid Extractor",
+                1
+            ).getStackForm(1));
 
         ItemList.LargeFluidExtractor.set(
             new MTELargeFluidExtractor(LARGE_FLUID_EXTRACTOR.ID, "multimachine.fluidextractor", "Large Fluid Extractor")

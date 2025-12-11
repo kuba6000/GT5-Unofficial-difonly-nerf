@@ -24,6 +24,7 @@ import gregtech.api.interfaces.ITexture;
 import gregtech.api.interfaces.metatileentity.IMetaTileEntity;
 import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
 import gregtech.api.metatileentity.implementations.MTEEnhancedMultiBlockBase;
+import gregtech.api.metatileentity.implementations.integratedfluid.FluidThermalProperties;
 import gregtech.api.metatileentity.implementations.integratedfluid.MTEIntegratedFluidInputHatch;
 import gregtech.api.metatileentity.implementations.integratedfluid.MTEIntegratedFluidOutputHatch;
 import gregtech.api.recipe.check.CheckRecipeResult;
@@ -39,11 +40,25 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
 
     private static final String STRUCTURE_PIECE_MAIN = "main";
     private static final int HEAT_CAPACITY_PER_TICK = 1000; // Max 1000L per tick
-    private static final int EU_PER_TICK = 2000; // Base energy consumption
+    private static final float COLD_RESERVOIR_TEMPERATURE = 300.0f; // Ambient temperature for COP calculation
+    private static final float DEFAULT_TARGET_TEMPERATURE_DELTA = 10.0f; // Default +10K
+    private static final float DEFAULT_TARGET_COP = 5.0f; // Default COP target
+    private static final int DEFAULT_TARGET_ENERGY_PER_TICK = 100; // Default 100 EU/t
 
     // Custom hatch lists for Integrated Fluid Hatches
     private final List<MTEIntegratedFluidInputHatch> mIntegratedInputHatches = new ArrayList<>();
     private final List<MTEIntegratedFluidOutputHatch> mIntegratedOutputHatches = new ArrayList<>();
+
+    // Operating mode and targets
+    private HeatPumpMode operatingMode = HeatPumpMode.TARGET_TEMPERATURE;
+    private float targetTemperatureDelta = DEFAULT_TARGET_TEMPERATURE_DELTA; // For TARGET_TEMPERATURE mode
+    private float targetCOP = DEFAULT_TARGET_COP; // For TARGET_COP mode
+    private int targetEnergyPerTick = DEFAULT_TARGET_ENERGY_PER_TICK; // For TARGET_ENERGY mode (EU per tick)
+
+    // Current calculated values for GUI display
+    private float currentCOP = 0.0f;
+    private float currentOutputTemperature = 0.0f;
+    private long currentEnergyUsage = 0L;
 
     private static final IStructureDefinition<MTEHeatPump> STRUCTURE_DEFINITION = StructureDefinition
         .<MTEHeatPump>builder()
@@ -88,9 +103,15 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         MultiblockTooltipBuilder tt = new MultiblockTooltipBuilder();
         tt.addMachineType("Heat Pump")
             .addInfo("Heats fluid from Input Hatch to Output Hatch")
-            .addInfo("Increases fluid temperature by 10K")
+            .addInfo("3 Operating Modes (configurable via Settings button):")
+            .addInfo("1) Target Temperature - Set output temperature")
+            .addInfo("   COP and energy are calculated")
+            .addInfo("2) Target COP - Set efficiency (Coefficient of Performance)")
+            .addInfo("   Temperature and energy are calculated")
+            .addInfo("3) Target Energy - Set energy consumption limit")
+            .addInfo("   Temperature and COP are calculated")
             .addInfo("Processes up to 1000L per tick")
-            .addInfo("Energy consumption: 2000 EU/t (proportional to fluid amount)")
+            .addInfo("Uses ideal Carnot COP formula")
             .addInfo("Requires Integrated Fluid Input and Output Hatches")
             .addSeparator()
             .beginStructureBlock(3, 3, 3, true)
@@ -222,14 +243,147 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
             return CheckRecipeResultRegistry.NO_RECIPE;
         }
 
-        // Calculate proportional energy cost PER TICK
-        // EU_PER_TICK is max consumption (when processing 1000L)
-        // Scale it proportionally to actual fluid processed
-        long energyPerTick = (long) EU_PER_TICK * fluidToProcess / HEAT_CAPACITY_PER_TICK;
+        // Create a fluid stack for thermal calculations
+        FluidStack fluidForCalculation = inputFluid.copy();
+        fluidForCalculation.amount = fluidToProcess;
 
-        // Recipe runs for 20 ticks, so total energy will be energyPerTick * 20
+        // Calculate based on operating mode
+        float temperatureDelta;
+        float outputTemperature;
+        long totalEnergyCost;
+
+        switch (operatingMode) {
+            case TARGET_TEMPERATURE:
+                // Mode 1: User sets target temperature delta, we calculate COP and energy
+                temperatureDelta = targetTemperatureDelta;
+                outputTemperature = inputTemperature + temperatureDelta;
+
+                currentCOP = FluidThermalProperties.calculateHeatPumpCOP(
+                    COLD_RESERVOIR_TEMPERATURE,
+                    outputTemperature
+                );
+
+                totalEnergyCost = FluidThermalProperties.calculateHeatPumpEnergy(
+                    fluidForCalculation,
+                    temperatureDelta,
+                    COLD_RESERVOIR_TEMPERATURE,
+                    outputTemperature
+                );
+                break;
+
+            case TARGET_COP:
+                // Mode 2: User sets target COP, we calculate temperature delta and energy
+                // For a heat pump: COP = T_hot / (T_hot - T_cold)
+                // Where T_cold is the cold reservoir (ambient 300K) and T_hot is output temperature
+                //
+                // We want to find the temperature delta (ΔT) that gives us the target COP
+                // Given: inputTemp, targetCOP, T_cold = 300K
+                // We need: outputTemp such that COP = outputTemp / (outputTemp - 300K)
+                // Then: temperatureDelta = outputTemp - inputTemp
+
+                if (targetCOP <= 1.0f) {
+                    targetCOP = 1.1f; // Minimum sensible COP
+                }
+
+                // Rearrange COP formula to find T_hot (output temperature)
+                // COP = T_hot / (T_hot - T_cold)
+                // COP * (T_hot - T_cold) = T_hot
+                // COP * T_hot - COP * T_cold = T_hot
+                // COP * T_hot - T_hot = COP * T_cold
+                // T_hot * (COP - 1) = COP * T_cold
+                // T_hot = (COP * T_cold) / (COP - 1)
+                outputTemperature = (targetCOP * COLD_RESERVOIR_TEMPERATURE) / (targetCOP - 1.0f);
+                temperatureDelta = outputTemperature - inputTemperature;
+
+                // Validate temperature delta
+                if (temperatureDelta < 0.1f) {
+                    // If calculated output temp is below input temp, use minimum delta
+                    temperatureDelta = 0.1f;
+                    outputTemperature = inputTemperature + temperatureDelta;
+                    // Recalculate actual COP with this temperature
+                    currentCOP = FluidThermalProperties.calculateHeatPumpCOP(
+                        COLD_RESERVOIR_TEMPERATURE,
+                        outputTemperature
+                    );
+                } else {
+                    currentCOP = targetCOP;
+                }
+
+                totalEnergyCost = FluidThermalProperties.calculateHeatPumpEnergy(
+                    fluidForCalculation,
+                    temperatureDelta,
+                    COLD_RESERVOIR_TEMPERATURE,
+                    outputTemperature
+                );
+                break;
+
+            case TARGET_ENERGY:
+                // Mode 3: User sets target energy PER TICK, we calculate temperature delta and COP
+                // Convert EU/t to total energy for 20-tick operation
+                long targetTotalEnergy = (long) targetEnergyPerTick * 20;
+
+                // Energy = (m * c * ΔT) / COP
+                // COP = T_hot / (T_hot - T_cold)
+                //
+                // This expands to a quadratic equation:
+                // Energy * (T_input + ΔT) = m * c * ΔT * (T_input + ΔT - T_cold)
+                //
+                // Quadratic form: a*ΔT² + b*ΔT + c = 0
+
+                float heatCapacity = FluidThermalProperties.getTotalHeatCapacity(fluidForCalculation);
+
+                // Coefficients for quadratic equation
+                float a = heatCapacity; // m * c
+                float b = COLD_RESERVOIR_TEMPERATURE * heatCapacity - heatCapacity * inputTemperature - targetTotalEnergy;
+                float c = -targetTotalEnergy * inputTemperature;
+
+                // Solve using quadratic formula: ΔT = (-b ± sqrt(b² - 4ac)) / 2a
+                float discriminant = b * b - 4 * a * c;
+
+                if (discriminant < 0) {
+                    // No real solution - use minimum temperature delta
+                    temperatureDelta = 0.1f;
+                } else {
+                    // Two solutions - we want the positive one that makes physical sense
+                    float sqrtDiscriminant = (float) Math.sqrt(discriminant);
+                    float solution1 = (-b + sqrtDiscriminant) / (2 * a);
+                    float solution2 = (-b - sqrtDiscriminant) / (2 * a);
+
+                    // Pick the positive solution (both might be positive, pick smaller reasonable one)
+                    if (solution1 > 0.1f && solution1 < 200.0f) {
+                        temperatureDelta = solution1;
+                    } else if (solution2 > 0.1f && solution2 < 200.0f) {
+                        temperatureDelta = solution2;
+                    } else {
+                        // If neither is in reasonable range, use the closer one clamped
+                        temperatureDelta = Math.max(0.1f, Math.min(Math.max(solution1, solution2), 200.0f));
+                    }
+                }
+
+                outputTemperature = inputTemperature + temperatureDelta;
+
+                currentCOP = FluidThermalProperties.calculateHeatPumpCOP(
+                    COLD_RESERVOIR_TEMPERATURE,
+                    outputTemperature
+                );
+
+                // In TARGET_ENERGY mode, use the target energy directly
+                // Don't recalculate - that defeats the purpose of this mode!
+                totalEnergyCost = targetTotalEnergy;
+                break;
+
+            default:
+                return CheckRecipeResultRegistry.NO_RECIPE;
+        }
+
+        // Store calculated values for GUI
+        currentOutputTemperature = outputTemperature;
+        currentEnergyUsage = totalEnergyCost;
+
+        // Recipe runs for 20 ticks (1 second)
+        long energyPerTick = (totalEnergyCost + 19) / 20; // Round up division
+
         // Check if we have enough energy for the full operation upfront
-        long totalEnergyCost = energyPerTick * 20;
         if (!drainEnergyInput(totalEnergyCost)) {
             return SimpleCheckRecipeResult.ofFailure("no_energy");
         }
@@ -243,8 +397,8 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         // Heat the fluid (create copy for output)
         FluidStack heatedFluid = drainedFluid.copy();
 
-        // Calculate heated temperature: input + 10K
-        float heatedTemperature = inputTemperature + 10.0f;
+        // Use the calculated output temperature from the operating mode
+        float heatedTemperature = outputTemperature;
 
         // Add to output network with increased temperature
         // The network will automatically calculate weighted average if mixing with existing fluid
@@ -338,6 +492,98 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         if (network == null) return "";
         var fluid = network.getStoredFluid();
         return fluid != null ? fluid.getLocalizedName() : "";
+    }
+
+    public float getCOP() {
+        return currentCOP;
+    }
+
+    public float getCurrentOutputTemperature() {
+        return currentOutputTemperature;
+    }
+
+    public long getCurrentEnergyUsage() {
+        return currentEnergyUsage;
+    }
+
+    // Operating mode methods
+    public HeatPumpMode getOperatingMode() {
+        return operatingMode;
+    }
+
+    public void setOperatingMode(HeatPumpMode mode) {
+        this.operatingMode = mode;
+    }
+
+    public int getOperatingModeId() {
+        return operatingMode.getId();
+    }
+
+    public void setOperatingModeById(int id) {
+        this.operatingMode = HeatPumpMode.fromId(id);
+    }
+
+    // Target value methods
+    public float getTargetTemperatureDelta() {
+        return targetTemperatureDelta;
+    }
+
+    public void setTargetTemperatureDelta(float delta) {
+        this.targetTemperatureDelta = Math.max(0.1f, Math.min(delta, 200.0f));
+    }
+
+    public float getTargetCOP() {
+        return targetCOP;
+    }
+
+    public void setTargetCOP(float cop) {
+        this.targetCOP = Math.max(1.1f, Math.min(cop, 50.0f));
+    }
+
+    public int getTargetEnergy() {
+        return targetEnergyPerTick;
+    }
+
+    public void setTargetEnergy(int energy) {
+        this.targetEnergyPerTick = Math.max(5, Math.min(energy, 50000));
+    }
+
+    // ===== NBT Methods =====
+    @Override
+    public void saveNBTData(net.minecraft.nbt.NBTTagCompound aNBT) {
+        super.saveNBTData(aNBT);
+
+        // Save operating mode
+        aNBT.setInteger("operatingMode", operatingMode.getId());
+
+        // Save target values
+        aNBT.setFloat("targetTemperatureDelta", targetTemperatureDelta);
+        aNBT.setFloat("targetCOP", targetCOP);
+        aNBT.setInteger("targetEnergyPerTick", targetEnergyPerTick);
+    }
+
+    @Override
+    public void loadNBTData(net.minecraft.nbt.NBTTagCompound aNBT) {
+        super.loadNBTData(aNBT);
+
+        // Load operating mode
+        if (aNBT.hasKey("operatingMode")) {
+            operatingMode = HeatPumpMode.fromId(aNBT.getInteger("operatingMode"));
+        }
+
+        // Load target values
+        if (aNBT.hasKey("targetTemperatureDelta")) {
+            targetTemperatureDelta = aNBT.getFloat("targetTemperatureDelta");
+        }
+        if (aNBT.hasKey("targetCOP")) {
+            targetCOP = aNBT.getFloat("targetCOP");
+        }
+        if (aNBT.hasKey("targetEnergyPerTick")) {
+            targetEnergyPerTick = aNBT.getInteger("targetEnergyPerTick");
+        } else if (aNBT.hasKey("targetEnergy")) {
+            // Backward compatibility - convert old total energy to per-tick
+            targetEnergyPerTick = aNBT.getInteger("targetEnergy") / 20;
+        }
     }
 }
 

@@ -24,6 +24,7 @@ import gregtech.api.interfaces.ITexture;
 import gregtech.api.interfaces.metatileentity.IMetaTileEntity;
 import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
 import gregtech.api.metatileentity.implementations.MTEEnhancedMultiBlockBase;
+import gregtech.api.metatileentity.implementations.integratedfluid.FluidThermalProperties;
 import gregtech.api.metatileentity.implementations.integratedfluid.MTEIntegratedFluidInputHatch;
 import gregtech.api.metatileentity.implementations.integratedfluid.MTEIntegratedFluidOutputHatch;
 import gregtech.api.recipe.check.CheckRecipeResult;
@@ -39,7 +40,6 @@ public class MTERadiator extends MTEEnhancedMultiBlockBase<MTERadiator> implemen
 
     private static final String STRUCTURE_PIECE_MAIN = "main";
     private static final int HEAT_CAPACITY_PER_TICK = 1000; // Max 1000L per tick
-    private static final int EU_PER_TICK = 2000; // Base energy consumption
     private static final float TARGET_TEMPERATURE = 300.0f; // Ambient temperature
 
     // Custom hatch lists for Integrated Fluid Hatches
@@ -91,7 +91,8 @@ public class MTERadiator extends MTEEnhancedMultiBlockBase<MTERadiator> implemen
             .addInfo("Cools fluid from Input Hatch to Output Hatch")
             .addInfo("Decreases fluid temperature to 300K (ambient)")
             .addInfo("Processes up to 1000L per tick")
-            .addInfo("Energy consumption: 2000 EU/t (proportional to fluid amount)")
+            .addInfo("Energy consumption based on fluid's heat capacity")
+            .addInfo("and temperature difference")
             .addInfo("Requires Integrated Fluid Input and Output Hatches")
             .addSeparator()
             .beginStructureBlock(3, 3, 3, true)
@@ -222,11 +223,24 @@ public class MTERadiator extends MTEEnhancedMultiBlockBase<MTERadiator> implemen
             return CheckRecipeResultRegistry.NO_RECIPE;
         }
 
-        // Calculate proportional energy cost PER TICK
-        long energyPerTick = (long) EU_PER_TICK * fluidToProcess / HEAT_CAPACITY_PER_TICK;
+        // Calculate energy cost based on thermal properties
+        // Energy = Heat Capacity × Temperature Change
+        // We're cooling to TARGET_TEMPERATURE (300K)
+        float temperatureDelta = Math.abs(inputTemperature - TARGET_TEMPERATURE);
 
-        // Recipe runs for 20 ticks, so total energy will be energyPerTick * 20
-        long totalEnergyCost = energyPerTick * 20;
+        // Create a fluid stack for thermal calculations
+        FluidStack fluidForCalculation = inputFluid.copy();
+        fluidForCalculation.amount = fluidToProcess;
+
+        long totalEnergyCost = FluidThermalProperties.calculateIdealEnergyForTemperatureChange(
+            fluidForCalculation,
+            temperatureDelta
+        );
+
+        // Recipe runs for 20 ticks (1 second)
+        long energyPerTick = (totalEnergyCost + 19) / 20; // Round up division
+
+        // Check if we have enough energy
         if (!drainEnergyInput(totalEnergyCost)) {
             return SimpleCheckRecipeResult.ofFailure("no_energy");
         }
