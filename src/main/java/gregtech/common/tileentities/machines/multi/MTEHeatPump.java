@@ -32,6 +32,8 @@ import gregtech.api.recipe.check.SimpleCheckRecipeResult;
 import gregtech.api.render.TextureFactory;
 import gregtech.api.util.MultiblockTooltipBuilder;
 import gregtech.common.blocks.BlockCasings2;
+import gregtech.common.gui.modularui.multiblock.MTEHeatPumpGui;
+import gregtech.common.gui.modularui.multiblock.base.MTEMultiBlockBaseGui;
 
 public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implements ISurvivalConstructable {
 
@@ -276,6 +278,66 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
     public int survivalConstruct(ItemStack stackSize, int elementBudget, ISurvivalBuildEnvironment env) {
         if (mMachine) return -1;
         return survivialBuildPiece(STRUCTURE_PIECE_MAIN, stackSize, 1, 1, 0, elementBudget, env, false, true);
+    }
+
+    // ===== GUI Methods =====
+    @Override
+    protected boolean useMui2() {
+        return true;
+    }
+
+    @Override
+    protected @NotNull MTEMultiBlockBaseGui<?> getGui() {
+        return new MTEHeatPumpGui(this);
+    }
+
+    // ===== Helper Methods for GUI =====
+    public float getInputTemperature() {
+        if (mIntegratedInputHatches.isEmpty()) return 0.0f;
+        var network = mIntegratedInputHatches.get(0).getNetwork();
+        return network != null ? network.getTemperature() : 0.0f;
+    }
+
+    public float getOutputTemperature() {
+        if (mIntegratedOutputHatches.isEmpty()) return 0.0f;
+        var network = mIntegratedOutputHatches.get(0).getNetwork();
+        return network != null ? network.getTemperature() : 0.0f;
+    }
+
+    public int getInputNetworkCapacity() {
+        if (mIntegratedInputHatches.isEmpty()) return 0;
+        var network = mIntegratedInputHatches.get(0).getNetwork();
+        return network != null ? network.getMaxCapacity() : 0;
+    }
+
+    public int getInputNetworkStored() {
+        if (mIntegratedInputHatches.isEmpty()) return 0;
+        var network = mIntegratedInputHatches.get(0).getNetwork();
+        if (network == null) return 0;
+        var fluid = network.getStoredFluid();
+        return fluid != null ? fluid.amount : 0;
+    }
+
+    public int getOutputNetworkCapacity() {
+        if (mIntegratedOutputHatches.isEmpty()) return 0;
+        var network = mIntegratedOutputHatches.get(0).getNetwork();
+        return network != null ? network.getMaxCapacity() : 0;
+    }
+
+    public int getOutputNetworkStored() {
+        if (mIntegratedOutputHatches.isEmpty()) return 0;
+        var network = mIntegratedOutputHatches.get(0).getNetwork();
+        if (network == null) return 0;
+        var fluid = network.getStoredFluid();
+        return fluid != null ? fluid.amount : 0;
+    }
+
+    public String getFluidName() {
+        if (mIntegratedInputHatches.isEmpty()) return "";
+        var network = mIntegratedInputHatches.get(0).getNetwork();
+        if (network == null) return "";
+        var fluid = network.getStoredFluid();
+        return fluid != null ? fluid.getLocalizedName() : "";
     }
 }
 
