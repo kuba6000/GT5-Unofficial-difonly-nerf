@@ -52,6 +52,8 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
 
     // Operating mode and targets
     private HeatPumpMode operatingMode = HeatPumpMode.TARGET_TEMPERATURE;
+    private boolean heatExchangerMode = false; // Heat Exchanger Mode enabled/disabled
+    private boolean configuringHotStream = true; // true = configuring hot stream, false = configuring cold stream
     private float targetTemperature = DEFAULT_TARGET_TEMPERATURE; // For TARGET_TEMPERATURE mode (absolute temperature in K)
     private float targetCOP = DEFAULT_TARGET_COP; // For TARGET_COP mode
     private int targetEnergyPerTick = DEFAULT_TARGET_ENERGY_PER_TICK; // For TARGET_ENERGY mode (EU per tick)
@@ -202,7 +204,22 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
 
     @Override
     public @NotNull CheckRecipeResult checkProcessing() {
-        // FIRST: Try to output any pending fluid from previous cycle
+        // CHECK: Heat Exchanger Mode validation
+        if (heatExchangerMode) {
+            // In HX mode, we need colored hatches - validate structure
+            if (!hasValidHeatExchangerHatches()) {
+                // Return NO_RECIPE to avoid showing any error text
+                // GUI already shows nice colored warning message
+                return CheckRecipeResultRegistry.NO_RECIPE;
+            }
+            // TODO: Implement heat exchanger logic here
+            // For now, return NO_RECIPE (no error text)
+            return CheckRecipeResultRegistry.NO_RECIPE;
+        }
+
+        // NORMAL MODE: Single-stream heat pump operation
+
+        // ...existing code...
         if (pendingOutputFluid != null && pendingOutputFluid.amount > 0) {
             if (mIntegratedOutputHatches.isEmpty()) {
                 return CheckRecipeResultRegistry.NO_RECIPE;
@@ -709,6 +726,52 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         this.upperTemperatureTolerance = Math.max(0.0f, Math.min(tolerance, 50.0f));
     }
 
+    // Heat Exchanger Mode
+    public boolean isHeatExchangerMode() {
+        return heatExchangerMode;
+    }
+
+    public void setHeatExchangerMode(boolean enabled) {
+        this.heatExchangerMode = enabled;
+    }
+
+    public boolean isConfiguringHotStream() {
+        return configuringHotStream;
+    }
+
+    public void setConfiguringHotStream(boolean hot) {
+        this.configuringHotStream = hot;
+    }
+
+    /**
+     * Checks if Heat Exchanger Mode has required colored hatches.
+     * Returns true if structure has at least 1 red and 1 blue hatch of each type.
+     */
+    public boolean hasValidHeatExchangerHatches() {
+        if (!heatExchangerMode) {
+            return true; // Not in HX mode, so don't show warning
+        }
+
+        // Count colored hatches (color 0 = Red, color 11 = Blue)
+        int redInputs = 0, blueInputs = 0;
+        int redOutputs = 0, blueOutputs = 0;
+
+        for (MTEIntegratedFluidInputHatch hatch : mIntegratedInputHatches) {
+            int color = hatch.getBaseMetaTileEntity().getColorization();
+            if (color == 0) redInputs++; // Red
+            else if (color == 11) blueInputs++; // Blue
+        }
+
+        for (MTEIntegratedFluidOutputHatch hatch : mIntegratedOutputHatches) {
+            int color = hatch.getBaseMetaTileEntity().getColorization();
+            if (color == 0) redOutputs++; // Red
+            else if (color == 11) blueOutputs++; // Blue
+        }
+
+        // Need at least 1 of each color for both input and output
+        return (redInputs >= 1 && blueInputs >= 1 && redOutputs >= 1 && blueOutputs >= 1);
+    }
+
     // ===== NBT Methods =====
     @Override
     public void saveNBTData(net.minecraft.nbt.NBTTagCompound aNBT) {
@@ -724,6 +787,8 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         aNBT.setInteger("fluidAmountPerOperation", fluidAmountPerOperation);
         aNBT.setFloat("lowerTemperatureTolerance", lowerTemperatureTolerance);
         aNBT.setFloat("upperTemperatureTolerance", upperTemperatureTolerance);
+        aNBT.setBoolean("heatExchangerMode", heatExchangerMode);
+        aNBT.setBoolean("configuringHotStream", configuringHotStream);
 
         // Save pending output fluid
         if (pendingOutputFluid != null) {
@@ -766,6 +831,12 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         }
         if (aNBT.hasKey("upperTemperatureTolerance")) {
             upperTemperatureTolerance = aNBT.getFloat("upperTemperatureTolerance");
+        }
+        if (aNBT.hasKey("heatExchangerMode")) {
+            heatExchangerMode = aNBT.getBoolean("heatExchangerMode");
+        }
+        if (aNBT.hasKey("configuringHotStream")) {
+            configuringHotStream = aNBT.getBoolean("configuringHotStream");
         }
 
         // Load pending output fluid
