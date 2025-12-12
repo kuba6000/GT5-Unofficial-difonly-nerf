@@ -34,8 +34,18 @@ public class MTEHeatPumpGui extends MTEMultiBlockBaseGui<MTEHeatPump> {
 
     @Override
     protected ListWidget<IWidget, ?> createTerminalTextWidget(PanelSyncManager syncManager, ModularPanel parent) {
-        // NOTE: We use multiblock getters directly in lambdas instead of sync values
-        // This avoids null reference issues since multiblock is always available
+        FloatSyncValue inputTempSync = syncManager.findSyncHandler("inputTemp", FloatSyncValue.class);
+        FloatSyncValue outputTempSync = syncManager.findSyncHandler("outputTemp", FloatSyncValue.class);
+        IntSyncValue inputCapacitySync = syncManager.findSyncHandler("inputCapacity", IntSyncValue.class);
+        IntSyncValue inputStoredSync = syncManager.findSyncHandler("inputStored", IntSyncValue.class);
+        IntSyncValue outputCapacitySync = syncManager.findSyncHandler("outputCapacity", IntSyncValue.class);
+        IntSyncValue outputStoredSync = syncManager.findSyncHandler("outputStored", IntSyncValue.class);
+        StringSyncValue fluidNameSync = syncManager.findSyncHandler("fluidName", StringSyncValue.class);
+        FloatSyncValue copSync = syncManager.findSyncHandler("cop", FloatSyncValue.class);
+        IntSyncValue modeSync = syncManager.findSyncHandler("operatingMode", IntSyncValue.class);
+        FloatSyncValue universalValueSync = syncManager.findSyncHandler("universalValue", FloatSyncValue.class);
+        IntSyncValue heatExchangerModeSync = syncManager.findSyncHandler("heatExchangerMode", IntSyncValue.class);
+        IntSyncValue hxValidSync = syncManager.findSyncHandler("hxValid", IntSyncValue.class);
 
         return super.createTerminalTextWidget(syncManager, parent)
             .child(
@@ -49,9 +59,8 @@ public class MTEHeatPumpGui extends MTEMultiBlockBaseGui<MTEHeatPump> {
                     if (!multiblock.getBaseMetaTileEntity().isActive()) {
                         // Check if configuration is invalid
                         boolean invalidConfig = false;
-                        float value = multiblock.getUniversalValue();
-                        int mode = multiblock.getOperatingModeId();
-                        switch (mode) {
+                        float value = universalValueSync.getValue();
+                        switch (modeSync.getValue()) {
                             case 0: // TARGET_TEMPERATURE
                                 if (value <= 0 || value < 200.0f || value > 500.0f) {
                                     invalidConfig = true;
@@ -78,7 +87,7 @@ public class MTEHeatPumpGui extends MTEMultiBlockBaseGui<MTEHeatPump> {
             // Heat Exchanger Mode warning - missing colored hatches
             .child(
                 IKey.dynamic(() -> {
-                    if (multiblock.isHeatExchangerMode() && !multiblock.hasValidHeatExchangerHatches()) {
+                    if (heatExchangerModeSync.getValue() != 0 && hxValidSync.getValue() == 0) {
                         return EnumChatFormatting.RED + "⚠ Heat Exchanger Mode:"
                             + EnumChatFormatting.YELLOW + "\n  Missing colored hatches!"
                             + EnumChatFormatting.GRAY + "\n  Required: 2 Red + 2 Blue"
@@ -89,8 +98,7 @@ public class MTEHeatPumpGui extends MTEMultiBlockBaseGui<MTEHeatPump> {
             .child(
                 IKey.dynamic(() -> {
                     String modeName = "";
-                    int mode = multiblock.getOperatingModeId();
-                    switch (mode) {
+                    switch (modeSync.getValue()) {
                         case 0: modeName = "Target Temperature"; break;
                         case 1: modeName = "Target COP"; break;
                         case 2: modeName = "Target Energy"; break;
@@ -103,18 +111,16 @@ public class MTEHeatPumpGui extends MTEMultiBlockBaseGui<MTEHeatPump> {
             .child(
                 IKey.dynamic(() -> {
                     // Dynamic target display that updates based on mode
-                    int mode = multiblock.getOperatingModeId();
-                    float value = multiblock.getUniversalValue();
-                    switch (mode) {
+                    switch (modeSync.getValue()) {
                         case 0: // TARGET_TEMPERATURE
                             return EnumChatFormatting.WHITE + "Target: "
-                                + EnumChatFormatting.GOLD + String.format("%.1f", value) + "K";
+                                + EnumChatFormatting.GOLD + String.format("%.1f", universalValueSync.getValue()) + "K";
                         case 1: // TARGET_COP
                             return EnumChatFormatting.WHITE + "Target: "
-                                + EnumChatFormatting.LIGHT_PURPLE + "COP " + String.format("%.2f", value);
+                                + EnumChatFormatting.LIGHT_PURPLE + "COP " + String.format("%.2f", universalValueSync.getValue());
                         case 2: // TARGET_ENERGY
                             return EnumChatFormatting.WHITE + "Target: "
-                                + EnumChatFormatting.GOLD + GTUtility.formatNumbers((int)value) + " EU/t";
+                                + EnumChatFormatting.GOLD + GTUtility.formatNumbers(universalValueSync.getValue().intValue()) + " EU/t";
                         default:
                             return "";
                     }
@@ -122,73 +128,62 @@ public class MTEHeatPumpGui extends MTEMultiBlockBaseGui<MTEHeatPump> {
                     .asWidget()
                     .setEnabledIf(w -> multiblock.getBaseMetaTileEntity().isActive()))
             .child(
-                IKey.dynamic(() -> {
-                    String fluidName = multiblock.getFluidName();
-                    return EnumChatFormatting.WHITE + "Fluid: "
-                        + EnumChatFormatting.AQUA + fluidName;
-                })
+                IKey.dynamic(
+                    () -> EnumChatFormatting.WHITE + "Fluid: "
+                        + EnumChatFormatting.AQUA + fluidNameSync.getValue())
                     .asWidget()
                     .setEnabledIf(w -> multiblock.getBaseMetaTileEntity().isActive()
-                        && GTUtility.isStringValid(multiblock.getFluidName())))
+                        && GTUtility.isStringValid(fluidNameSync.getValue())))
             .child(
                 IKey.dynamic(() -> {
-                    float cop = multiblock.getCOP();
-                    if (cop <= 0) {
+                    if (copSync.getValue() <= 0) {
                         // Passthrough mode - no heating needed
                         return EnumChatFormatting.WHITE + "Mode: "
                             + EnumChatFormatting.GREEN + "PASSTHROUGH (No Heating)";
                     } else {
                         // Normal operation - show COP
                         return EnumChatFormatting.WHITE + "COP: "
-                            + EnumChatFormatting.LIGHT_PURPLE + String.format("%.2f", cop);
+                            + EnumChatFormatting.LIGHT_PURPLE + String.format("%.2f", copSync.getValue());
                     }
                 })
                     .asWidget()
                     .setEnabledIf(w -> multiblock.getBaseMetaTileEntity().isActive()))
             .child(
-                IKey.dynamic(() -> EnumChatFormatting.WHITE + "Input Network:")
+                IKey.dynamic(
+                    () -> EnumChatFormatting.WHITE + "Input Network:")
                     .asWidget()
                     .setEnabledIf(w -> multiblock.getBaseMetaTileEntity().isActive()))
             .child(
-                IKey.dynamic(() -> {
-                    float temp = multiblock.getInputTemperature();
-                    return EnumChatFormatting.WHITE + "  Temperature: "
-                        + EnumChatFormatting.GOLD + String.format("%.1f", temp) + "K";
-                })
+                IKey.dynamic(
+                    () -> EnumChatFormatting.WHITE + "  Temperature: "
+                        + EnumChatFormatting.GOLD + String.format("%.1f", inputTempSync.getValue()) + "K")
                     .asWidget()
                     .setEnabledIf(w -> multiblock.getBaseMetaTileEntity().isActive()))
             .child(
-                IKey.dynamic(() -> {
-                    int stored = multiblock.getInputNetworkStored();
-                    int capacity = multiblock.getInputNetworkCapacity();
-                    return EnumChatFormatting.WHITE + "  Capacity: "
-                        + EnumChatFormatting.GREEN + GTUtility.formatNumbers(stored) + "L"
+                IKey.dynamic(
+                    () -> EnumChatFormatting.WHITE + "  Capacity: "
+                        + EnumChatFormatting.GREEN + GTUtility.formatNumbers(inputStoredSync.getValue()) + "L"
                         + EnumChatFormatting.WHITE + " / "
-                        + EnumChatFormatting.YELLOW + GTUtility.formatNumbers(capacity) + "L";
-                })
+                        + EnumChatFormatting.YELLOW + GTUtility.formatNumbers(inputCapacitySync.getValue()) + "L")
                     .asWidget()
                     .setEnabledIf(w -> multiblock.getBaseMetaTileEntity().isActive()))
             .child(
-                IKey.dynamic(() -> EnumChatFormatting.WHITE + "Output Network:")
+                IKey.dynamic(
+                    () -> EnumChatFormatting.WHITE + "Output Network:")
                     .asWidget()
                     .setEnabledIf(w -> multiblock.getBaseMetaTileEntity().isActive()))
             .child(
-                IKey.dynamic(() -> {
-                    float temp = multiblock.getOutputTemperature();
-                    return EnumChatFormatting.WHITE + "  Temperature: "
-                        + EnumChatFormatting.GOLD + String.format("%.1f", temp) + "K";
-                })
+                IKey.dynamic(
+                    () -> EnumChatFormatting.WHITE + "  Temperature: "
+                        + EnumChatFormatting.GOLD + String.format("%.1f", outputTempSync.getValue()) + "K")
                     .asWidget()
                     .setEnabledIf(w -> multiblock.getBaseMetaTileEntity().isActive()))
             .child(
-                IKey.dynamic(() -> {
-                    int stored = multiblock.getOutputNetworkStored();
-                    int capacity = multiblock.getOutputNetworkCapacity();
-                    return EnumChatFormatting.WHITE + "  Capacity: "
-                        + EnumChatFormatting.GREEN + GTUtility.formatNumbers(stored) + "L"
+                IKey.dynamic(
+                    () -> EnumChatFormatting.WHITE + "  Capacity: "
+                        + EnumChatFormatting.GREEN + GTUtility.formatNumbers(outputStoredSync.getValue()) + "L"
                         + EnumChatFormatting.WHITE + " / "
-                        + EnumChatFormatting.YELLOW + GTUtility.formatNumbers(capacity) + "L";
-                })
+                        + EnumChatFormatting.YELLOW + GTUtility.formatNumbers(outputCapacitySync.getValue()) + "L")
                     .asWidget()
                     .setEnabledIf(w -> multiblock.getBaseMetaTileEntity().isActive()));
     }
@@ -265,20 +260,14 @@ public class MTEHeatPumpGui extends MTEMultiBlockBaseGui<MTEHeatPump> {
     }
 
     protected IWidget createHeatExchangerButton(PanelSyncManager syncManager) {
-        final IntSyncValue heatExchangerModeSync = syncManager.findSyncHandler("heatExchangerMode", IntSyncValue.class);
+        IntSyncValue heatExchangerModeSync = syncManager.findSyncHandler("heatExchangerMode", IntSyncValue.class);
 
         return new ButtonWidget<>().size(18, 18)
             .marginRight(4)
-            .overlay(IKey.dynamic(() -> {
-                if (heatExchangerModeSync != null) {
-                    return heatExchangerModeSync.getValue() != 0
-                        ? EnumChatFormatting.GREEN + "HX"
-                        : EnumChatFormatting.GRAY + "HX";
-                }
-                return EnumChatFormatting.GRAY + "HX";
-            }))
+            .overlay(IKey.dynamic(() -> heatExchangerModeSync.getValue() != 0
+                ? EnumChatFormatting.GREEN + "HX"
+                : EnumChatFormatting.GRAY + "HX"))
             .onMousePressed(d -> {
-                if (heatExchangerModeSync == null) return false;
                 heatExchangerModeSync.updateCacheFromSource(false);
                 int newValue = heatExchangerModeSync.getValue() == 0 ? 1 : 0;
                 heatExchangerModeSync.setValue(newValue);
@@ -292,13 +281,13 @@ public class MTEHeatPumpGui extends MTEMultiBlockBaseGui<MTEHeatPump> {
 
     protected IWidget createSettingsPanelButton(PanelSyncManager syncManager, ModularPanel parent) {
         // Get sync handlers from parent syncManager
-        final IntSyncValue modeSync = syncManager.findSyncHandler("operatingMode", IntSyncValue.class);
-        final FloatSyncValue universalValueSync = syncManager.findSyncHandler("universalValue", FloatSyncValue.class);
-        final IntSyncValue fluidAmountSync = syncManager.findSyncHandler("fluidAmount", IntSyncValue.class);
-        final FloatSyncValue lowerToleranceSync = syncManager.findSyncHandler("lowerTolerance", FloatSyncValue.class);
-        final FloatSyncValue upperToleranceSync = syncManager.findSyncHandler("upperTolerance", FloatSyncValue.class);
-        final IntSyncValue heatExchangerModeSync = syncManager.findSyncHandler("heatExchangerMode", IntSyncValue.class);
-        final IntSyncValue hotStreamSync = syncManager.findSyncHandler("hotStream", IntSyncValue.class);
+        IntSyncValue modeSync = syncManager.findSyncHandler("operatingMode", IntSyncValue.class);
+        FloatSyncValue universalValueSync = syncManager.findSyncHandler("universalValue", FloatSyncValue.class);
+        IntSyncValue fluidAmountSync = syncManager.findSyncHandler("fluidAmount", IntSyncValue.class);
+        FloatSyncValue lowerToleranceSync = syncManager.findSyncHandler("lowerTolerance", FloatSyncValue.class);
+        FloatSyncValue upperToleranceSync = syncManager.findSyncHandler("upperTolerance", FloatSyncValue.class);
+        IntSyncValue heatExchangerModeSync = syncManager.findSyncHandler("heatExchangerMode", IntSyncValue.class);
+        IntSyncValue hotStreamSync = syncManager.findSyncHandler("hotStream", IntSyncValue.class);
 
         IPanelHandler settingsPanel = syncManager
             .panel("heatPumpSettings", (p_syncManager, syncHandler) -> openSettingsPanel(parent, modeSync, universalValueSync, fluidAmountSync, lowerToleranceSync, upperToleranceSync, heatExchangerModeSync, hotStreamSync), true);
@@ -330,8 +319,8 @@ public class MTEHeatPumpGui extends MTEMultiBlockBaseGui<MTEHeatPump> {
                             .widthRel(1)
                             .height(18)
                             .marginBottom(4))
-                    // Stream selector - always present but only visible in Heat Exchanger Mode
-                    .child(createStreamSelectorRow(heatExchangerModeSync, hotStreamSync))
+                    // Stream selector - always present, disabled when HX mode is OFF
+                    .child(createStreamSelectorRow(hotStreamSync, heatExchangerModeSync))
                     .child(createSettingsButton1(modeSync, universalValueSync))
                     .child(createSettingsButton2(modeSync, universalValueSync))
                     .child(createSettingsButton3(modeSync, universalValueSync))
@@ -339,18 +328,18 @@ public class MTEHeatPumpGui extends MTEMultiBlockBaseGui<MTEHeatPump> {
                     .child(createUniversalInputField(modeSync, universalValueSync))
                     // Fluid amount per operation field
                     .child(createFluidAmountField(fluidAmountSync))
-                    // Temperature tolerance fields (only visible in TARGET_TEMPERATURE mode)
+                    // Temperature tolerance fields - always present, disabled when not in TARGET_TEMPERATURE mode
                     .child(createToleranceFieldsColumn(modeSync, lowerToleranceSync, upperToleranceSync)));
     }
 
     /**
      * Creates stream selector row for Heat Exchanger Mode.
      * Shows which stream is being configured (Hot or Cold).
-     * Dynamically shows/hides based on Heat Exchanger Mode state.
+     * Disabled when HX mode is OFF.
      */
-    private IWidget createStreamSelectorRow(IntSyncValue heatExchangerModeSync, IntSyncValue hotStreamSync) {
+    private IWidget createStreamSelectorRow(IntSyncValue hotStreamSync, IntSyncValue heatExchangerModeSync) {
         return new Row().widthRel(1).height(18).marginBottom(4)
-            .setEnabledIf(w -> heatExchangerModeSync != null && heatExchangerModeSync.getValue() != 0) // Only active when HX mode is ON
+            .setEnabledIf(w -> heatExchangerModeSync.getValue() != 0)
             .child(
                 new TextWidget<>("Stream:")
                     .width(50)
@@ -358,17 +347,10 @@ public class MTEHeatPumpGui extends MTEMultiBlockBaseGui<MTEHeatPump> {
             .child(
                 new ButtonWidget<>().width(60)
                     .height(18)
-                    .overlay(IKey.dynamic(() -> {
-                        if (hotStreamSync != null) {
-                            return hotStreamSync.getValue() != 0
-                                ? EnumChatFormatting.RED + "HOT"
-                                : EnumChatFormatting.BLUE + "COLD";
-                        }
-                        return "N/A";
-                    }))
+                    .overlay(IKey.dynamic(() -> hotStreamSync.getValue() != 0
+                        ? EnumChatFormatting.RED + "HOT"
+                        : EnumChatFormatting.BLUE + "COLD"))
                     .onMousePressed(d -> {
-                        if (heatExchangerModeSync == null || hotStreamSync == null) return false;
-                        if (heatExchangerModeSync.getValue() == 0) return false; // Ignore clicks when disabled
                         hotStreamSync.updateCacheFromSource(false);
                         int newValue = hotStreamSync.getValue() == 0 ? 1 : 0;
                         hotStreamSync.setValue(newValue);
@@ -389,7 +371,6 @@ public class MTEHeatPumpGui extends MTEMultiBlockBaseGui<MTEHeatPump> {
             .child(
                 // Dynamic label widget
                 IKey.dynamic(() -> {
-                    if (modeSync == null) return "Value:";
                     switch (modeSync.getValue()) {
                         case 0: return "Target (K):";
                         case 1: return "COP:";
@@ -431,13 +412,11 @@ public class MTEHeatPumpGui extends MTEMultiBlockBaseGui<MTEHeatPump> {
             .height(18)
             .marginBottom(4)
             .overlay(IKey.dynamic(() -> {
-                if (modeSync == null) return EnumChatFormatting.GRAY + "Target Temperature";
                 boolean isActive = modeSync.getValue() == 0;
                 return (isActive ? EnumChatFormatting.GREEN : EnumChatFormatting.GRAY)
                     + "Target Temperature";
             }))
             .onMousePressed(d -> {
-                if (modeSync == null || universalValueSync == null) return false;
                 modeSync.updateCacheFromSource(false);
                 modeSync.setValue(0);
                 modeSync.syncToServer(1, buffer -> buffer.writeVarIntToBuffer(0));
@@ -454,13 +433,11 @@ public class MTEHeatPumpGui extends MTEMultiBlockBaseGui<MTEHeatPump> {
             .height(18)
             .marginBottom(4)
             .overlay(IKey.dynamic(() -> {
-                if (modeSync == null) return EnumChatFormatting.GRAY + "Target COP";
                 boolean isActive = modeSync.getValue() == 1;
                 return (isActive ? EnumChatFormatting.GREEN : EnumChatFormatting.GRAY)
                     + "Target COP";
             }))
             .onMousePressed(d -> {
-                if (modeSync == null || universalValueSync == null) return false;
                 modeSync.updateCacheFromSource(false);
                 modeSync.setValue(1);
                 modeSync.syncToServer(1, buffer -> buffer.writeVarIntToBuffer(1));
@@ -476,13 +453,11 @@ public class MTEHeatPumpGui extends MTEMultiBlockBaseGui<MTEHeatPump> {
         return new ButtonWidget<>().widthRel(1)
             .height(18)
             .overlay(IKey.dynamic(() -> {
-                if (modeSync == null) return EnumChatFormatting.GRAY + "Target Energy Usage";
                 boolean isActive = modeSync.getValue() == 2;
                 return (isActive ? EnumChatFormatting.GREEN : EnumChatFormatting.GRAY)
                     + "Target Energy Usage";
             }))
             .onMousePressed(d -> {
-                if (modeSync == null || universalValueSync == null) return false;
                 modeSync.updateCacheFromSource(false);
                 modeSync.setValue(2);
                 modeSync.syncToServer(1, buffer -> buffer.writeVarIntToBuffer(2));
@@ -497,15 +472,13 @@ public class MTEHeatPumpGui extends MTEMultiBlockBaseGui<MTEHeatPump> {
     /**
      * Creates column with temperature tolerance fields (lower and upper).
      * Fields are dynamically shown/hidden based on operating mode.
-     * Uses setEnabledIf to react to mode changes.
+     * Disabled when not in TARGET_TEMPERATURE mode.
      */
     private IWidget createToleranceFieldsColumn(IntSyncValue modeSync, FloatSyncValue lowerToleranceSync, FloatSyncValue upperToleranceSync) {
-        return new Column().widthRel(1)
-            .height(38) // 18px + 2px margin + 18px = 38px total
-            .marginTop(4)
+        return new Column().widthRel(1).marginTop(4)
             // Lower tolerance field
             .child(new Row().widthRel(1).height(18)
-                .setEnabledIf(w -> modeSync != null && modeSync.getValue() == 0) // Show only in TARGET_TEMPERATURE mode
+                .setEnabledIf(w -> modeSync.getValue() == 0)
                 .child(
                     new TextWidget<>("Lower (K):")
                         .width(80)
@@ -518,7 +491,7 @@ public class MTEHeatPumpGui extends MTEMultiBlockBaseGui<MTEHeatPump> {
                         .setTextAlignment(Alignment.Center)))
             // Upper tolerance field
             .child(new Row().widthRel(1).height(18).marginTop(2)
-                .setEnabledIf(w -> modeSync != null && modeSync.getValue() == 0) // Show only in TARGET_TEMPERATURE mode
+                .setEnabledIf(w -> modeSync.getValue() == 0)
                 .child(
                     new TextWidget<>("Upper (K):")
                         .width(80)
