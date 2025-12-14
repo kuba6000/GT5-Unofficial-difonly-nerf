@@ -359,6 +359,10 @@ public class IntegratedFluidNetwork {
         if (other == null || other == this) {
             return;
         }
+//todo  finish debuging network NBT saving because it voids a lot of fluids on world load (possibly initialize snapshot before network has max capacity so the fluid gets capped to low capacity)
+        System.out.println("[IntegratedFluidNetwork] MERGE: This network has " +
+            (storedFluid != null ? storedFluid.amount + "mB" : "0mB") +
+            ", other has " + (other.storedFluid != null ? other.storedFluid.amount + "mB" : "0mB"));
 
         // Save other network's fluid data before any modifications
         FluidStack otherFluid = other.storedFluid != null ? other.storedFluid.copy() : null;
@@ -370,10 +374,16 @@ public class IntegratedFluidNetwork {
             addMember(member);
         }
 
+        System.out.println("[IntegratedFluidNetwork] After transferring members, capacity is now " + getMaxCapacity());
+
         // Now add fluid from other network with increased capacity
         if (otherFluid != null) {
+            System.out.println("[IntegratedFluidNetwork] Adding " + otherFluid.amount + "mB from other network");
             addFluid(otherFluid, false, otherTemp);
         }
+
+        System.out.println("[IntegratedFluidNetwork] After merge, network has " +
+            (storedFluid != null ? storedFluid.amount + "mB" : "0mB"));
 
         // Clear other network's fluid (already transferred)
         other.storedFluid = null;
@@ -392,6 +402,7 @@ public class IntegratedFluidNetwork {
         if (storedFluid.amount <= capacity) return 0;
 
         int excess = storedFluid.amount - capacity;
+        System.out.println("[IntegratedFluidNetwork] VOIDING FLUID! Had " + storedFluid.amount + "mB, capacity is " + capacity + ", voiding " + excess + "mB");
         storedFluid.amount = capacity;
         return excess;
     }

@@ -36,6 +36,11 @@ public class MTEIntegratedFluidInputHatch extends MTEHatch implements IIntegrate
 
     private IntegratedFluidNetwork network;
 
+    // Snapshot data loaded from NBT (used to seed network on first tick)
+    private FluidStack snapshotFluid = null;
+    private float snapshotTemperature = IntegratedFluidNetwork.DEFAULT_TEMPERATURE;
+    private float snapshotPressure = IntegratedFluidNetwork.DEFAULT_PRESSURE;
+
     public MTEIntegratedFluidInputHatch(int aID, String aName, String aNameRegional, int aTier) {
         super(
             aID,
@@ -107,41 +112,42 @@ public class MTEIntegratedFluidInputHatch extends MTEHatch implements IIntegrate
             FluidStack fluid = network.getStoredFluid();
             if (fluid != null) {
                 aNBT.setTag("networkFluid", fluid.writeToNBT(new NBTTagCompound()));
+                System.out.println("[IntegratedFluidInputHatch] SAVING snapshot: " + fluid.amount + "mB of " + fluid.getFluid().getName() + " at " + network.getTemperature() + "K");
             }
             aNBT.setFloat("networkPressure", network.getPressure());
             aNBT.setFloat("networkTemperature", network.getTemperature());
+        } else {
+            System.out.println("[IntegratedFluidInputHatch] SAVING: No network to save");
         }
     }
 
     @Override
     public void loadNBTData(NBTTagCompound aNBT) {
         super.loadNBTData(aNBT);
-        // Restore network data - will be merged during rebuild on first tick
+        System.out.println("[IntegratedFluidInputHatch] loadNBTData called");
+        // Load snapshot data WITHOUT creating a network
+        // NetworkManager will build networks based on connectivity and seed from one snapshot
         if (aNBT.hasKey("networkPressure") || aNBT.hasKey("networkFluid")) {
-            network = new IntegratedFluidNetwork();
-
-            // Restore pressure and temperature
+            System.out.println("[IntegratedFluidInputHatch] Found network data in NBT");
+            // Load pressure
             if (aNBT.hasKey("networkPressure")) {
-                network.setPressure(aNBT.getFloat("networkPressure"));
+                snapshotPressure = aNBT.getFloat("networkPressure");
             }
+            // Load temperature
             if (aNBT.hasKey("networkTemperature")) {
-                network.setTemperature(aNBT.getFloat("networkTemperature"));
-            } else {
-                // If no temperature saved, use default
-                network.setTemperature(IntegratedFluidNetwork.DEFAULT_TEMPERATURE);
+                snapshotTemperature = aNBT.getFloat("networkTemperature");
             }
-
-            // Restore fluid
+            // Load fluid
             if (aNBT.hasKey("networkFluid")) {
-                FluidStack fluid = FluidStack.loadFluidStackFromNBT(aNBT.getCompoundTag("networkFluid"));
-                if (fluid != null) {
-                    // Add fluid with the restored temperature
-                    network.addFluid(fluid, false, network.getTemperature());
-                }
+                snapshotFluid = FluidStack.loadFluidStackFromNBT(aNBT.getCompoundTag("networkFluid"));
+                System.out.println("[IntegratedFluidInputHatch] Loaded snapshot: " +
+                    (snapshotFluid != null ? snapshotFluid.amount + "mB of " + snapshotFluid.getFluid().getName() : "null") +
+                    " at " + snapshotTemperature + "K");
             }
-
-            network.addMember(this);
+        } else {
+            System.out.println("[IntegratedFluidInputHatch] No network data in NBT");
         }
+        // Keep network = null, will be built by NetworkManager
     }
 
     @Override
@@ -320,5 +326,25 @@ public class MTEIntegratedFluidInputHatch extends MTEHatch implements IIntegrate
     public void onMachineBlockUpdate() {
         // DON'T rebuild network here - causes fluid scaling issues
         // Network is properly managed via onFirstTick/onMemberAdded
+    }
+
+    // Snapshot access methods for NetworkManager
+
+    public FluidStack getSnapshotFluid() {
+        return snapshotFluid;
+    }
+
+    public float getSnapshotTemperature() {
+        return snapshotTemperature;
+    }
+
+    public float getSnapshotPressure() {
+        return snapshotPressure;
+    }
+
+    public void clearSnapshot() {
+        snapshotFluid = null;
+        snapshotTemperature = IntegratedFluidNetwork.DEFAULT_TEMPERATURE;
+        snapshotPressure = IntegratedFluidNetwork.DEFAULT_PRESSURE;
     }
 }

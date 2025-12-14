@@ -54,8 +54,11 @@ public class NetworkManager {
     public void onMemberAdded(IIntegratedFluidMember member) {
         if (member == null) return;
 
+        System.out.println("[NetworkManager] onMemberAdded called for " + member.getClass().getSimpleName());
+
         // Find connected neighbors
         List<IIntegratedFluidMember> neighbors = findConnectedNeighbors(member);
+        System.out.println("[NetworkManager] Found " + neighbors.size() + " neighbors");
 
         // FORCE AWAKENING: Trigger onPostTick check on all neighbors
         // This ensures they re-evaluate their networks immediately
@@ -65,13 +68,13 @@ public class NetworkManager {
             }
         }
 
-        // Collect EXISTING networks from neighbors (ignore member's own network if it has one from NBT)
-        IntegratedFluidNetwork memberOldNetwork = member.getNetwork();
+        // Collect EXISTING networks from neighbors (member should not have a network yet)
         Set<IntegratedFluidNetwork> neighborNetworks = neighbors.stream()
             .map(IIntegratedFluidMember::getNetwork)
             .filter(Objects::nonNull)
-            .filter(net -> net != memberOldNetwork) // Ignore member's NBT network
             .collect(Collectors.toSet());
+
+        System.out.println("[NetworkManager] Found " + neighborNetworks.size() + " existing networks from neighbors");
 
         // Check if we have neighbors but they don't have networks yet (during world load)
         boolean hasNeighborsWithoutNetworks = !neighbors.isEmpty() && neighborNetworks.isEmpty();
@@ -79,43 +82,48 @@ public class NetworkManager {
         if (neighborNetworks.isEmpty()) {
             // No existing networks nearby
             if (hasNeighborsWithoutNetworks) {
+                System.out.println("[NetworkManager] Case: Neighbors without networks (world loading)");
                 // Neighbors exist but don't have networks yet - they're probably loading
-                // Keep member's NBT network temporarily if it exists, otherwise create new one
-                // The neighbors will merge with us when they load, or we'll merge in onPostTick
-                if (memberOldNetwork != null) {
-                    // Keep NBT network temporarily
-                    allNetworks.add(memberOldNetwork);
-                } else {
-                    // Create temporary network - will merge later
-                    createNewNetwork(member);
-                }
-            } else if (memberOldNetwork != null) {
-                // No neighbors at all - member has NBT network (from save)
-                // Keep it if it has fluid, otherwise discard
-                if (memberOldNetwork.getStoredFluid() != null && memberOldNetwork.getStoredFluid().amount > 0) {
-                    // Keep NBT network with fluid
-                    allNetworks.add(memberOldNetwork);
-                } else {
-                    // Discard empty NBT network and create fresh one
-                    memberOldNetwork.clear();
-                    createNewNetwork(member);
-                }
-            } else {
-                // Brand new member - create new network
+                // Create temporary network for now
                 createNewNetwork(member);
+
+                // Collect all members that should be in this network (current + neighbors without networks)
+                Set<IIntegratedFluidMember> allMembers = new HashSet<>();
+                allMembers.add(member);
+                allMembers.addAll(neighbors);
+
+                // Try to seed from best snapshot in the group
+                seedNetworkFromBestSnapshot(member.getNetwork(), allMembers);
+            } else {
+                System.out.println("[NetworkManager] Case: No neighbors at all");
+                // No neighbors at all - create new network and seed from this member
+                createNewNetwork(member);
+                seedNetworkFromSnapshot(member.getNetwork(), member);
             }
         } else if (neighborNetworks.size() == 1) {
+            System.out.println("[NetworkManager] Case: Single existing network");
             // Single existing network - just add member to it
             IntegratedFluidNetwork existingNetwork = neighborNetworks.iterator().next();
-
-            // If member has NBT network, ALWAYS discard it (existing network is the truth)
-            if (memberOldNetwork != null && memberOldNetwork != existingNetwork) {
-                memberOldNetwork.clear();
-            }
 
             // Add member to existing network (this does NOT duplicate fluid!)
             existingNetwork.addMember(member);
             member.setNetwork(existingNetwork);
+
+            // IMPORTANT: If network is empty and member has snapshot, seed it!
+            if ((existingNetwork.getStoredFluid() == null || existingNetwork.getStoredFluid().amount == 0)) {
+                FluidStack snapshot = getMemberSnapshot(member);
+                if (snapshot != null && snapshot.amount > 0) {
+                    System.out.println("[NetworkManager] Network is empty, seeding from member snapshot: " + snapshot.amount + "mB");
+                    float temperature = getMemberSnapshotTemperature(member);
+                    float pressure = getMemberSnapshotPressure(member);
+                    existingNetwork.addFluid(snapshot, false, temperature);
+                    existingNetwork.setPressure(pressure);
+                }
+            }
+
+            // Clear snapshot after checking/using it
+            clearMemberSnapshot(member);
+
             member.onNetworkUpdate();
 
             // IMPORTANT: Cap fluid to capacity (member might be removed, decreasing capacity)
@@ -125,17 +133,17 @@ public class NetworkManager {
                 // This happens when removing members
             }
         } else {
+            System.out.println("[NetworkManager] Case: Multiple existing networks - merging");
             // Multiple existing networks - merge them
             IntegratedFluidNetwork mainNetwork = mergeNetworks(neighborNetworks);
-
-            // If member has NBT network, discard it
-            if (memberOldNetwork != null && memberOldNetwork != mainNetwork) {
-                memberOldNetwork.clear();
-            }
 
             // Add member to merged network
             mainNetwork.addMember(member);
             member.setNetwork(mainNetwork);
+
+            // Clear snapshot - network already has state from merge
+            clearMemberSnapshot(member);
+
             member.onNetworkUpdate();
 
             // IMPORTANT: Cap fluid to capacity after merge
@@ -251,6 +259,11 @@ public class NetworkManager {
             newNetwork.setPressure(oldPressure);
             if (fluidCopy == null || fluidCopy.amount == 0) {
                 newNetwork.setTemperature(oldTemperature);
+            }
+
+            // Clear all snapshots in this component
+            for (IIntegratedFluidMember componentMember : component) {
+                clearMemberSnapshot(componentMember);
             }
 
             // Notify members AND wake up neighbors
@@ -389,6 +402,11 @@ public class NetworkManager {
             newNetwork.setPressure(avgPressure);
             if (combinedFluid == null || combinedFluid.amount == 0) {
                 newNetwork.setTemperature(finalTemperature);
+            }
+
+            // Clear all snapshots in this component
+            for (IIntegratedFluidMember componentMember : component) {
+                clearMemberSnapshot(componentMember);
             }
 
             // Notify all members
@@ -545,6 +563,150 @@ public class NetworkManager {
         network.addMember(member);
         member.setNetwork(network);
         allNetworks.add(network);
+    }
+
+    /**
+     * Seeds a network from a member's snapshot data.
+     * Only seeds if the member has snapshot data and the network is empty.
+     */
+    private void seedNetworkFromSnapshot(IntegratedFluidNetwork network, IIntegratedFluidMember member) {
+        if (network == null || member == null) return;
+
+        System.out.println("[NetworkManager] seedNetworkFromSnapshot called for " + member.getClass().getSimpleName());
+
+        // Only seed if network is empty
+        if (network.getStoredFluid() != null && network.getStoredFluid().amount > 0) {
+            System.out.println("[NetworkManager] Network already has fluid, skipping seed");
+            clearMemberSnapshot(member);
+            return;
+        }
+
+        // Try to get snapshot data from member
+        FluidStack snapshot = getMemberSnapshot(member);
+        System.out.println("[NetworkManager] Snapshot from member: " + (snapshot != null ? snapshot.amount + "mB" : "null"));
+
+        if (snapshot != null && snapshot.amount > 0) {
+            float temperature = getMemberSnapshotTemperature(member);
+            float pressure = getMemberSnapshotPressure(member);
+
+            System.out.println("[NetworkManager] Seeding network with " + snapshot.amount + "mB at " + temperature + "K, " + pressure + " bar");
+            network.addFluid(snapshot, false, temperature);
+            network.setPressure(pressure);
+
+            // Clear snapshot after using it
+            clearMemberSnapshot(member);
+        } else {
+            System.out.println("[NetworkManager] No valid snapshot to seed from");
+        }
+    }
+
+    /**
+     * Seeds a network from the best snapshot in a set of members.
+     * Picks the snapshot with the largest fluid amount.
+     */
+    private void seedNetworkFromBestSnapshot(IntegratedFluidNetwork network, Set<IIntegratedFluidMember> members) {
+        if (network == null || members == null || members.isEmpty()) return;
+
+        System.out.println("[NetworkManager] seedNetworkFromBestSnapshot called with " + members.size() + " members");
+
+        // Only seed if network is empty
+        if (network.getStoredFluid() != null && network.getStoredFluid().amount > 0) {
+            System.out.println("[NetworkManager] Network already has fluid: " + network.getStoredFluid().amount + "mB");
+            // Clear all snapshots
+            for (IIntegratedFluidMember member : members) {
+                clearMemberSnapshot(member);
+            }
+            return;
+        }
+
+        // Find member with largest snapshot
+        IIntegratedFluidMember bestMember = null;
+        int bestAmount = 0;
+
+        for (IIntegratedFluidMember member : members) {
+            FluidStack snapshot = getMemberSnapshot(member);
+            if (snapshot != null && snapshot.amount > bestAmount) {
+                bestAmount = snapshot.amount;
+                bestMember = member;
+                System.out.println("[NetworkManager] Found snapshot: " + snapshot.amount + "mB from " + member.getClass().getSimpleName());
+            }
+        }
+
+        // Seed from best snapshot
+        if (bestMember != null) {
+            FluidStack snapshot = getMemberSnapshot(bestMember);
+            float temperature = getMemberSnapshotTemperature(bestMember);
+            float pressure = getMemberSnapshotPressure(bestMember);
+
+            System.out.println("[NetworkManager] Seeding network with " + snapshot.amount + "mB at " + temperature + "K");
+            network.addFluid(snapshot, false, temperature);
+            network.setPressure(pressure);
+        } else {
+            System.out.println("[NetworkManager] No snapshot found to seed from!");
+        }
+
+        // Clear ALL snapshots to prevent re-use
+        for (IIntegratedFluidMember member : members) {
+            clearMemberSnapshot(member);
+        }
+    }
+
+    /**
+     * Gets snapshot fluid from a member if it has the appropriate methods.
+     */
+    private FluidStack getMemberSnapshot(IIntegratedFluidMember member) {
+        if (member instanceof MTEIntegratedFluidInputHatch inputHatch) {
+            FluidStack snapshot = inputHatch.getSnapshotFluid();
+            return snapshot != null ? snapshot.copy() : null;
+        } else if (member instanceof MTEIntegratedFluidOutputHatch outputHatch) {
+            FluidStack snapshot = outputHatch.getSnapshotFluid();
+            return snapshot != null ? snapshot.copy() : null;
+        } else if (member instanceof MTEIntegratedFluidInjectorHatch injectorHatch) {
+            FluidStack snapshot = injectorHatch.getSnapshotFluid();
+            return snapshot != null ? snapshot.copy() : null;
+        }
+        return null;
+    }
+
+    /**
+     * Gets snapshot temperature from a member if it has the appropriate methods.
+     */
+    private float getMemberSnapshotTemperature(IIntegratedFluidMember member) {
+        if (member instanceof MTEIntegratedFluidInputHatch inputHatch) {
+            return inputHatch.getSnapshotTemperature();
+        } else if (member instanceof MTEIntegratedFluidOutputHatch outputHatch) {
+            return outputHatch.getSnapshotTemperature();
+        } else if (member instanceof MTEIntegratedFluidInjectorHatch injectorHatch) {
+            return injectorHatch.getSnapshotTemperature();
+        }
+        return IntegratedFluidNetwork.DEFAULT_TEMPERATURE;
+    }
+
+    /**
+     * Gets snapshot pressure from a member if it has the appropriate methods.
+     */
+    private float getMemberSnapshotPressure(IIntegratedFluidMember member) {
+        if (member instanceof MTEIntegratedFluidInputHatch inputHatch) {
+            return inputHatch.getSnapshotPressure();
+        } else if (member instanceof MTEIntegratedFluidOutputHatch outputHatch) {
+            return outputHatch.getSnapshotPressure();
+        } else if (member instanceof MTEIntegratedFluidInjectorHatch injectorHatch) {
+            return injectorHatch.getSnapshotPressure();
+        }
+        return IntegratedFluidNetwork.DEFAULT_PRESSURE;
+    }
+
+    /**
+     * Clears snapshot data from a member.
+     */
+    private void clearMemberSnapshot(IIntegratedFluidMember member) {
+        if (member instanceof MTEIntegratedFluidInputHatch inputHatch) {
+            inputHatch.clearSnapshot();
+        } else if (member instanceof MTEIntegratedFluidOutputHatch outputHatch) {
+            outputHatch.clearSnapshot();
+        } else if (member instanceof MTEIntegratedFluidInjectorHatch injectorHatch) {
+            injectorHatch.clearSnapshot();
+        }
     }
 
     /**
