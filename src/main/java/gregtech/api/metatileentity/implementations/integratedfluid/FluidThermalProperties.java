@@ -197,5 +197,52 @@ public class FluidThermalProperties {
         return (temperature1 * heatCapacity1 + temperature2 * heatCapacity2)
             / (heatCapacity1 + heatCapacity2);
     }
-}
 
+    /**
+     * Calculates an efficiency penalty multiplier for large temperature differences.
+     * This encourages cascading heat pumps instead of single large jumps.
+     *
+     * Penalty uses hybrid function - linear start, then exponential:
+     * - ΔT ≤ 20K: No penalty (1.0x)
+     * - ΔT = 30K: ~1.03x energy cost (linear growth)
+     * - ΔT = 40K: ~1.07x energy cost (linear growth)
+     * - ΔT = 50K: ~1.10x energy cost (linear growth)
+     * - ΔT = 60K: ~1.13x energy cost (linear growth)
+     * - ΔT = 70K: ~1.17x energy cost (linear growth)
+     * - ΔT = 80K: ~1.20x energy cost (linear growth)
+     * --- TRANSITION TO EXPONENTIAL ---
+     * - ΔT = 100K: ~1.60x energy cost (exponential)
+     * - ΔT = 120K: ~2.40x energy cost (exponential)
+     * - ΔT = 140K: ~4.00x energy cost (exponential)
+     * - ΔT = 160K: ~6.60x energy cost (exponential)
+     * - ΔT = 180K: ~10.0x energy cost (capped)
+     *
+     * Formula:
+     * - Linear phase (20K-80K): 1.0 + (ΔT - 20) * 0.00333
+     * - Exponential phase (80K+): 1.2 + ((ΔT - 80) / 60)² * 4.0
+     *
+     * @param temperatureDelta Temperature difference in Kelvin
+     * @return Penalty multiplier (≥1.0)
+     */
+    public static float calculateTemperaturePenalty(float temperatureDelta) {
+        if (temperatureDelta <= 20.0f) {
+            return 1.0f; // No penalty for small differences
+        }
+
+        float excess = temperatureDelta - 20.0f;
+
+        if (excess <= 60.0f) {
+            // Linear phase: gentle, predictable growth (20K to 80K total)
+            // ~0.33% penalty per Kelvin
+            return 1.0f + excess * 0.00333f;
+        } else {
+            // Exponential phase: aggressive growth after 80K
+            // Start from 1.2x (where linear left off) and scale quadratically
+            float exponentialExcess = excess - 60.0f;
+            float exponentialPenalty = 1.2f + (exponentialExcess * exponentialExcess) / 900.0f;
+
+            // Cap penalty at 10x to avoid extreme cases
+            return Math.min(exponentialPenalty, 10.0f);
+        }
+    }
+}

@@ -54,6 +54,13 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
     private HeatPumpMode operatingMode = HeatPumpMode.TARGET_TEMPERATURE;
     private boolean heatExchangerMode = false; // Heat Exchanger Mode enabled/disabled
     private boolean configuringHotStream = true; // true = configuring hot stream, false = configuring cold stream
+    private boolean splitFlowMode = false; // Split Flow Mode - divides input into 2 streams with temp differential
+    private float splitRatio = 0.5f; // Ratio for split (0.1 to 0.9) - fraction that goes to hot/primary stream
+
+    // Cache for hatch validation (updated when structure changes or every 20 ticks)
+    private boolean cachedHatchValidation = false;
+    private long lastValidationCheck = 0L;
+
     private float targetTemperature = DEFAULT_TARGET_TEMPERATURE; // For TARGET_TEMPERATURE mode (absolute temperature in K)
     private float targetCOP = DEFAULT_TARGET_COP; // For TARGET_COP mode
     private int targetEnergyPerTick = DEFAULT_TARGET_ENERGY_PER_TICK; // For TARGET_ENERGY mode (EU per tick)
@@ -65,6 +72,10 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
     private float currentCOP = 0.0f;
     private float currentOutputTemperature = 0.0f;
     private long currentEnergyUsage = 0L;
+    private float currentTemperatureDelta = 0.0f;  // NEW: for efficiency warnings
+    private float currentEfficiencyPenalty = 1.0f;  // NEW: shows if penalty is applied
+    private float effectiveCOP = 0.0f; // Real COP including penalty (currentCOP / penalty)
+    private int totalEnergyCost = 0; // Total energy cost per tick including penalty for GUI
 
     // Pending fluid - stores heated fluid that couldn't be added to output network yet
     private FluidStack pendingOutputFluid = null;
@@ -204,6 +215,26 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
 
     @Override
     public @NotNull CheckRecipeResult checkProcessing() {
+        // CHECK: Split Flow Mode validation
+        if (splitFlowMode) {
+            // In Split Flow mode, we need 1 input + 2 differently colored outputs
+            if (!hasValidSplitFlowHatches()) {
+                // Return NO_RECIPE to avoid showing error text
+                // GUI already shows nice colored warning message
+                return CheckRecipeResultRegistry.NO_RECIPE;
+            }
+            // TODO: Implement split flow logic here
+            // For now, return NO_RECIPE (no error text)
+            return CheckRecipeResultRegistry.NO_RECIPE;
+        }
+
+        // CHECK: Normal Mode - too many hatches
+        if (!heatExchangerMode && !splitFlowMode && hasTooManyHatchesForNormalMode()) {
+            // Return NO_RECIPE to avoid showing error text
+            // GUI already shows nice colored warning message
+            return CheckRecipeResultRegistry.NO_RECIPE;
+        }
+
         // CHECK: Heat Exchanger Mode validation
         if (heatExchangerMode) {
             // In HX mode, we need colored hatches - validate structure
@@ -334,6 +365,7 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         float temperatureDelta;
         float outputTemperature;
         long totalEnergyCost;
+        float penalty; // For efficiency penalty calculation
         boolean passthroughMode = false; // Flag for energy-free passthrough
 
         switch (operatingMode) {
@@ -353,8 +385,11 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
                     passthroughMode = true;
                     currentCOP = 0.0f; // No heating needed
                     totalEnergyCost = 0; // Zero energy consumption
+                    this.totalEnergyCost = 0; // Store for GUI
                     outputTemperature = inputTemperature; // Keep current temperature
                     temperatureDelta = 0.0f;
+                    currentTemperatureDelta = 0.0f;
+                    currentEfficiencyPenalty = 1.0f; // No penalty in passthrough
                 } else if (temperatureDelta < 0) {
                     // Target is lower than input - cooling not supported yet
                     return SimpleCheckRecipeResult.ofFailure("awaiting_configuration");
@@ -365,12 +400,25 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
                         outputTemperature
                     );
 
-                    totalEnergyCost = FluidThermalProperties.calculateHeatPumpEnergy(
+                    // Calculate penalty for large temperature jumps (same as other modes)
+                    penalty = FluidThermalProperties.calculateTemperaturePenalty(temperatureDelta);
+                    currentTemperatureDelta = temperatureDelta;
+                    currentEfficiencyPenalty = penalty;
+
+                    // Calculate effective COP (real COP including penalty)
+                    effectiveCOP = currentCOP / penalty;
+
+                    // Calculate base energy
+                    long baseEnergy = FluidThermalProperties.calculateHeatPumpEnergy(
                         fluidForCalculation,
                         temperatureDelta,
                         COLD_RESERVOIR_TEMPERATURE,
                         outputTemperature
                     );
+
+                    // Apply penalty
+                    totalEnergyCost = (long) (baseEnergy * penalty);
+                    this.totalEnergyCost = (int) ((totalEnergyCost + 19) / 20); // Store per-tick for GUI (round up)
                 }
                 break;
 
@@ -412,17 +460,31 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
                     currentCOP = targetCOP;
                 }
 
-                totalEnergyCost = FluidThermalProperties.calculateHeatPumpEnergy(
+                // Calculate penalty for large temperature jumps
+                penalty = FluidThermalProperties.calculateTemperaturePenalty(temperatureDelta);
+                currentTemperatureDelta = temperatureDelta;
+                currentEfficiencyPenalty = penalty;
+
+                // Calculate effective COP (real COP including penalty)
+                effectiveCOP = currentCOP / penalty;
+
+                // Calculate base energy cost
+                long baseEnergy = FluidThermalProperties.calculateHeatPumpEnergy(
                     fluidForCalculation,
                     temperatureDelta,
                     COLD_RESERVOIR_TEMPERATURE,
                     outputTemperature
                 );
+
+                // Apply penalty
+                totalEnergyCost = (long) (baseEnergy * penalty);
+                this.totalEnergyCost = (int) ((totalEnergyCost + 19) / 20); // Store per-tick for GUI (round up)
                 break;
 
             case TARGET_ENERGY:
                 // Mode 3: User sets target energy PER TICK directly
                 // We calculate what temperature delta this energy can achieve
+                // NOTE: In this mode, penalty REDUCES achievable temperature delta, not increases energy cost
 
                 // Energy per tick * 20 ticks = total energy for the cycle
                 long targetTotalEnergy = (long) targetEnergyPerTick * 20;
@@ -465,6 +527,17 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
                     }
                 }
 
+                // Calculate penalty for large temperature jumps
+                // In TARGET_ENERGY mode, penalty REDUCES achievable temperature delta
+                penalty = FluidThermalProperties.calculateTemperaturePenalty(temperatureDelta);
+
+                // Apply penalty by reducing the achievable temperature delta
+                // If penalty is 1.5x, we only achieve 1/1.5 = 67% of the ideal temperature rise
+                temperatureDelta = temperatureDelta / penalty;
+
+                currentTemperatureDelta = temperatureDelta;
+                currentEfficiencyPenalty = penalty;
+
                 outputTemperature = inputTemperature + temperatureDelta;
 
                 currentCOP = FluidThermalProperties.calculateHeatPumpCOP(
@@ -472,8 +545,12 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
                     outputTemperature
                 );
 
-                // Total energy for GUI display (20 ticks worth)
+                // Calculate effective COP (real COP including penalty)
+                effectiveCOP = currentCOP / penalty;
+
+                // Energy cost is exactly what user requested (penalty affects temperature, not energy)
                 totalEnergyCost = targetTotalEnergy;
+                this.totalEnergyCost = targetEnergyPerTick; // Store per-tick for GUI (user's exact value)
                 break;
 
             default:
@@ -622,15 +699,26 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         return currentCOP;
     }
 
+    public float getEffectiveCOP() {
+        return effectiveCOP;
+    }
+
+    public float getCurrentTemperatureDelta() {
+        return currentTemperatureDelta;
+    }
+
+    public float getCurrentEfficiencyPenalty() {
+        return currentEfficiencyPenalty;
+    }
+
+    public int getTotalEnergyCost() {
+        return totalEnergyCost;
+    }
+
     public float getCurrentOutputTemperature() {
         return currentOutputTemperature;
     }
 
-    public long getCurrentEnergyUsage() {
-        return currentEnergyUsage;
-    }
-
-    // Operating mode methods
     public HeatPumpMode getOperatingMode() {
         return operatingMode;
     }
@@ -733,6 +821,10 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
 
     public void setHeatExchangerMode(boolean enabled) {
         this.heatExchangerMode = enabled;
+        // Mutual exclusion: disable Split Flow if HX is enabled
+        if (enabled && splitFlowMode) {
+            splitFlowMode = false;
+        }
     }
 
     public boolean isConfiguringHotStream() {
@@ -743,33 +835,114 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         this.configuringHotStream = hot;
     }
 
+    // Split Flow Mode
+    public boolean isSplitFlowMode() {
+        return splitFlowMode;
+    }
+
+    public void setSplitFlowMode(boolean enabled) {
+        this.splitFlowMode = enabled;
+        // Mutual exclusion: disable Heat Exchanger if Split Flow is enabled
+        if (enabled && heatExchangerMode) {
+            heatExchangerMode = false;
+        }
+    }
+
+    public float getSplitRatio() {
+        return splitRatio;
+    }
+
+    public void setSplitRatio(float ratio) {
+        this.splitRatio = Math.max(0.1f, Math.min(0.9f, ratio)); // Clamp to 0.1-0.9
+    }
+
+    /**
+     * Checks if Normal Mode has too many hatches (should be exactly 2: 1 input + 1 output).
+     * Returns true if there are more than 2 hatches total.
+     */
+    public boolean hasTooManyHatchesForNormalMode() {
+        if (heatExchangerMode || splitFlowMode) {
+            return false; // In HX or Split Flow mode, multiple hatches are expected
+        }
+
+        int totalHatches = mIntegratedInputHatches.size() + mIntegratedOutputHatches.size();
+        return totalHatches > 2;
+    }
+
+    /**
+     * Checks if Split Flow Mode has valid hatch configuration.
+     * Returns true if structure has exactly 1 input and 2 colored outputs (Red and Blue).
+     *
+     * Note: getColorization() returns MC spray metadata:
+     * - Red spray (MC metadata 1) → getColorization() returns 1
+     * - Blue spray (MC metadata 4) → getColorization() returns 4
+     */
+    public boolean hasValidSplitFlowHatches() {
+        if (!splitFlowMode) {
+            return true; // Not in Split Flow mode, so don't show warning
+        }
+
+        // Check input count
+        if (mIntegratedInputHatches.size() != 1) {
+            return false; // Need exactly 1 input
+        }
+
+        // Check output count
+        if (mIntegratedOutputHatches.size() != 2) {
+            return false; // Need exactly 2 outputs
+        }
+
+        // Check that one output is Red (1) and one is Blue (4)
+        int color1 = mIntegratedOutputHatches.get(0).getBaseMetaTileEntity().getColorization();
+        int color2 = mIntegratedOutputHatches.get(1).getBaseMetaTileEntity().getColorization();
+
+        // Must have exactly one Red (1) and one Blue (4)
+        return ((color1 == 1 && color2 == 4) || (color1 == 4 && color2 == 1));
+    }
+
     /**
      * Checks if Heat Exchanger Mode has required colored hatches.
      * Returns true if structure has at least 1 red and 1 blue hatch of each type.
+     *
+     * Uses caching to avoid checking every GUI frame (was causing spam).
+     * Cache is invalidated when structure changes or every 20 ticks.
+     *
+     * Note: getColorization() returns the ORIGINAL MC spray metadata:
+     * - Red spray (MC metadata 1) → getColorization() returns 1
+     * - Blue spray (MC metadata 4) → getColorization() returns 4
      */
     public boolean hasValidHeatExchangerHatches() {
         if (!heatExchangerMode) {
             return true; // Not in HX mode, so don't show warning
         }
 
-        // Count colored hatches (color 0 = Red, color 11 = Blue)
+        // Use cached result if checked recently (within 20 ticks / 1 second)
+        long currentTick = getBaseMetaTileEntity().getTimer();
+        if (lastValidationCheck > 0 && (currentTick - lastValidationCheck) < 20) {
+            return cachedHatchValidation;
+        }
+
+        // Perform actual validation
         int redInputs = 0, blueInputs = 0;
         int redOutputs = 0, blueOutputs = 0;
 
         for (MTEIntegratedFluidInputHatch hatch : mIntegratedInputHatches) {
             int color = hatch.getBaseMetaTileEntity().getColorization();
-            if (color == 0) redInputs++; // Red
-            else if (color == 11) blueInputs++; // Blue
+            if (color == 1) redInputs++; // Red spray (MC metadata 1)
+            else if (color == 4) blueInputs++; // Blue spray (MC metadata 4)
         }
 
         for (MTEIntegratedFluidOutputHatch hatch : mIntegratedOutputHatches) {
             int color = hatch.getBaseMetaTileEntity().getColorization();
-            if (color == 0) redOutputs++; // Red
-            else if (color == 11) blueOutputs++; // Blue
+            if (color == 1) redOutputs++; // Red spray (MC metadata 1)
+            else if (color == 4) blueOutputs++; // Blue spray (MC metadata 4)
         }
 
-        // Need at least 1 of each color for both input and output
-        return (redInputs >= 1 && blueInputs >= 1 && redOutputs >= 1 && blueOutputs >= 1);
+        // Cache the result
+        cachedHatchValidation = (redInputs >= 1 && blueInputs >= 1 && redOutputs >= 1 && blueOutputs >= 1);
+        lastValidationCheck = currentTick;
+
+        return cachedHatchValidation;
     }
 
     // ===== NBT Methods =====
@@ -789,6 +962,8 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         aNBT.setFloat("upperTemperatureTolerance", upperTemperatureTolerance);
         aNBT.setBoolean("heatExchangerMode", heatExchangerMode);
         aNBT.setBoolean("configuringHotStream", configuringHotStream);
+        aNBT.setBoolean("splitFlowMode", splitFlowMode);
+        aNBT.setFloat("splitRatio", splitRatio);
 
         // Save pending output fluid
         if (pendingOutputFluid != null) {
@@ -837,6 +1012,12 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         }
         if (aNBT.hasKey("configuringHotStream")) {
             configuringHotStream = aNBT.getBoolean("configuringHotStream");
+        }
+        if (aNBT.hasKey("splitFlowMode")) {
+            splitFlowMode = aNBT.getBoolean("splitFlowMode");
+        }
+        if (aNBT.hasKey("splitRatio")) {
+            splitRatio = aNBT.getFloat("splitRatio");
         }
 
         // Load pending output fluid

@@ -55,12 +55,28 @@ public class MTEIntegratedFluidOutputHatch extends MTEHatch implements IIntegrat
 
     @Override
     public ITexture[] getTexturesActive(ITexture aBaseTexture) {
+        byte color = getBaseMetaTileEntity().getColorization();
+        if (color >= 0) {
+            // Colored - show the color overlay
+            return new ITexture[] { aBaseTexture,
+                TextureFactory.of(gregtech.api.enums.Textures.BlockIcons.OVERLAY_PIPE_OUT),
+                TextureFactory.of(gregtech.api.enums.Textures.BlockIcons.OVERLAY_PIPE_COLORS[color + 1]) };
+        }
+        // Default orange color when not colored
         return new ITexture[] { aBaseTexture,
             TextureFactory.of(OVERLAY_PIPE_OUT, Dyes.getModulation(-1, new short[] { 255, 128, 64, 255 })) };
     }
 
     @Override
     public ITexture[] getTexturesInactive(ITexture aBaseTexture) {
+        byte color = getBaseMetaTileEntity().getColorization();
+        if (color >= 0) {
+            // Colored - show the color overlay
+            return new ITexture[] { aBaseTexture,
+                TextureFactory.of(gregtech.api.enums.Textures.BlockIcons.OVERLAY_PIPE_OUT),
+                TextureFactory.of(gregtech.api.enums.Textures.BlockIcons.OVERLAY_PIPE_COLORS[color + 1]) };
+        }
+        // Default orange color when not colored
         return new ITexture[] { aBaseTexture,
             TextureFactory.of(OVERLAY_PIPE_OUT, Dyes.getModulation(-1, new short[] { 192, 96, 64, 255 })) };
     }
