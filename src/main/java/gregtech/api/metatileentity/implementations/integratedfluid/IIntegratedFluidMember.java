@@ -17,6 +17,16 @@ public interface IIntegratedFluidMember {
     void setNetwork(IntegratedFluidNetwork network);
 
     /**
+     * Gets the persistent network ID for this member.
+     */
+    java.util.UUID getNetworkId();
+
+    /**
+     * Sets the persistent network ID for this member.
+     */
+    void setNetworkId(java.util.UUID id);
+
+    /**
      * Called when the network is updated or needs to be recalculated.
      */
     void onNetworkUpdate();

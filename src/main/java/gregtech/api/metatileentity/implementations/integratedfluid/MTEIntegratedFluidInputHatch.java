@@ -35,11 +35,7 @@ import mcp.mobius.waila.api.IWailaDataAccessor;
 public class MTEIntegratedFluidInputHatch extends MTEHatch implements IIntegratedFluidMember {
 
     private IntegratedFluidNetwork network;
-
-    // Snapshot data loaded from NBT (used to seed network on first tick)
-    private FluidStack snapshotFluid = null;
-    private float snapshotTemperature = IntegratedFluidNetwork.DEFAULT_TEMPERATURE;
-    private float snapshotPressure = IntegratedFluidNetwork.DEFAULT_PRESSURE;
+    private java.util.UUID networkId;
 
     public MTEIntegratedFluidInputHatch(int aID, String aName, String aNameRegional, int aTier) {
         super(
@@ -107,47 +103,22 @@ public class MTEIntegratedFluidInputHatch extends MTEHatch implements IIntegrate
     @Override
     public void saveNBTData(NBTTagCompound aNBT) {
         super.saveNBTData(aNBT);
-        // Save complete network data including temperature and pressure
-        if (network != null) {
-            FluidStack fluid = network.getStoredFluid();
-            if (fluid != null) {
-                aNBT.setTag("networkFluid", fluid.writeToNBT(new NBTTagCompound()));
-                System.out.println("[IntegratedFluidInputHatch] SAVING snapshot: " + fluid.amount + "mB of " + fluid.getFluid().getName() + " at " + network.getTemperature() + "K");
-            }
-            aNBT.setFloat("networkPressure", network.getPressure());
-            aNBT.setFloat("networkTemperature", network.getTemperature());
-        } else {
-            System.out.println("[IntegratedFluidInputHatch] SAVING: No network to save");
+        if (networkId != null) {
+            aNBT.setLong("ifnNetworkIdMost", networkId.getMostSignificantBits());
+            aNBT.setLong("ifnNetworkIdLeast", networkId.getLeastSignificantBits());
         }
     }
 
     @Override
     public void loadNBTData(NBTTagCompound aNBT) {
         super.loadNBTData(aNBT);
-        System.out.println("[IntegratedFluidInputHatch] loadNBTData called");
-        // Load snapshot data WITHOUT creating a network
-        // NetworkManager will build networks based on connectivity and seed from one snapshot
-        if (aNBT.hasKey("networkPressure") || aNBT.hasKey("networkFluid")) {
-            System.out.println("[IntegratedFluidInputHatch] Found network data in NBT");
-            // Load pressure
-            if (aNBT.hasKey("networkPressure")) {
-                snapshotPressure = aNBT.getFloat("networkPressure");
-            }
-            // Load temperature
-            if (aNBT.hasKey("networkTemperature")) {
-                snapshotTemperature = aNBT.getFloat("networkTemperature");
-            }
-            // Load fluid
-            if (aNBT.hasKey("networkFluid")) {
-                snapshotFluid = FluidStack.loadFluidStackFromNBT(aNBT.getCompoundTag("networkFluid"));
-                System.out.println("[IntegratedFluidInputHatch] Loaded snapshot: " +
-                    (snapshotFluid != null ? snapshotFluid.amount + "mB of " + snapshotFluid.getFluid().getName() : "null") +
-                    " at " + snapshotTemperature + "K");
-            }
+        if (aNBT.hasKey("ifnNetworkIdMost") && aNBT.hasKey("ifnNetworkIdLeast")) {
+            long most = aNBT.getLong("ifnNetworkIdMost");
+            long least = aNBT.getLong("ifnNetworkIdLeast");
+            networkId = new java.util.UUID(most, least);
         } else {
-            System.out.println("[IntegratedFluidInputHatch] No network data in NBT");
+            networkId = null;
         }
-        // Keep network = null, will be built by NetworkManager
     }
 
     @Override
@@ -276,6 +247,16 @@ public class MTEIntegratedFluidInputHatch extends MTEHatch implements IIntegrate
     }
 
     @Override
+    public java.util.UUID getNetworkId() {
+        return networkId;
+    }
+
+    @Override
+    public void setNetworkId(java.util.UUID id) {
+        this.networkId = id;
+    }
+
+    @Override
     public void onNetworkUpdate() {
         // IMPORTANT: Cap fluid to capacity whenever network is updated
         if (network != null) {
@@ -328,23 +309,4 @@ public class MTEIntegratedFluidInputHatch extends MTEHatch implements IIntegrate
         // Network is properly managed via onFirstTick/onMemberAdded
     }
 
-    // Snapshot access methods for NetworkManager
-
-    public FluidStack getSnapshotFluid() {
-        return snapshotFluid;
-    }
-
-    public float getSnapshotTemperature() {
-        return snapshotTemperature;
-    }
-
-    public float getSnapshotPressure() {
-        return snapshotPressure;
-    }
-
-    public void clearSnapshot() {
-        snapshotFluid = null;
-        snapshotTemperature = IntegratedFluidNetwork.DEFAULT_TEMPERATURE;
-        snapshotPressure = IntegratedFluidNetwork.DEFAULT_PRESSURE;
-    }
 }

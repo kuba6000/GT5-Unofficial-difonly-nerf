@@ -23,6 +23,7 @@ public class MTEIntegratedFluidExtractor extends MTEHatch implements IIntegrated
 
     private IntegratedFluidNetwork network;
     private int textureIndex = 0;
+    private java.util.UUID networkId;
 
     public MTEIntegratedFluidExtractor(int aID, String aName, String aNameRegional, int aTier) {
         super(aID, aName, aNameRegional, aTier, 0, new String[] {
@@ -91,6 +92,16 @@ public class MTEIntegratedFluidExtractor extends MTEHatch implements IIntegrated
     @Override
     public void setNetwork(IntegratedFluidNetwork network) {
         this.network = network;
+    }
+
+    @Override
+    public java.util.UUID getNetworkId() {
+        return networkId;
+    }
+
+    @Override
+    public void setNetworkId(java.util.UUID id) {
+        this.networkId = id;
     }
 
     @Override
@@ -207,6 +218,10 @@ public class MTEIntegratedFluidExtractor extends MTEHatch implements IIntegrated
     public void saveNBTData(NBTTagCompound aNBT) {
         super.saveNBTData(aNBT);
         aNBT.setInteger("mTextureIndex", textureIndex);
+        if (networkId != null) {
+            aNBT.setLong("ifnNetworkIdMost", networkId.getMostSignificantBits());
+            aNBT.setLong("ifnNetworkIdLeast", networkId.getLeastSignificantBits());
+        }
     }
 
     @Override
@@ -215,15 +230,23 @@ public class MTEIntegratedFluidExtractor extends MTEHatch implements IIntegrated
         if (aNBT.hasKey("mTextureIndex")) {
             textureIndex = aNBT.getInteger("mTextureIndex");
         }
+        if (aNBT.hasKey("ifnNetworkIdMost") && aNBT.hasKey("ifnNetworkIdLeast")) {
+            long most = aNBT.getLong("ifnNetworkIdMost");
+            long least = aNBT.getLong("ifnNetworkIdLeast");
+            networkId = new java.util.UUID(most, least);
+        } else {
+            networkId = null;
+        }
     }
 
     // ===== Network Management =====
 
     @Override
     public void onRemoval() {
-        // Extractor IS a network member - remove it properly
-        if (network != null) {
-            network.removeMember(this);
+        IGregTechTileEntity baseTile = getBaseMetaTileEntity();
+        if (baseTile != null && baseTile.isServerSide()) {
+            NetworkManager manager = NetworkManager.getInstance(baseTile.getWorld());
+            manager.onMemberRemoved(this);
         }
         super.onRemoval();
     }
@@ -266,4 +289,3 @@ public class MTEIntegratedFluidExtractor extends MTEHatch implements IIntegrated
         return true;
     }
 }
-

@@ -35,11 +35,7 @@ import mcp.mobius.waila.api.IWailaDataAccessor;
 public class MTEIntegratedFluidInjectorHatch extends MTEHatch implements IIntegratedFluidMember, IFluidHandler {
 
     private IntegratedFluidNetwork network;
-
-    // Snapshot data loaded from NBT (used to seed network on first tick)
-    private FluidStack snapshotFluid = null;
-    private float snapshotTemperature = IntegratedFluidNetwork.DEFAULT_TEMPERATURE;
-    private float snapshotPressure = IntegratedFluidNetwork.DEFAULT_PRESSURE;
+    private java.util.UUID networkId;
 
     public MTEIntegratedFluidInjectorHatch(int aID, String aName, String aNameRegional, int aTier) {
         super(
@@ -94,37 +90,22 @@ public class MTEIntegratedFluidInjectorHatch extends MTEHatch implements IIntegr
     @Override
     public void saveNBTData(NBTTagCompound aNBT) {
         super.saveNBTData(aNBT);
-        // Save complete network data including temperature and pressure
-        if (network != null) {
-            FluidStack fluid = network.getStoredFluid();
-            if (fluid != null) {
-                aNBT.setTag("networkFluid", fluid.writeToNBT(new NBTTagCompound()));
-            }
-            aNBT.setFloat("networkPressure", network.getPressure());
-            aNBT.setFloat("networkTemperature", network.getTemperature());
+        if (networkId != null) {
+            aNBT.setLong("ifnNetworkIdMost", networkId.getMostSignificantBits());
+            aNBT.setLong("ifnNetworkIdLeast", networkId.getLeastSignificantBits());
         }
     }
 
     @Override
     public void loadNBTData(NBTTagCompound aNBT) {
         super.loadNBTData(aNBT);
-        // Load snapshot data WITHOUT creating a network
-        // NetworkManager will build networks based on connectivity and seed from one snapshot
-        if (aNBT.hasKey("networkPressure") || aNBT.hasKey("networkFluid")) {
-            // Load pressure
-            if (aNBT.hasKey("networkPressure")) {
-                snapshotPressure = aNBT.getFloat("networkPressure");
-            }
-            // Load temperature
-            if (aNBT.hasKey("networkTemperature")) {
-                snapshotTemperature = aNBT.getFloat("networkTemperature");
-            }
-            // Load fluid
-            if (aNBT.hasKey("networkFluid")) {
-                snapshotFluid = FluidStack.loadFluidStackFromNBT(aNBT.getCompoundTag("networkFluid"));
-            }
+        if (aNBT.hasKey("ifnNetworkIdMost") && aNBT.hasKey("ifnNetworkIdLeast")) {
+            long most = aNBT.getLong("ifnNetworkIdMost");
+            long least = aNBT.getLong("ifnNetworkIdLeast");
+            networkId = new java.util.UUID(most, least);
+        } else {
+            networkId = null;
         }
-        // Keep network = null, will be built by NetworkManager
     }
 
     @Override
@@ -259,6 +240,16 @@ public class MTEIntegratedFluidInjectorHatch extends MTEHatch implements IIntegr
     }
 
     @Override
+    public java.util.UUID getNetworkId() {
+        return networkId;
+    }
+
+    @Override
+    public void setNetworkId(java.util.UUID id) {
+        this.networkId = id;
+    }
+
+    @Override
     public void onNetworkUpdate() {
         // IMPORTANT: Cap fluid to capacity whenever network is updated
         if (network != null) {
@@ -312,23 +303,4 @@ public class MTEIntegratedFluidInjectorHatch extends MTEHatch implements IIntegr
         // Network is properly managed via onFirstTick/onMemberAdded
     }
 
-    // Snapshot access methods for NetworkManager
-
-    public FluidStack getSnapshotFluid() {
-        return snapshotFluid;
-    }
-
-    public float getSnapshotTemperature() {
-        return snapshotTemperature;
-    }
-
-    public float getSnapshotPressure() {
-        return snapshotPressure;
-    }
-
-    public void clearSnapshot() {
-        snapshotFluid = null;
-        snapshotTemperature = IntegratedFluidNetwork.DEFAULT_TEMPERATURE;
-        snapshotPressure = IntegratedFluidNetwork.DEFAULT_PRESSURE;
-    }
 }

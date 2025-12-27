@@ -43,6 +43,7 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
     public static final float THICKNESS = 0.375F;
 
     private IntegratedFluidNetwork network;
+    private java.util.UUID networkId;
 
     public MTEIntegratedFluidPipe(int aID, String aName, String aNameRegional) {
         super(aID, aName, aNameRegional, 0, false);
@@ -93,14 +94,9 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
         if (GTMod.proxy.gt6Pipe) {
             aNBT.setByte("mConnections", mConnections);
         }
-        // Save complete network data including temperature and pressure
-        if (network != null) {
-            FluidStack fluid = network.getStoredFluid();
-            if (fluid != null) {
-                aNBT.setTag("networkFluid", fluid.writeToNBT(new NBTTagCompound()));
-            }
-            aNBT.setFloat("networkPressure", network.getPressure());
-            aNBT.setFloat("networkTemperature", network.getTemperature());
+        if (networkId != null) {
+            aNBT.setLong("ifnNetworkIdMost", networkId.getMostSignificantBits());
+            aNBT.setLong("ifnNetworkIdLeast", networkId.getLeastSignificantBits());
         }
     }
 
@@ -109,30 +105,12 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
         if (GTMod.proxy.gt6Pipe) {
             mConnections = aNBT.getByte("mConnections");
         }
-        // Load network data from NBT but mark it for careful handling
-        // NetworkManager will decide whether to keep or discard this based on neighbors
-        if (aNBT.hasKey("networkPressure") || aNBT.hasKey("networkFluid")) {
-            network = new IntegratedFluidNetwork();
-
-            // Restore pressure and temperature
-            if (aNBT.hasKey("networkPressure")) {
-                network.setPressure(aNBT.getFloat("networkPressure"));
-            }
-            if (aNBT.hasKey("networkTemperature")) {
-                network.setTemperature(aNBT.getFloat("networkTemperature"));
-            } else {
-                network.setTemperature(IntegratedFluidNetwork.DEFAULT_TEMPERATURE);
-            }
-
-            // Restore fluid
-            if (aNBT.hasKey("networkFluid")) {
-                FluidStack fluid = FluidStack.loadFluidStackFromNBT(aNBT.getCompoundTag("networkFluid"));
-                if (fluid != null) {
-                    network.addFluid(fluid, false, network.getTemperature());
-                }
-            }
-
-            network.addMember(this);
+        if (aNBT.hasKey("ifnNetworkIdMost") && aNBT.hasKey("ifnNetworkIdLeast")) {
+            long most = aNBT.getLong("ifnNetworkIdMost");
+            long least = aNBT.getLong("ifnNetworkIdLeast");
+            networkId = new java.util.UUID(most, least);
+        } else {
+            networkId = null;
         }
     }
 
@@ -379,6 +357,16 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
     @Override
     public void setNetwork(IntegratedFluidNetwork network) {
         this.network = network;
+    }
+
+    @Override
+    public java.util.UUID getNetworkId() {
+        return networkId;
+    }
+
+    @Override
+    public void setNetworkId(java.util.UUID id) {
+        this.networkId = id;
     }
 
     @Override

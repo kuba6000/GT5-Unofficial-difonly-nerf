@@ -2,6 +2,7 @@ package gregtech.api.metatileentity.implementations.integratedfluid;
 
 import java.util.HashSet;
 import java.util.Set;
+import java.util.UUID;
 
 import net.minecraftforge.fluids.FluidStack;
 
@@ -53,10 +54,19 @@ public class IntegratedFluidNetwork {
      */
     private float temperature;
 
-    public IntegratedFluidNetwork() {
+    private final UUID networkId;
+    private boolean pending = false;
+    private int expectedMemberCount = 0;
+
+    public IntegratedFluidNetwork(UUID networkId) {
         this.storedFluid = null;
         this.pressure = DEFAULT_PRESSURE;
         this.temperature = DEFAULT_TEMPERATURE;
+        this.networkId = networkId != null ? networkId : UUID.randomUUID();
+    }
+
+    public IntegratedFluidNetwork() {
+        this(UUID.randomUUID());
     }
 
     /**
@@ -65,6 +75,7 @@ public class IntegratedFluidNetwork {
     public void addMember(IIntegratedFluidMember member) {
         members.add(member);
         member.setNetwork(this);
+        member.setNetworkId(networkId);
     }
 
     /**
@@ -135,6 +146,9 @@ public class IntegratedFluidNetwork {
      * @return The amount of fluid actually added
      */
     public int addFluid(FluidStack fluid, boolean simulate, float incomingTemp) {
+        if (pending) {
+            return 0;
+        }
         if (fluid == null || fluid.amount <= 0) {
             return 0;
         }
@@ -193,6 +207,9 @@ public class IntegratedFluidNetwork {
      * @return The fluid that was drained
      */
     public FluidStack drainFluid(int maxDrain, boolean simulate) {
+        if (pending) {
+            return null;
+        }
         if (storedFluid == null || maxDrain <= 0) {
             return null;
         }
@@ -221,6 +238,9 @@ public class IntegratedFluidNetwork {
      * @return The fluid that was drained
      */
     public FluidStack drainFluid(FluidStack fluid, boolean simulate) {
+        if (pending) {
+            return null;
+        }
         if (fluid == null || storedFluid == null || !storedFluid.isFluidEqual(fluid)) {
             return null;
         }
@@ -260,6 +280,33 @@ public class IntegratedFluidNetwork {
      */
     public void setTemperature(float temperature) {
         this.temperature = temperature;
+    }
+
+    public UUID getNetworkId() {
+        return networkId;
+    }
+
+    public boolean isPending() {
+        return pending;
+    }
+
+    public void setPending(boolean pending) {
+        this.pending = pending;
+    }
+
+    public int getExpectedMemberCount() {
+        return expectedMemberCount;
+    }
+
+    public void setExpectedMemberCount(int expectedMemberCount) {
+        this.expectedMemberCount = expectedMemberCount;
+    }
+
+    public void loadState(FluidStack fluid, float temperature, float pressure, int expectedMembers) {
+        this.storedFluid = fluid != null ? fluid.copy() : null;
+        this.temperature = temperature;
+        this.pressure = pressure;
+        this.expectedMemberCount = expectedMembers;
     }
 
     /**
@@ -359,7 +406,6 @@ public class IntegratedFluidNetwork {
         if (other == null || other == this) {
             return;
         }
-//todo  finish debuging network NBT saving because it voids a lot of fluids on world load (possibly initialize snapshot before network has max capacity so the fluid gets capped to low capacity)
         System.out.println("[IntegratedFluidNetwork] MERGE: This network has " +
             (storedFluid != null ? storedFluid.amount + "mB" : "0mB") +
             ", other has " + (other.storedFluid != null ? other.storedFluid.amount + "mB" : "0mB"));
@@ -397,6 +443,7 @@ public class IntegratedFluidNetwork {
      */
     public int capFluidToCapacity() {
         if (storedFluid == null) return 0;
+        if (pending) return 0;
 
         int capacity = getMaxCapacity();
         if (storedFluid.amount <= capacity) return 0;
