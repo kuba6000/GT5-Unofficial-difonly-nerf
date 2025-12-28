@@ -27,6 +27,9 @@ public final class IFNFluidThermalRegistration {
     private static final double IC2_A2 = 24.3;
     // Boiling point at 1 bar (K)
     private static final double IC2_T_BOIL_1BAR = 195.0;
+    // STP reference for volume factor (mB_real / mB_standard)
+    private static final double P_STP_PA = 100000.0;
+    private static final double T_STP_K = 273.15;
     // Reference state for IFN: h=0 at 300K, 1 bar
     private static final double IC2_REF_P_BAR = 1.0;
     private static final double IC2_REF_T_K = 300.0;
@@ -152,23 +155,27 @@ public final class IFNFluidThermalRegistration {
         double pPa = pBar * 100000.0;
         switch (phase.phase) {
             case LIQUID:
-                return IC2_V_L;
+                return 1.0;
             case TWO_PHASE: {
                 double tsat = ic2SaturationTemperature(pBar);
-                double vV = IC2_R * tsat / pPa;
-                return (1.0 - phase.quality) * IC2_V_L + phase.quality * vV;
+                double vGas = gasVolumeFactor(pPa, tsat);
+                return (1.0 - phase.quality) + phase.quality * vGas;
             }
             case VAPOR:
-                return IC2_R * temperature / pPa;
+                return gasVolumeFactor(pPa, temperature);
             case SUPERCRITICAL:
             default: {
-                double vG = IC2_R * temperature / pPa;
                 double dense = clamp(1.0 - Math.abs(temperature - IC2_TC_K) / 30.0
                     - Math.abs(pBar - IC2_PC_BAR) / 30.0, 0.0, 1.0);
-                double vDense = 2.0 * IC2_V_L;
-                return (1.0 - dense) * vG + dense * vDense;
+                double vGas = gasVolumeFactor(pPa, temperature);
+                double vDense = 2.0;
+                return (1.0 - dense) * vGas + dense * vDense;
             }
         }
+    }
+
+    private static double gasVolumeFactor(double pPa, double temperatureK) {
+        return (P_STP_PA / pPa) * (temperatureK / T_STP_K);
     }
 
     private static double ic2SpecificEnthalpyAbsFromPT(double pBar, double temperatureK) {

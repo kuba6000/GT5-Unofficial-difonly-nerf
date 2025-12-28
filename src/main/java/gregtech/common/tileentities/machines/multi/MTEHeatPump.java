@@ -27,6 +27,7 @@ import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
 import gregtech.api.metatileentity.implementations.MTEEnhancedMultiBlockBase;
 import gregtech.api.metatileentity.implementations.integratedfluid.FluidThermalProperties;
 import gregtech.api.metatileentity.implementations.integratedfluid.IntegratedFluidNetwork;
+import gregtech.api.metatileentity.implementations.integratedfluid.IntegratedFluidThermoModel;
 import gregtech.api.metatileentity.implementations.integratedfluid.MTEIntegratedFluidInputHatch;
 import gregtech.api.metatileentity.implementations.integratedfluid.MTEIntegratedFluidOutputHatch;
 import gregtech.api.recipe.check.CheckRecipeResult;
@@ -300,12 +301,18 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
             return CheckRecipeResultRegistry.NO_RECIPE;
         }
 
-        long amountToProcessQ = Math.min(availableAmountQ, toAmountQ(fluidAmountPerOperation));
+        double inputSpecificEnthalpy = inputNetwork.getSpecificEnthalpy();
+        double vFactor = IntegratedFluidThermoModel
+            .specificVolumeFromPressureAndSpecificEnthalpy(inputFluid, inputNetwork.getPressure(), inputSpecificEnthalpy);
+        if (vFactor <= 0.0d) {
+            return CheckRecipeResultRegistry.NO_RECIPE;
+        }
+        double desiredVocc = fluidAmountPerOperation;
+        long desiredAmountMb = (long) Math.floor(desiredVocc / vFactor);
+        long amountToProcessQ = Math.min(availableAmountQ, desiredAmountMb * IntegratedFluidNetwork.AMOUNT_SCALE);
         if (amountToProcessQ <= 0) {
             return CheckRecipeResultRegistry.NO_RECIPE;
         }
-
-        double inputSpecificEnthalpy = inputNetwork.getSpecificEnthalpy();
         double inputTemperature = FluidThermalProperties.getTemperatureFromPH(
             inputFluid,
             inputNetwork.getPressure(),

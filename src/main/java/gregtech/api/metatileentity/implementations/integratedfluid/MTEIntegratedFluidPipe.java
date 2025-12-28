@@ -286,6 +286,7 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
             tag.setDouble("specificEnthalpyRelative", network.getSpecificEnthalpy() - ambientSpecificEnthalpy);
             tag.setString("phase", network.getPhase().name());
             tag.setDouble("quality", network.getQuality());
+            tag.setDouble("occupiedVolume", network.getOccupiedVolume());
             if (fluid != null) {
                 tag.setTag("networkFluid", fluid.writeToNBT(new NBTTagCompound()));
             }
@@ -305,11 +306,18 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
                 if (fluid != null) {
                     currenttip
                         .add("Fluid: " + EnumChatFormatting.AQUA + fluid.getLocalizedName() + EnumChatFormatting.RESET);
+                    double occupiedVolume = tag.getDouble("occupiedVolume");
+                    int occupiedRounded = (int) Math.round(occupiedVolume);
                     currenttip.add(
-                        "Amount: " + EnumChatFormatting.GREEN
-                            + GTUtility.formatNumbers(fluid.amount)
+                        "Occupied: " + EnumChatFormatting.GREEN
+                            + GTUtility.formatNumbers(occupiedRounded)
                             + "/"
                             + GTUtility.formatNumbers(maxCapacity)
+                            + " L"
+                            + EnumChatFormatting.RESET);
+                    currenttip.add(
+                        "Std Amount: " + EnumChatFormatting.GRAY
+                            + GTUtility.formatNumbers(fluid.amount)
                             + " L"
                             + EnumChatFormatting.RESET);
                 } else {
