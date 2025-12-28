@@ -10,7 +10,7 @@ import java.util.List;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraftforge.common.util.ForgeDirection;
-import net.minecraftforge.fluids.FluidStack;
+import net.minecraftforge.fluids.Fluid;
 
 import org.jetbrains.annotations.NotNull;
 
@@ -26,6 +26,7 @@ import gregtech.api.interfaces.metatileentity.IMetaTileEntity;
 import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
 import gregtech.api.metatileentity.implementations.MTEEnhancedMultiBlockBase;
 import gregtech.api.metatileentity.implementations.integratedfluid.FluidThermalProperties;
+import gregtech.api.metatileentity.implementations.integratedfluid.IntegratedFluidNetwork;
 import gregtech.api.metatileentity.implementations.integratedfluid.MTEIntegratedFluidInputHatch;
 import gregtech.api.metatileentity.implementations.integratedfluid.MTEIntegratedFluidOutputHatch;
 import gregtech.api.recipe.check.CheckRecipeResult;
@@ -77,9 +78,6 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
     private float effectiveCOP = 0.0f; // Real COP including penalty (currentCOP / penalty)
     private int totalEnergyCost = 0; // Total energy cost per tick including penalty for GUI
 
-    // Pending fluid - stores heated fluid that couldn't be added to output network yet
-    private FluidStack pendingOutputFluid = null;
-    private float pendingOutputTemperature = 0.0f;
 
     private static final IStructureDefinition<MTEHeatPump> STRUCTURE_DEFINITION = StructureDefinition
         .<MTEHeatPump>builder()
@@ -250,40 +248,6 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
 
         // NORMAL MODE: Single-stream heat pump operation
 
-        // ...existing code...
-        if (pendingOutputFluid != null && pendingOutputFluid.amount > 0) {
-            if (mIntegratedOutputHatches.isEmpty()) {
-                return CheckRecipeResultRegistry.NO_RECIPE;
-            }
-
-            MTEIntegratedFluidOutputHatch outputHatch = mIntegratedOutputHatches.get(0);
-            var outputNetwork = outputHatch.getNetwork();
-
-            if (outputNetwork == null) {
-                return SimpleCheckRecipeResult.ofFailure("no_output_network");
-            }
-
-            // Try to add pending fluid to output network
-            int added = outputNetwork.addFluid(pendingOutputFluid, false, pendingOutputTemperature);
-
-            if (added > 0) {
-                // Successfully added some or all pending fluid
-                pendingOutputFluid.amount -= added;
-
-                if (pendingOutputFluid.amount <= 0) {
-                    // All pending fluid was added - clear it and can start new recipe
-                    pendingOutputFluid = null;
-                    pendingOutputTemperature = 0.0f;
-                } else {
-                    // Still have pending fluid - can't start new recipe yet
-                    return SimpleCheckRecipeResult.ofFailure("output_full");
-                }
-            } else {
-                // Couldn't add any fluid - output is full
-                return SimpleCheckRecipeResult.ofFailure("output_full");
-            }
-        }
-
         // THEN: Verify we have integrated fluid hatches
         if (mIntegratedInputHatches.isEmpty() || mIntegratedOutputHatches.isEmpty()) {
             return CheckRecipeResultRegistry.NO_RECIPE;
@@ -316,308 +280,215 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         MTEIntegratedFluidInputHatch inputHatch = mIntegratedInputHatches.get(0);
         MTEIntegratedFluidOutputHatch outputHatch = mIntegratedOutputHatches.get(0);
 
-        // Get input fluid from network
         var inputNetwork = inputHatch.getNetwork();
         if (inputNetwork == null) {
             return CheckRecipeResultRegistry.NO_RECIPE;
         }
 
-        FluidStack inputFluid = inputNetwork.getStoredFluid();
-        if (inputFluid == null || inputFluid.amount <= 0) {
-            return CheckRecipeResultRegistry.NO_RECIPE;
-        }
-
-        // Check output capacity
         var outputNetwork = outputHatch.getNetwork();
         if (outputNetwork == null) {
             return CheckRecipeResultRegistry.NO_RECIPE;
         }
 
-        FluidStack outputFluid = outputNetwork.getStoredFluid();
-        int outputCapacity = outputNetwork.getMaxCapacity();
-        int outputUsed = outputFluid != null ? outputFluid.amount : 0;
-        int availableSpace = outputCapacity - outputUsed;
-
-        if (availableSpace <= 0) {
-            return CheckRecipeResultRegistry.ITEM_OUTPUT_FULL;
-        }
-
-        // IMPORTANT: Remember input temperature BEFORE draining!
-        // This preserves temperature for output calculation even if network becomes empty
-        float inputTemperature = inputNetwork.getTemperature();
-        if (inputTemperature <= 0) {
-            inputTemperature = 300.0f; // Room temperature default
-        }
-
-        // Calculate how much fluid to process - use the configured amount per operation
-        int fluidToProcess = Math.min(inputFluid.amount, fluidAmountPerOperation);
-        fluidToProcess = Math.min(fluidToProcess, availableSpace);
-
-        if (fluidToProcess <= 0) {
+        Fluid inputFluid = inputNetwork.getFluid();
+        if (inputFluid == null) {
             return CheckRecipeResultRegistry.NO_RECIPE;
         }
 
-        // Create a fluid stack for thermal calculations
-        FluidStack fluidForCalculation = inputFluid.copy();
-        fluidForCalculation.amount = fluidToProcess;
+        long availableAmountQ = inputNetwork.getAmountQ();
+        if (availableAmountQ <= 0) {
+            return CheckRecipeResultRegistry.NO_RECIPE;
+        }
 
-        // Calculate based on operating mode
-        float temperatureDelta;
-        float outputTemperature;
+        long amountToProcessQ = Math.min(availableAmountQ, toAmountQ(fluidAmountPerOperation));
+        if (amountToProcessQ <= 0) {
+            return CheckRecipeResultRegistry.NO_RECIPE;
+        }
+
+        double inputSpecificEnthalpy = inputNetwork.getSpecificEnthalpy();
+        double inputTemperature = FluidThermalProperties.getTemperatureFromPH(
+            inputFluid,
+            inputNetwork.getPressure(),
+            inputSpecificEnthalpy
+        );
+        if (inputTemperature <= 0.0d) {
+            inputTemperature = COLD_RESERVOIR_TEMPERATURE;
+        }
+
+        double amountToProcess = toAmount(amountToProcessQ);
+        double outputTemperature = inputTemperature;
+        double temperatureDelta = 0.0d;
+        double outputSpecificEnthalpy = inputSpecificEnthalpy;
         long totalEnergyCost;
-        float penalty; // For efficiency penalty calculation
-        boolean passthroughMode = false; // Flag for energy-free passthrough
+        double penalty;
+        boolean passthroughMode = false;
 
         switch (operatingMode) {
-            case TARGET_TEMPERATURE:
-                // Mode 1: User sets target output temperature (absolute), we calculate delta, COP and energy
+            case TARGET_TEMPERATURE: {
                 outputTemperature = targetTemperature;
-                temperatureDelta = targetTemperature - inputTemperature;
-
-                // PASSTHROUGH MODE: Check if fluid is already at target temperature
-                // Use configurable tolerances:
-                // - lowerTemperatureTolerance: how much BELOW target is acceptable (no heating needed)
-                // - upperTemperatureTolerance: how much ABOVE target is acceptable (no cooling needed)
+                temperatureDelta = outputTemperature - inputTemperature;
 
                 if (inputTemperature >= targetTemperature - lowerTemperatureTolerance
                     && inputTemperature <= targetTemperature + upperTemperatureTolerance) {
-                    // Fluid is within tolerance range - passthrough without heating/cooling!
                     passthroughMode = true;
-                    currentCOP = 0.0f; // No heating needed
-                    totalEnergyCost = 0; // Zero energy consumption
-                    this.totalEnergyCost = 0; // Store for GUI
-                    outputTemperature = inputTemperature; // Keep current temperature
-                    temperatureDelta = 0.0f;
+                    currentCOP = 0.0f;
+                    totalEnergyCost = 0;
+                    this.totalEnergyCost = 0;
+                    outputTemperature = inputTemperature;
+                    temperatureDelta = 0.0d;
                     currentTemperatureDelta = 0.0f;
-                    currentEfficiencyPenalty = 1.0f; // No penalty in passthrough
-                } else if (temperatureDelta < 0) {
-                    // Target is lower than input - cooling not supported yet
+                    currentEfficiencyPenalty = 1.0f;
+                    effectiveCOP = 0.0f;
+                } else if (temperatureDelta < 0.0d) {
                     return SimpleCheckRecipeResult.ofFailure("awaiting_configuration");
                 } else {
-                    // Normal heating operation
                     currentCOP = FluidThermalProperties.calculateHeatPumpCOP(
                         COLD_RESERVOIR_TEMPERATURE,
-                        outputTemperature
+                        (float) outputTemperature
                     );
 
-                    // Calculate penalty for large temperature jumps (same as other modes)
-                    penalty = FluidThermalProperties.calculateTemperaturePenalty(temperatureDelta);
-                    currentTemperatureDelta = temperatureDelta;
-                    currentEfficiencyPenalty = penalty;
+                    penalty = FluidThermalProperties.calculateTemperaturePenalty((float) temperatureDelta);
+                    currentTemperatureDelta = (float) temperatureDelta;
+                    currentEfficiencyPenalty = (float) penalty;
+                    effectiveCOP = currentCOP / currentEfficiencyPenalty;
 
-                    // Calculate effective COP (real COP including penalty)
-                    effectiveCOP = currentCOP / penalty;
-
-                    // Calculate base energy
-                    long baseEnergy = FluidThermalProperties.calculateHeatPumpEnergy(
-                        fluidForCalculation,
-                        temperatureDelta,
-                        COLD_RESERVOIR_TEMPERATURE,
+                    double hTarget = FluidThermalProperties.getSpecificEnthalpyFromPT(
+                        inputFluid,
+                        inputNetwork.getPressure(),
                         outputTemperature
                     );
-
-                    // Apply penalty
-                    totalEnergyCost = (long) (baseEnergy * penalty);
-                    this.totalEnergyCost = (int) ((totalEnergyCost + 19) / 20); // Store per-tick for GUI (round up)
+                    double desiredDh = Math.max(0.0d, hTarget - inputSpecificEnthalpy);
+                    double desiredQhot = desiredDh * amountToProcess;
+                    totalEnergyCost = (long) Math.ceil(desiredQhot / currentCOP * penalty);
+                    this.totalEnergyCost = (int) ((totalEnergyCost + 19) / 20);
+                    outputSpecificEnthalpy = inputSpecificEnthalpy + desiredDh;
                 }
                 break;
+            }
 
-            case TARGET_COP:
-                // Mode 2: User sets target COP, we calculate temperature delta and energy
-                // For a heat pump: COP = T_hot / (T_hot - T_cold)
-                // Where T_cold is the cold reservoir (ambient 300K) and T_hot is output temperature
-                //
-                // We want to find the temperature delta (ΔT) that gives us the target COP
-                // Given: inputTemp, targetCOP, T_cold = 300K
-                // We need: outputTemp such that COP = outputTemp / (outputTemp - 300K)
-                // Then: temperatureDelta = outputTemp - inputTemp
-
+            case TARGET_COP: {
                 if (targetCOP <= 1.0f) {
-                    targetCOP = 1.1f; // Minimum sensible COP
+                    targetCOP = 1.1f;
                 }
 
-                // Rearrange COP formula to find T_hot (output temperature)
-                // COP = T_hot / (T_hot - T_cold)
-                // COP * (T_hot - T_cold) = T_hot
-                // COP * T_hot - COP * T_cold = T_hot
-                // COP * T_hot - T_hot = COP * T_cold
-                // T_hot * (COP - 1) = COP * T_cold
-                // T_hot = (COP * T_cold) / (COP - 1)
                 outputTemperature = (targetCOP * COLD_RESERVOIR_TEMPERATURE) / (targetCOP - 1.0f);
                 temperatureDelta = outputTemperature - inputTemperature;
-
-                // Validate temperature delta
-                if (temperatureDelta < 0.1f) {
-                    // If calculated output temp is below input temp, use minimum delta
-                    temperatureDelta = 0.1f;
-                    outputTemperature = inputTemperature + temperatureDelta;
-                    // Recalculate actual COP with this temperature
-                    currentCOP = FluidThermalProperties.calculateHeatPumpCOP(
-                        COLD_RESERVOIR_TEMPERATURE,
-                        outputTemperature
-                    );
-                } else {
-                    currentCOP = targetCOP;
+                if (temperatureDelta <= 0.0d) {
+                    passthroughMode = true;
+                    currentCOP = 0.0f;
+                    totalEnergyCost = 0;
+                    this.totalEnergyCost = 0;
+                    outputTemperature = inputTemperature;
+                    temperatureDelta = 0.0d;
+                    currentTemperatureDelta = 0.0f;
+                    currentEfficiencyPenalty = 1.0f;
+                    effectiveCOP = 0.0f;
+                    break;
                 }
 
-                // Calculate penalty for large temperature jumps
-                penalty = FluidThermalProperties.calculateTemperaturePenalty(temperatureDelta);
-                currentTemperatureDelta = temperatureDelta;
-                currentEfficiencyPenalty = penalty;
+                currentCOP = targetCOP;
+                penalty = FluidThermalProperties.calculateTemperaturePenalty((float) temperatureDelta);
+                currentTemperatureDelta = (float) temperatureDelta;
+                currentEfficiencyPenalty = (float) penalty;
+                effectiveCOP = currentCOP / currentEfficiencyPenalty;
 
-                // Calculate effective COP (real COP including penalty)
-                effectiveCOP = currentCOP / penalty;
-
-                // Calculate base energy cost
-                long baseEnergy = FluidThermalProperties.calculateHeatPumpEnergy(
-                    fluidForCalculation,
-                    temperatureDelta,
-                    COLD_RESERVOIR_TEMPERATURE,
+                double hTarget = FluidThermalProperties.getSpecificEnthalpyFromPT(
+                    inputFluid,
+                    inputNetwork.getPressure(),
                     outputTemperature
                 );
-
-                // Apply penalty
-                totalEnergyCost = (long) (baseEnergy * penalty);
-                this.totalEnergyCost = (int) ((totalEnergyCost + 19) / 20); // Store per-tick for GUI (round up)
+                double desiredDh = Math.max(0.0d, hTarget - inputSpecificEnthalpy);
+                double desiredQhot = desiredDh * amountToProcess;
+                totalEnergyCost = (long) Math.ceil(desiredQhot / currentCOP * penalty);
+                this.totalEnergyCost = (int) ((totalEnergyCost + 19) / 20);
+                outputSpecificEnthalpy = inputSpecificEnthalpy + desiredDh;
                 break;
+            }
 
-            case TARGET_ENERGY:
-                // Mode 3: User sets target energy PER TICK directly
-                // We calculate what temperature delta this energy can achieve
-                // NOTE: In this mode, penalty REDUCES achievable temperature delta, not increases energy cost
-
-                // Energy per tick * 20 ticks = total energy for the cycle
-                long targetTotalEnergy = (long) targetEnergyPerTick * 20;
-
-                // Energy = (m * c * ΔT) / COP
-                // COP = T_hot / (T_hot - T_cold)
-                //
-                // This expands to a quadratic equation:
-                // Energy * (T_input + ΔT) = m * c * ΔT * (T_input + ΔT - T_cold)
-                //
-                // Quadratic form: a*ΔT² + b*ΔT + c = 0
-
-                float heatCapacity = FluidThermalProperties.getTotalHeatCapacity(fluidForCalculation);
-
-                // Coefficients for quadratic equation
-                float a = heatCapacity; // m * c
-                float b = COLD_RESERVOIR_TEMPERATURE * heatCapacity - heatCapacity * inputTemperature - targetTotalEnergy;
-                float c = -targetTotalEnergy * inputTemperature;
-
-                // Solve using quadratic formula: ΔT = (-b ± sqrt(b² - 4ac)) / 2a
-                float discriminant = b * b - 4 * a * c;
-
-                if (discriminant < 0) {
-                    // No real solution - use minimum temperature delta
-                    temperatureDelta = 0.1f;
-                } else {
-                    // Two solutions - we want the positive one that makes physical sense
-                    float sqrtDiscriminant = (float) Math.sqrt(discriminant);
-                    float solution1 = (-b + sqrtDiscriminant) / (2 * a);
-                    float solution2 = (-b - sqrtDiscriminant) / (2 * a);
-
-                    // Pick the positive solution (both might be positive, pick smaller reasonable one)
-                    if (solution1 > 0.1f && solution1 < 200.0f) {
-                        temperatureDelta = solution1;
-                    } else if (solution2 > 0.1f && solution2 < 200.0f) {
-                        temperatureDelta = solution2;
-                    } else {
-                        // If neither is in reasonable range, use the closer one clamped
-                        temperatureDelta = Math.max(0.1f, Math.min(Math.max(solution1, solution2), 200.0f));
-                    }
+            case TARGET_ENERGY: {
+                long targetTotalEnergy = (long) targetEnergyPerTick * 20L;
+                if (targetTotalEnergy <= 0L) {
+                    return SimpleCheckRecipeResult.ofFailure("awaiting_configuration");
                 }
-
-                // Calculate penalty for large temperature jumps
-                // In TARGET_ENERGY mode, penalty REDUCES achievable temperature delta
-                penalty = FluidThermalProperties.calculateTemperaturePenalty(temperatureDelta);
-
-                // Apply penalty by reducing the achievable temperature delta
-                // If penalty is 1.5x, we only achieve 1/1.5 = 67% of the ideal temperature rise
-                temperatureDelta = temperatureDelta / penalty;
-
-                currentTemperatureDelta = temperatureDelta;
-                currentEfficiencyPenalty = penalty;
-
-                outputTemperature = inputTemperature + temperatureDelta;
-
-                currentCOP = FluidThermalProperties.calculateHeatPumpCOP(
-                    COLD_RESERVOIR_TEMPERATURE,
-                    outputTemperature
-                );
-
-                // Calculate effective COP (real COP including penalty)
-                effectiveCOP = currentCOP / penalty;
-
-                // Energy cost is exactly what user requested (penalty affects temperature, not energy)
                 totalEnergyCost = targetTotalEnergy;
-                this.totalEnergyCost = targetEnergyPerTick; // Store per-tick for GUI (user's exact value)
+
+                double tempEstimate = inputTemperature;
+                double copLocal = 1.0d;
+                double penaltyLocal = 1.0d;
+                double effectiveCopLocal = 1.0d;
+
+                for (int i = 0; i < 2; i++) {
+                    copLocal = FluidThermalProperties.calculateHeatPumpCOP(
+                        COLD_RESERVOIR_TEMPERATURE,
+                        (float) tempEstimate
+                    );
+                    double delta = Math.max(0.0d, tempEstimate - inputTemperature);
+                    penaltyLocal = FluidThermalProperties.calculateTemperaturePenalty((float) delta);
+                    effectiveCopLocal = copLocal / penaltyLocal;
+                    double qHot = effectiveCopLocal * targetTotalEnergy;
+                    outputSpecificEnthalpy = inputSpecificEnthalpy + qHot / amountToProcess;
+                    tempEstimate = FluidThermalProperties.getTemperatureFromPH(
+                        inputFluid,
+                        inputNetwork.getPressure(),
+                        outputSpecificEnthalpy
+                    );
+                }
+
+                outputTemperature = tempEstimate;
+                temperatureDelta = outputTemperature - inputTemperature;
+                currentCOP = (float) copLocal;
+                currentEfficiencyPenalty = (float) penaltyLocal;
+                currentTemperatureDelta = (float) temperatureDelta;
+                effectiveCOP = (float) effectiveCopLocal;
+                this.totalEnergyCost = targetEnergyPerTick;
                 break;
+            }
 
             default:
                 return CheckRecipeResultRegistry.NO_RECIPE;
         }
 
-        // Store calculated values for GUI
-        currentOutputTemperature = outputTemperature;
-        currentEnergyUsage = totalEnergyCost;
+        currentOutputTemperature = (float) outputTemperature;
 
+        if (outputSpecificEnthalpy < inputSpecificEnthalpy - 1e-6d) {
+            return SimpleCheckRecipeResult.ofFailure("awaiting_configuration");
+        }
 
-        // NOTE: We DON'T drain energy upfront! GTTileEntity will drain mEUt per tick automatically.
-        // Draining upfront would cause double consumption (upfront + per tick)!
+        long predictedOutputEnthalpyQ = toEnthalpyQ(outputSpecificEnthalpy, amountToProcessQ);
 
-        // Drain fluid from input network
-        FluidStack drainedFluid = inputNetwork.drainFluid(fluidToProcess, false);
-        if (drainedFluid == null || drainedFluid.amount != fluidToProcess) {
+        if (!outputNetwork.canAccept(inputFluid, amountToProcessQ, predictedOutputEnthalpyQ)) {
+            return CheckRecipeResultRegistry.ITEM_OUTPUT_FULL;
+        }
+
+        IntegratedFluidNetwork.ExtractedPayload extracted =
+            inputNetwork.extractProportional(amountToProcessQ, false);
+        if (extracted.amountQ <= 0L) {
             return CheckRecipeResultRegistry.NO_RECIPE;
         }
 
-        // Heat the fluid (create copy for output)
-        FluidStack heatedFluid = drainedFluid.copy();
-
-        // Use the calculated output temperature from the operating mode
-        float heatedTemperature = outputTemperature;
-
-        // Add to output network with increased temperature
-        // The network will automatically calculate weighted average if mixing with existing fluid
-        int added = outputNetwork.addFluid(heatedFluid, false, heatedTemperature);
-
-        if (added < heatedFluid.amount) {
-            // Couldn't add all fluid - store remainder as pending for next cycle
-            // This prevents losing heated fluid and wasted energy!
-            FluidStack excess = heatedFluid.copy();
-            excess.amount = heatedFluid.amount - added;
-
-            // Store as pending fluid to be added in next cycle
-            if (pendingOutputFluid == null) {
-                pendingOutputFluid = excess;
-                pendingOutputTemperature = heatedTemperature;
-            } else {
-                // Already have pending fluid - merge with weighted temperature
-                float totalAmount = pendingOutputFluid.amount + excess.amount;
-                float newTemp = (pendingOutputFluid.amount * pendingOutputTemperature + excess.amount * heatedTemperature) / totalAmount;
-                pendingOutputFluid.amount += excess.amount;
-                pendingOutputTemperature = newTemp;
-            }
+        if (extracted.amountQ != amountToProcessQ && totalEnergyCost > 0L) {
+            double ratio = extracted.amountQ / (double) amountToProcessQ;
+            totalEnergyCost = (long) Math.ceil(totalEnergyCost * ratio);
+            this.totalEnergyCost = (int) ((totalEnergyCost + 19) / 20);
         }
 
-        // Recipe successful - set to continuous operation
-        if (passthroughMode) {
-            // Passthrough mode: fast transfer with zero energy
-            this.mMaxProgresstime = 5; // Only 5 ticks (0.25 seconds) for passthrough
-            this.mEUt = 0; // Zero energy consumption
-        } else {
-            // Normal heating operation
-            this.mMaxProgresstime = 20; // 1 second (20 ticks)
-            this.mEfficiency = 10000; // Full efficiency
+        currentEnergyUsage = totalEnergyCost;
 
-            // Set energy per tick based on mode
+        long outputEnthalpyQ = toEnthalpyQ(outputSpecificEnthalpy, extracted.amountQ);
+
+        outputNetwork.add(inputFluid, extracted.amountQ, outputEnthalpyQ);
+
+        if (passthroughMode) {
+            this.mMaxProgresstime = 5;
+            this.mEUt = 0;
+        } else {
+            this.mMaxProgresstime = 20;
+            this.mEfficiency = 10000;
             if (operatingMode == HeatPumpMode.TARGET_ENERGY) {
-                // In TARGET_ENERGY mode, use the user-specified value directly!
-                this.mEUt = -targetEnergyPerTick; // Negative = consuming
+                this.mEUt = -targetEnergyPerTick;
             } else {
-                // In other modes, calculate from totalEnergyCost
-                long energyPerTick = (totalEnergyCost + 19) / 20; // Round up division
-                this.mEUt = (int) -energyPerTick; // Negative = consuming
+                long energyPerTick = (totalEnergyCost + 19) / 20;
+                this.mEUt = (int) -energyPerTick;
             }
         }
 
@@ -650,13 +521,13 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
     public float getInputTemperature() {
         if (mIntegratedInputHatches.isEmpty()) return 0.0f;
         var network = mIntegratedInputHatches.get(0).getNetwork();
-        return network != null ? network.getTemperature() : 0.0f;
+        return getNetworkTemperature(network);
     }
 
     public float getOutputTemperature() {
         if (mIntegratedOutputHatches.isEmpty()) return 0.0f;
         var network = mIntegratedOutputHatches.get(0).getNetwork();
-        return network != null ? network.getTemperature() : 0.0f;
+        return getNetworkTemperature(network);
     }
 
     public int getInputNetworkCapacity() {
@@ -691,8 +562,40 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         if (mIntegratedInputHatches.isEmpty()) return "";
         var network = mIntegratedInputHatches.get(0).getNetwork();
         if (network == null) return "";
-        var fluid = network.getStoredFluid();
+        Fluid fluid = network.getFluid();
         return fluid != null ? fluid.getLocalizedName() : "";
+    }
+
+    private static float getNetworkTemperature(IntegratedFluidNetwork network) {
+        if (network == null) {
+            return 0.0f;
+        }
+        Fluid fluid = network.getFluid();
+        if (fluid == null || network.getAmountQ() <= 0L) {
+            return 0.0f;
+        }
+        double temperature = FluidThermalProperties.getTemperatureFromPH(
+            fluid,
+            network.getPressure(),
+            network.getSpecificEnthalpy()
+        );
+        return (float) temperature;
+    }
+
+    private static long toAmountQ(int amount) {
+        return (long) amount * IntegratedFluidNetwork.AMOUNT_SCALE;
+    }
+
+    private static double toAmount(long amountQ) {
+        return amountQ / (double) IntegratedFluidNetwork.AMOUNT_SCALE;
+    }
+
+    private static long toEnthalpyQ(double energyEu) {
+        return (long) Math.round(energyEu * IntegratedFluidNetwork.ENTHALPY_SCALE);
+    }
+
+    private static long toEnthalpyQ(double specificEnthalpy, long amountQ) {
+        return toEnthalpyQ(specificEnthalpy * toAmount(amountQ));
     }
 
     public float getCOP() {
@@ -965,11 +868,6 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         aNBT.setBoolean("splitFlowMode", splitFlowMode);
         aNBT.setFloat("splitRatio", splitRatio);
 
-        // Save pending output fluid
-        if (pendingOutputFluid != null) {
-            aNBT.setTag("pendingOutputFluid", pendingOutputFluid.writeToNBT(new NBTTagCompound()));
-            aNBT.setFloat("pendingOutputTemperature", pendingOutputTemperature);
-        }
     }
 
     @Override
@@ -1020,16 +918,9 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
             splitRatio = aNBT.getFloat("splitRatio");
         }
 
-        // Load pending output fluid
-        if (aNBT.hasKey("pendingOutputFluid")) {
-            pendingOutputFluid = FluidStack.loadFluidStackFromNBT(aNBT.getCompoundTag("pendingOutputFluid"));
-            if (aNBT.hasKey("pendingOutputTemperature")) {
-                pendingOutputTemperature = aNBT.getFloat("pendingOutputTemperature");
-            }
-        } else if (aNBT.hasKey("targetEnergy")) {
+        if (aNBT.hasKey("targetEnergy")) {
             // Backward compatibility - convert old total energy to per-tick
             targetEnergyPerTick = aNBT.getInteger("targetEnergy") / 20;
         }
     }
 }
-

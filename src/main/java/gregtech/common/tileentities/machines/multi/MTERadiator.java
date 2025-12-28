@@ -199,11 +199,7 @@ public class MTERadiator extends MTEEnhancedMultiBlockBase<MTERadiator> implemen
             return CheckRecipeResultRegistry.NO_RECIPE;
         }
 
-        FluidStack outputFluid = outputNetwork.getStoredFluid();
-        int outputCapacity = outputNetwork.getMaxCapacity();
-        int outputUsed = outputFluid != null ? outputFluid.amount : 0;
-        int availableSpace = outputCapacity - outputUsed;
-
+        int availableSpace = outputNetwork.getAvailableSpace();
         if (availableSpace <= 0) {
             return CheckRecipeResultRegistry.ITEM_OUTPUT_FULL;
         }
@@ -344,4 +340,3 @@ public class MTERadiator extends MTEEnhancedMultiBlockBase<MTERadiator> implemen
         return fluid != null ? fluid.getLocalizedName() : "";
     }
 }
-

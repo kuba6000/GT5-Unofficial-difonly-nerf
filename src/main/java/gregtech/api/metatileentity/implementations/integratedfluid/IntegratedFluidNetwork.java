@@ -4,7 +4,11 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
 
+import net.minecraftforge.fluids.Fluid;
+import net.minecraftforge.fluids.FluidRegistry;
 import net.minecraftforge.fluids.FluidStack;
+
+import gregtech.api.metatileentity.implementations.integratedfluid.IFNFluidThermalRegistry;
 
 /**
  * Manages a network of connected integrated fluid hatches and pipes.
@@ -19,9 +23,19 @@ public class IntegratedFluidNetwork {
     public static final float DEFAULT_PRESSURE = 1.0f;
 
     /**
-     * Default temperature in Kelvin.
+     * Default temperature in Kelvin (derived when empty).
      */
     public static final float DEFAULT_TEMPERATURE = 300.0f;
+
+    /**
+     * Fixed-point scale for amount (micro-units of mB/SL).
+     */
+    public static final long AMOUNT_SCALE = 1_000_000L;
+
+    /**
+     * Fixed-point scale for enthalpy (micro-EU).
+     */
+    public static final long ENTHALPY_SCALE = 1_000_000L;
 
     /**
      * Ambient temperature for heat loss calculations (in Kelvin).
@@ -35,9 +49,19 @@ public class IntegratedFluidNetwork {
     public static final float HEAT_LOSS_PER_PIPE_PER_SECOND = 1.0f;
 
     /**
-     * The fluid stored in this network segment.
+     * Fluid identifier (null when empty).
      */
-    private FluidStack storedFluid;
+    private String fluidName;
+
+    /**
+     * Total amount A in fixed-point units.
+     */
+    private long amountQ;
+
+    /**
+     * Total enthalpy H in fixed-point units.
+     */
+    private long enthalpyQ;
 
     /**
      * All members (pipes and hatches) connected to this network.
@@ -49,19 +73,15 @@ public class IntegratedFluidNetwork {
      */
     private float pressure;
 
-    /**
-     * Current temperature of the network in Kelvin.
-     */
-    private float temperature;
-
     private final UUID networkId;
     private boolean pending = false;
     private int expectedMemberCount = 0;
 
     public IntegratedFluidNetwork(UUID networkId) {
-        this.storedFluid = null;
+        this.fluidName = null;
+        this.amountQ = 0L;
+        this.enthalpyQ = 0L;
         this.pressure = DEFAULT_PRESSURE;
-        this.temperature = DEFAULT_TEMPERATURE;
         this.networkId = networkId != null ? networkId : UUID.randomUUID();
     }
 
@@ -92,23 +112,35 @@ public class IntegratedFluidNetwork {
      * Gets the current stored fluid.
      */
     public FluidStack getStoredFluid() {
-        return storedFluid;
+        Fluid fluid = getFluid();
+        int amount = getStoredAmount();
+        if (fluid == null || amount <= 0) {
+            return null;
+        }
+        return new FluidStack(fluid, amount);
     }
 
     /**
      * Gets the current amount of fluid stored.
      */
     public int getStoredAmount() {
-        return storedFluid != null ? storedFluid.amount : 0;
+        if (amountQ <= 0) {
+            return 0;
+        }
+        long amount = amountQ / AMOUNT_SCALE;
+        if (amount > Integer.MAX_VALUE) {
+            return Integer.MAX_VALUE;
+        }
+        return (int) amount;
     }
 
     /**
-     * Gets the maximum capacity of this network in mB (millibuckets).
+     * Gets the maximum geometric capacity of this network in volume units.
      * Capacity is calculated dynamically based on members:
-     * - Each pipe adds 100L (100 mB)
-     * - Each output hatch adds 10,000L (10,000 mB)
-     * - Each input hatch adds 10,000L (10,000 mB)
-     * - Injector hatches add 0L (0 mB)
+     * - Each pipe adds 100 volume units
+     * - Each output hatch adds 10,000 volume units
+     * - Each input hatch adds 10,000 volume units
+     * - Injector hatches add 0 volume units
      */
     public int getMaxCapacity() {
         int totalCapacity = 0;
@@ -122,7 +154,15 @@ public class IntegratedFluidNetwork {
      * Gets the available space in the network.
      */
     public int getAvailableSpace() {
-        return getMaxCapacity() - getStoredAmount();
+        double used = getOccupiedVolume();
+        double available = getMaxCapacity() - used;
+        if (available <= 0.0d) {
+            return 0;
+        }
+        if (available > Integer.MAX_VALUE) {
+            return Integer.MAX_VALUE;
+        }
+        return (int) available;
     }
 
     /**
@@ -138,7 +178,7 @@ public class IntegratedFluidNetwork {
 
     /**
      * Attempts to add fluid to the network with a specified temperature.
-     * The network temperature will be updated using weighted averaging.
+     * Temperature is converted to enthalpy; network state remains (amount, enthalpy, pressure).
      *
      * @param fluid        The fluid to add
      * @param simulate     If true, only simulates the fill
@@ -152,51 +192,18 @@ public class IntegratedFluidNetwork {
         if (fluid == null || fluid.amount <= 0) {
             return 0;
         }
+        long addAmountQ = toAmountQ(fluid.amount);
+        long addEnthalpyQ = toEnthalpyQ(fluid.getFluid(), incomingTemp, addAmountQ);
 
-        // If we have stored fluid, it must be the same type
-        if (storedFluid != null && !storedFluid.isFluidEqual(fluid)) {
-            return 0;
-        }
-
-        int availableSpace = getAvailableSpace();
-        int amountToAdd = Math.min(fluid.amount, availableSpace);
-
-        if (amountToAdd <= 0) {
+        if (!canAccept(fluid.getFluid(), addAmountQ, addEnthalpyQ)) {
             return 0;
         }
 
         if (!simulate) {
-            if (storedFluid == null) {
-                storedFluid = fluid.copy();
-                storedFluid.amount = amountToAdd;
-
-                // If network has a stored temperature (e.g., from previous drain), use weighted average
-                // Otherwise just use incoming temperature
-                if (temperature > 0 && temperature != DEFAULT_TEMPERATURE) {
-                    // Network was recently emptied but has temperature history
-                    // Treat it as having 0L at stored temperature
-                    // Result: temperature = incoming (since 0L has no weight)
-                    temperature = incomingTemp;
-                } else {
-                    // Brand new network or default state
-                    temperature = incomingTemp;
-                }
-            } else {
-                int existingAmount = storedFluid.amount;
-                float existingTemp = temperature;
-
-                // Calculate weighted average temperature
-                // Formula: T_new = (T_existing * amount_existing + T_incoming * amount_incoming) / (amount_existing +
-                // amount_incoming)
-                float newTemperature = (existingTemp * existingAmount + incomingTemp * amountToAdd)
-                    / (existingAmount + amountToAdd);
-
-                storedFluid.amount += amountToAdd;
-                temperature = newTemperature;
-            }
+            add(fluid.getFluid(), addAmountQ, addEnthalpyQ);
         }
 
-        return amountToAdd;
+        return fluid.amount;
     }
 
     /**
@@ -210,24 +217,25 @@ public class IntegratedFluidNetwork {
         if (pending) {
             return null;
         }
-        if (storedFluid == null || maxDrain <= 0) {
+        if (amountQ <= 0 || maxDrain <= 0) {
             return null;
         }
 
-        int amountToDrain = Math.min(maxDrain, storedFluid.amount);
-        FluidStack drained = storedFluid.copy();
-        drained.amount = amountToDrain;
-
-        if (!simulate) {
-            storedFluid.amount -= amountToDrain;
-            if (storedFluid.amount <= 0) {
-                storedFluid = null;
-                // Keep the temperature - don't reset to default!
-                // This preserves temperature during empty->fill cycles (e.g., Heat Pump processing)
-            }
+        long requestAmountQ = Math.min(toAmountQ(maxDrain), amountQ);
+        ExtractedPayload extracted = extractProportional(requestAmountQ, simulate);
+        if (extracted.amountQ <= 0) {
+            return null;
         }
 
-        return drained;
+        Fluid fluid = getFluid();
+        if (fluid == null) {
+            return null;
+        }
+        int drainedAmount = toAmountMb(extracted.amountQ);
+        if (drainedAmount <= 0) {
+            return null;
+        }
+        return new FluidStack(fluid, drainedAmount);
     }
 
     /**
@@ -241,10 +249,250 @@ public class IntegratedFluidNetwork {
         if (pending) {
             return null;
         }
-        if (fluid == null || storedFluid == null || !storedFluid.isFluidEqual(fluid)) {
+        if (fluid == null || amountQ <= 0) {
+            return null;
+        }
+        Fluid stored = getFluid();
+        if (stored == null || stored != fluid.getFluid()) {
             return null;
         }
         return drainFluid(fluid.amount, simulate);
+    }
+
+    public boolean canAccept(Fluid fluid, long addAmountQ, long addEnthalpyQ) {
+        if (pending) {
+            return false;
+        }
+        if (fluid == null || addAmountQ <= 0L) {
+            return false;
+        }
+        if (!IFNFluidThermalRegistry.isRegistered(fluid)) {
+            return false;
+        }
+        if (amountQ > 0L && (fluidName == null || !fluid.getName().equals(fluidName))) {
+            return false;
+        }
+
+        long nextAmountQ = amountQ + addAmountQ;
+        long nextEnthalpyQ = enthalpyQ + addEnthalpyQ;
+        double specificEnthalpy = toSpecificEnthalpy(nextEnthalpyQ, nextAmountQ);
+        double specificVolume = IntegratedFluidThermoModel
+            .specificVolumeFromPressureAndSpecificEnthalpy(fluid, pressure, specificEnthalpy);
+        double occupied = toAmount(nextAmountQ) * specificVolume;
+        return occupied <= getMaxCapacity();
+    }
+
+    public void add(Fluid fluid, long addAmountQ, long addEnthalpyQ) {
+        if (fluid == null || addAmountQ <= 0L) {
+            return;
+        }
+        if (amountQ == 0L) {
+            fluidName = fluid.getName();
+        } else if (fluidName == null || !fluid.getName().equals(fluidName)) {
+            return;
+        }
+        amountQ += addAmountQ;
+        enthalpyQ += addEnthalpyQ;
+    }
+
+    public ExtractedPayload extractProportional(long requestAmountQ, boolean simulate) {
+        if (pending || amountQ <= 0L || requestAmountQ <= 0L) {
+            return ExtractedPayload.empty();
+        }
+        long gotAmountQ = Math.min(requestAmountQ, amountQ);
+        long gotEnthalpyQ = (enthalpyQ * gotAmountQ) / amountQ;
+        if (!simulate) {
+            amountQ -= gotAmountQ;
+            enthalpyQ -= gotEnthalpyQ;
+            if (amountQ < AMOUNT_SCALE) {
+                clearFluid();
+            }
+        }
+        return new ExtractedPayload(gotAmountQ, gotEnthalpyQ);
+    }
+
+    public ExtractedPayload extractPhase(long requestAmountQ, boolean wantVapor, boolean simulate) {
+        if (pending || amountQ <= 0L || requestAmountQ <= 0L) {
+            return ExtractedPayload.empty();
+        }
+        Fluid fluid = getFluid();
+        if (fluid == null) {
+            return ExtractedPayload.empty();
+        }
+        double specificEnthalpy = getSpecificEnthalpy();
+        double hf = IntegratedFluidThermoModel.saturatedLiquidEnthalpy(fluid, pressure);
+        double hg = IntegratedFluidThermoModel.saturatedVaporEnthalpy(fluid, pressure);
+        if (hg <= hf || specificEnthalpy <= hf || specificEnthalpy >= hg) {
+            return extractProportional(requestAmountQ, simulate);
+        }
+        double quality = (specificEnthalpy - hf) / (hg - hf);
+        double vaporAmount = quality * toAmount(amountQ);
+        double liquidAmount = toAmount(amountQ) - vaporAmount;
+        double available = wantVapor ? vaporAmount : liquidAmount;
+        long availableQ = toAmountQ(available);
+        long gotAmountQ = Math.min(requestAmountQ, availableQ);
+        if (gotAmountQ <= 0L) {
+            return ExtractedPayload.empty();
+        }
+        double specific = wantVapor ? hg : hf;
+        long gotEnthalpyQ = toEnthalpyQ(specific, gotAmountQ);
+        if (!simulate) {
+            amountQ -= gotAmountQ;
+            enthalpyQ -= gotEnthalpyQ;
+            if (amountQ < AMOUNT_SCALE) {
+                clearFluid();
+            }
+        }
+        return new ExtractedPayload(gotAmountQ, gotEnthalpyQ);
+    }
+
+    public Fluid getFluid() {
+        if (fluidName == null || amountQ <= 0L) {
+            return null;
+        }
+        Fluid fluid = FluidRegistry.getFluid(fluidName);
+        if (fluid == null || !IFNFluidThermalRegistry.isRegistered(fluid)) {
+            clearFluid();
+            return null;
+        }
+        return fluid;
+    }
+
+    public String getFluidName() {
+        return fluidName;
+    }
+
+    public long getAmountQ() {
+        return amountQ;
+    }
+
+    public long getEnthalpyQ() {
+        return enthalpyQ;
+    }
+
+    public double getSpecificEnthalpy() {
+        if (amountQ <= 0L) {
+            return 0.0d;
+        }
+        return toSpecificEnthalpy(enthalpyQ, amountQ);
+    }
+
+    public float getDerivedTemperature() {
+        Fluid fluid = getFluid();
+        if (fluid == null) {
+            return DEFAULT_TEMPERATURE;
+        }
+        return IntegratedFluidThermoModel
+            .temperatureFromPressureAndSpecificEnthalpy(fluid, pressure, getSpecificEnthalpy());
+    }
+
+    public double getSpecificVolume() {
+        Fluid fluid = getFluid();
+        if (fluid == null) {
+            return 0.0d;
+        }
+        return IntegratedFluidThermoModel
+            .specificVolumeFromPressureAndSpecificEnthalpy(fluid, pressure, getSpecificEnthalpy());
+    }
+
+    public IntegratedFluidThermoModel.Phase getPhase() {
+        Fluid fluid = getFluid();
+        if (fluid == null) {
+            return IntegratedFluidThermoModel.Phase.LIQUID;
+        }
+        return IntegratedFluidThermoModel
+            .phaseFromPressureAndSpecificEnthalpy(fluid, pressure, getSpecificEnthalpy());
+    }
+
+    public double getQuality() {
+        Fluid fluid = getFluid();
+        if (fluid == null) {
+            return 0.0d;
+        }
+        double hf = IntegratedFluidThermoModel.saturatedLiquidEnthalpy(fluid, pressure);
+        double hg = IntegratedFluidThermoModel.saturatedVaporEnthalpy(fluid, pressure);
+        if (hg <= hf) {
+            return 0.0d;
+        }
+        double h = getSpecificEnthalpy();
+        if (h <= hf) {
+            return 0.0d;
+        }
+        if (h >= hg) {
+            return 1.0d;
+        }
+        return (h - hf) / (hg - hf);
+    }
+
+    public double getOccupiedVolume() {
+        if (amountQ <= 0L) {
+            return 0.0d;
+        }
+        return toAmount(amountQ) * getSpecificVolume();
+    }
+
+    private static long toAmountQ(int amount) {
+        return (long) amount * AMOUNT_SCALE;
+    }
+
+    private static long toAmountQ(double amount) {
+        return (long) Math.floor(amount * AMOUNT_SCALE);
+    }
+
+    private static double toAmount(long amountQ) {
+        return amountQ / (double) AMOUNT_SCALE;
+    }
+
+    private static int toAmountMb(long amountQ) {
+        if (amountQ <= 0L) {
+            return 0;
+        }
+        long amount = amountQ / AMOUNT_SCALE;
+        if (amount > Integer.MAX_VALUE) {
+            return Integer.MAX_VALUE;
+        }
+        return (int) amount;
+    }
+
+    private static long toEnthalpyQ(double energyEu) {
+        return (long) Math.round(energyEu * ENTHALPY_SCALE);
+    }
+
+    private static long toEnthalpyQ(Fluid fluid, float temperature, long amountQ) {
+        double specific = IntegratedFluidThermoModel.specificEnthalpyFromTemperature(fluid, temperature);
+        return toEnthalpyQ(specific, amountQ);
+    }
+
+    private static long toEnthalpyQ(double specificEnthalpy, long amountQ) {
+        double amount = toAmount(amountQ);
+        double energy = specificEnthalpy * amount;
+        return toEnthalpyQ(energy);
+    }
+
+    public static long toEnthalpyQFromSpecific(double specificEnthalpy, long amountQ) {
+        return toEnthalpyQ(specificEnthalpy, amountQ);
+    }
+
+    private static double toSpecificEnthalpy(long enthalpyQ, long amountQ) {
+        if (amountQ <= 0L) {
+            return 0.0d;
+        }
+        double energy = enthalpyQ / (double) ENTHALPY_SCALE;
+        return energy / toAmount(amountQ);
+    }
+
+    public static final class ExtractedPayload {
+        public final long amountQ;
+        public final long enthalpyQ;
+
+        private ExtractedPayload(long amountQ, long enthalpyQ) {
+            this.amountQ = amountQ;
+            this.enthalpyQ = enthalpyQ;
+        }
+
+        public static ExtractedPayload empty() {
+            return new ExtractedPayload(0L, 0L);
+        }
     }
 
     /**
@@ -272,14 +520,22 @@ public class IntegratedFluidNetwork {
      * Gets the current temperature in Kelvin.
      */
     public float getTemperature() {
-        return temperature;
+        return getDerivedTemperature();
     }
 
     /**
      * Sets the temperature in Kelvin.
      */
     public void setTemperature(float temperature) {
-        this.temperature = temperature;
+        if (amountQ <= 0) {
+            return;
+        }
+        Fluid fluid = getFluid();
+        if (fluid == null) {
+            return;
+        }
+        double specificEnthalpy = IntegratedFluidThermoModel.specificEnthalpyFromTemperature(fluid, temperature);
+        enthalpyQ = toEnthalpyQ(specificEnthalpy, amountQ);
     }
 
     public UUID getNetworkId() {
@@ -302,9 +558,14 @@ public class IntegratedFluidNetwork {
         this.expectedMemberCount = expectedMemberCount;
     }
 
-    public void loadState(FluidStack fluid, float temperature, float pressure, int expectedMembers) {
-        this.storedFluid = fluid != null ? fluid.copy() : null;
-        this.temperature = temperature;
+    public void loadState(String fluidName, long amountQ, long enthalpyQ, float pressure, int expectedMembers) {
+        this.amountQ = Math.max(0L, amountQ);
+        this.enthalpyQ = enthalpyQ;
+        if (this.amountQ < AMOUNT_SCALE) {
+            clearFluid();
+        } else {
+            this.fluidName = fluidName;
+        }
         this.pressure = pressure;
         this.expectedMemberCount = expectedMembers;
     }
@@ -314,8 +575,9 @@ public class IntegratedFluidNetwork {
      * Used during network splits to prevent duplication.
      */
     public void clearFluid() {
-        storedFluid = null;
-        temperature = DEFAULT_TEMPERATURE;
+        fluidName = null;
+        amountQ = 0L;
+        enthalpyQ = 0L;
     }
 
     /**
@@ -347,56 +609,27 @@ public class IntegratedFluidNetwork {
      * Called every second (20 ticks) to gradually move temperature toward ambient.
      *
      * Heat loss formula:
-     * - Energy lost per second = pipeCount × 1 EU/(s·ΔT) × ΔT = pipeCount × ΔT EU/s
-     * - As temperature approaches ambient, ΔT decreases, so heat loss decreases
-     * - This creates natural exponential decay toward ambient temperature
+     * - Energy lost per second = pipeCount * 1 EU/(s*K) * (T - Tambient)
+     * - This shifts enthalpy toward ambient deterministically
      */
-    public void applyHeatLoss() {
-        if (storedFluid == null || storedFluid.amount <= 0) {
-            // No fluid - immediately set temperature to ambient
-            // Empty pipes don't retain heat without fluid
-            temperature = AMBIENT_TEMPERATURE;
+    public void applyHeatLoss(float ambientTemperature) {
+        if (amountQ <= 0) {
             return;
         }
 
-        // Calculate temperature difference from ambient
-        float temperatureDelta = temperature - AMBIENT_TEMPERATURE;
-
+        float temperature = getDerivedTemperature();
+        float temperatureDelta = temperature - ambientTemperature;
         if (Math.abs(temperatureDelta) < 0.1f) {
-            // Already at ambient temperature
-            temperature = AMBIENT_TEMPERATURE;
             return;
         }
 
-        // Calculate energy loss per second
         int pipeCount = getPipeCount();
         if (pipeCount <= 0) {
-            // No pipes, no heat loss (sealed system with only hatches)
             return;
         }
 
-        // Energy lost = pipeCount × 1 EU/(s·ΔT) × ΔT = pipeCount × ΔT EU/s
-        // This means: larger temperature difference = more heat loss
-        // As temp approaches ambient, ΔT → 0, so heat loss → 0 (exponential decay)
-        float energyLost = pipeCount * HEAT_LOSS_PER_PIPE_PER_SECOND * Math.abs(temperatureDelta);
-
-        // Calculate temperature change from energy loss
-        // ΔT = Q / (m × c)
-        float heatCapacity = FluidThermalProperties.getTotalHeatCapacity(storedFluid);
-        if (heatCapacity <= 0) {
-            return;
-        }
-
-        float temperatureChange = energyLost / heatCapacity;
-
-        // Apply temperature change toward ambient
-        if (temperature > AMBIENT_TEMPERATURE) {
-            // Cooling down
-            temperature = Math.max(AMBIENT_TEMPERATURE, temperature - temperatureChange);
-        } else if (temperature < AMBIENT_TEMPERATURE) {
-            // Heating up (e.g., if ambient is warmer)
-            temperature = Math.min(AMBIENT_TEMPERATURE, temperature + temperatureChange);
-        }
+        float energyDelta = -pipeCount * HEAT_LOSS_PER_PIPE_PER_SECOND * temperatureDelta;
+        enthalpyQ += toEnthalpyQ(energyDelta);
     }
 
     /**
@@ -406,13 +639,9 @@ public class IntegratedFluidNetwork {
         if (other == null || other == this) {
             return;
         }
-        System.out.println("[IntegratedFluidNetwork] MERGE: This network has " +
-            (storedFluid != null ? storedFluid.amount + "mB" : "0mB") +
-            ", other has " + (other.storedFluid != null ? other.storedFluid.amount + "mB" : "0mB"));
-
-        // Save other network's fluid data before any modifications
-        FluidStack otherFluid = other.storedFluid != null ? other.storedFluid.copy() : null;
-        float otherTemp = other.getTemperature();
+        long otherAmountQ = other.amountQ;
+        long otherEnthalpyQ = other.enthalpyQ;
+        String otherFluidName = other.fluidName;
 
         // Transfer all members to this network FIRST (this increases capacity)
         for (IIntegratedFluidMember member : new HashSet<>(other.members)) {
@@ -420,19 +649,18 @@ public class IntegratedFluidNetwork {
             addMember(member);
         }
 
-        System.out.println("[IntegratedFluidNetwork] After transferring members, capacity is now " + getMaxCapacity());
-
-        // Now add fluid from other network with increased capacity
-        if (otherFluid != null) {
-            System.out.println("[IntegratedFluidNetwork] Adding " + otherFluid.amount + "mB from other network");
-            addFluid(otherFluid, false, otherTemp);
+        if (otherAmountQ > 0L && otherFluidName != null) {
+            if (amountQ <= 0L) {
+                fluidName = otherFluidName;
+                amountQ = otherAmountQ;
+                enthalpyQ = otherEnthalpyQ;
+            } else if (otherFluidName.equals(fluidName)) {
+                amountQ += otherAmountQ;
+                enthalpyQ += otherEnthalpyQ;
+            }
         }
 
-        System.out.println("[IntegratedFluidNetwork] After merge, network has " +
-            (storedFluid != null ? storedFluid.amount + "mB" : "0mB"));
-
-        // Clear other network's fluid (already transferred)
-        other.storedFluid = null;
+        other.clearFluid();
     }
 
     /**
@@ -442,16 +670,7 @@ public class IntegratedFluidNetwork {
      * @return The amount of fluid that was removed (voided)
      */
     public int capFluidToCapacity() {
-        if (storedFluid == null) return 0;
-        if (pending) return 0;
-
-        int capacity = getMaxCapacity();
-        if (storedFluid.amount <= capacity) return 0;
-
-        int excess = storedFluid.amount - capacity;
-        System.out.println("[IntegratedFluidNetwork] VOIDING FLUID! Had " + storedFluid.amount + "mB, capacity is " + capacity + ", voiding " + excess + "mB");
-        storedFluid.amount = capacity;
-        return excess;
+        return 0;
     }
 
     /**
@@ -461,6 +680,7 @@ public class IntegratedFluidNetwork {
         for (IIntegratedFluidMember member : new HashSet<>(members)) {
             removeMember(member);
         }
-        storedFluid = null;
+        clearFluid();
     }
 }
+

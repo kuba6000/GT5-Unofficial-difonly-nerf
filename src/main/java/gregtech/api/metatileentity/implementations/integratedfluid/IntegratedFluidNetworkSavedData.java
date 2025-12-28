@@ -17,10 +17,13 @@ public class IntegratedFluidNetworkSavedData extends WorldSavedData {
     private static final String TAG_NETWORKS = "Networks";
     private static final String TAG_ID_MOST = "IdMost";
     private static final String TAG_ID_LEAST = "IdLeast";
-    private static final String TAG_TEMPERATURE = "Temperature";
     private static final String TAG_PRESSURE = "Pressure";
     private static final String TAG_EXPECTED = "ExpectedMembers";
-    private static final String TAG_FLUID = "Fluid";
+    private static final String TAG_FLUID_NAME = "FluidName";
+    private static final String TAG_AMOUNT_Q = "AmountQ";
+    private static final String TAG_ENTHALPY_Q = "EnthalpyQ";
+    private static final String TAG_TEMPERATURE_OLD = "Temperature";
+    private static final String TAG_FLUID_OLD = "Fluid";
 
     private final Map<UUID, NetworkState> networks = new HashMap<>();
 
@@ -50,11 +53,11 @@ public class IntegratedFluidNetworkSavedData extends WorldSavedData {
     public void upsertState(UUID id, IntegratedFluidNetwork network) {
         if (id == null || network == null) return;
         NetworkState state = networks.computeIfAbsent(id, ignored -> new NetworkState());
-        state.temperature = network.getTemperature();
         state.pressure = network.getPressure();
         state.expectedMemberCount = network.getExpectedMemberCount();
-        FluidStack stored = network.getStoredFluid();
-        state.fluid = stored != null ? stored.copy() : null;
+        state.fluidName = network.getFluidName();
+        state.amountQ = network.getAmountQ();
+        state.enthalpyQ = network.getEnthalpyQ();
         markDirty();
     }
 
@@ -74,11 +77,25 @@ public class IntegratedFluidNetworkSavedData extends WorldSavedData {
             long least = entry.getLong(TAG_ID_LEAST);
             UUID id = new UUID(most, least);
             NetworkState state = new NetworkState();
-            state.temperature = entry.getFloat(TAG_TEMPERATURE);
             state.pressure = entry.getFloat(TAG_PRESSURE);
             state.expectedMemberCount = entry.getInteger(TAG_EXPECTED);
-            if (entry.hasKey(TAG_FLUID)) {
-                state.fluid = FluidStack.loadFluidStackFromNBT(entry.getCompoundTag(TAG_FLUID));
+            state.fluidName = entry.hasKey(TAG_FLUID_NAME) ? entry.getString(TAG_FLUID_NAME) : null;
+            state.amountQ = entry.getLong(TAG_AMOUNT_Q);
+            state.enthalpyQ = entry.getLong(TAG_ENTHALPY_Q);
+            if (state.fluidName == null && entry.hasKey(TAG_FLUID_OLD)) {
+                FluidStack legacy = FluidStack.loadFluidStackFromNBT(entry.getCompoundTag(TAG_FLUID_OLD));
+                if (legacy != null && legacy.amount > 0) {
+                    state.fluidName = legacy.getFluid().getName();
+                    state.amountQ = legacy.amount * IntegratedFluidNetwork.AMOUNT_SCALE;
+                    float temperature = entry.hasKey(TAG_TEMPERATURE_OLD)
+                        ? entry.getFloat(TAG_TEMPERATURE_OLD)
+                        : IntegratedFluidNetwork.DEFAULT_TEMPERATURE;
+                    double specific = IntegratedFluidThermoModel
+                        .specificEnthalpyFromTemperature(legacy.getFluid(), temperature);
+                    double amount = state.amountQ / (double) IntegratedFluidNetwork.AMOUNT_SCALE;
+                    long energyQ = (long) Math.round(specific * amount * IntegratedFluidNetwork.ENTHALPY_SCALE);
+                    state.enthalpyQ = energyQ;
+                }
             }
             networks.put(id, state);
         }
@@ -93,20 +110,22 @@ public class IntegratedFluidNetworkSavedData extends WorldSavedData {
             NBTTagCompound tag = new NBTTagCompound();
             tag.setLong(TAG_ID_MOST, id.getMostSignificantBits());
             tag.setLong(TAG_ID_LEAST, id.getLeastSignificantBits());
-            tag.setFloat(TAG_TEMPERATURE, state.temperature);
             tag.setFloat(TAG_PRESSURE, state.pressure);
             tag.setInteger(TAG_EXPECTED, state.expectedMemberCount);
-            if (state.fluid != null) {
-                tag.setTag(TAG_FLUID, state.fluid.writeToNBT(new NBTTagCompound()));
+            if (state.fluidName != null) {
+                tag.setString(TAG_FLUID_NAME, state.fluidName);
             }
+            tag.setLong(TAG_AMOUNT_Q, state.amountQ);
+            tag.setLong(TAG_ENTHALPY_Q, state.enthalpyQ);
             list.appendTag(tag);
         }
         nbt.setTag(TAG_NETWORKS, list);
     }
 
     public static class NetworkState {
-        FluidStack fluid;
-        float temperature = IntegratedFluidNetwork.DEFAULT_TEMPERATURE;
+        String fluidName;
+        long amountQ = 0L;
+        long enthalpyQ = 0L;
         float pressure = IntegratedFluidNetwork.DEFAULT_PRESSURE;
         int expectedMemberCount = 0;
     }

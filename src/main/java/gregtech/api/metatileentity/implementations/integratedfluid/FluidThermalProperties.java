@@ -4,13 +4,31 @@ import net.minecraftforge.fluids.Fluid;
 import net.minecraftforge.fluids.FluidStack;
 
 /**
- * Manages thermal properties of fluids in the integrated fluid network system.
- * This class provides centralized access to heat capacity and energy calculations.
- *
- * Currently uses a hardcoded default value, but is designed to be extended
- * for fluid-specific properties in the future.
+ * Facade for thermal properties used by the integrated fluid network.
+ * All fluids must be registered in IFNFluidThermalRegistry.
  */
 public class FluidThermalProperties {
+    static {
+        IFNFluidThermalRegistration.init();
+    }
+    public enum Phase {
+        LIQUID,
+        TWO_PHASE,
+        VAPOR,
+        SUPERCRITICAL
+    }
+
+    public static final class PhaseResult {
+        public final Phase phase;
+        public final double quality;
+
+        public PhaseResult(Phase phase, double quality) {
+            this.phase = phase;
+            this.quality = quality;
+        }
+    }
+
+    private static final double BASE_TEMPERATURE_K = 300.0;
 
     /**
      * Default specific heat capacity in EU/(mB·K) (EU per millibucket per Kelvin).
@@ -34,15 +52,8 @@ public class FluidThermalProperties {
         if (fluid == null) {
             return DEFAULT_SPECIFIC_HEAT_CAPACITY;
         }
-
-        // TODO: Implement fluid-specific heat capacities
-        // Future enhancement: Check fluid against a registry/map of specific values
-        // Example:
-        // if (fluidHeatCapacityMap.containsKey(fluid)) {
-        //     return fluidHeatCapacityMap.get(fluid);
-        // }
-
-        return DEFAULT_SPECIFIC_HEAT_CAPACITY;
+        IFNFluidThermalRegistry.FluidProperties properties = IFNFluidThermalRegistry.require(fluid);
+        return (float) properties.getSpecificHeatCapacity();
     }
 
     /**
@@ -244,5 +255,85 @@ public class FluidThermalProperties {
             // Cap penalty at 10x to avoid extreme cases
             return Math.min(exponentialPenalty, 10.0f);
         }
+    }
+
+    public static double getTemperatureFromPH(Fluid fluid, double pBar, double h) {
+        if (fluid == null) {
+            return BASE_TEMPERATURE_K;
+        }
+        IFNFluidThermalRegistry.FluidProperties properties = IFNFluidThermalRegistry.require(fluid);
+        return properties.temperatureFromPH(pBar, h);
+    }
+
+    public static double getSpecificEnthalpyFromPT(Fluid fluid, double pBar, double temperatureK) {
+        if (fluid == null) {
+            return 0.0d;
+        }
+        IFNFluidThermalRegistry.FluidProperties properties = IFNFluidThermalRegistry.require(fluid);
+        return properties.specificEnthalpyFromPT(pBar, temperatureK);
+    }
+
+    public static PhaseResult getPhaseFromPH(Fluid fluid, double pBar, double h) {
+        if (fluid == null) {
+            return new PhaseResult(Phase.LIQUID, 0.0);
+        }
+        IFNFluidThermalRegistry.FluidProperties properties = IFNFluidThermalRegistry.require(fluid);
+        return properties.phaseFromPH(pBar, h);
+    }
+
+    public static double getSpecificVolumeFromPH(Fluid fluid, double pBar, double h) {
+        if (fluid == null) {
+            return 0.0d;
+        }
+        IFNFluidThermalRegistry.FluidProperties properties = IFNFluidThermalRegistry.require(fluid);
+        return properties.specificVolumeFromPH(pBar, h);
+    }
+
+    public static double getSaturationTemperatureFromP(Fluid fluid, double pBar) {
+        if (fluid == null) {
+            return BASE_TEMPERATURE_K;
+        }
+        IFNFluidThermalRegistry.FluidProperties properties = IFNFluidThermalRegistry.require(fluid);
+        return properties.saturationTemperatureFromP(pBar);
+    }
+
+    public static double getHfFromP(Fluid fluid, double pBar) {
+        if (fluid == null) {
+            return 0.0d;
+        }
+        IFNFluidThermalRegistry.FluidProperties properties = IFNFluidThermalRegistry.require(fluid);
+        return properties.hfFromP(pBar);
+    }
+
+    public static double getHgFromP(Fluid fluid, double pBar) {
+        if (fluid == null) {
+            return 0.0d;
+        }
+        IFNFluidThermalRegistry.FluidProperties properties = IFNFluidThermalRegistry.require(fluid);
+        return properties.hgFromP(pBar);
+    }
+
+    public static double getCriticalPressure(Fluid fluid) {
+        if (fluid == null) {
+            return 0.0d;
+        }
+        IFNFluidThermalRegistry.FluidProperties properties = IFNFluidThermalRegistry.require(fluid);
+        return properties.getCriticalPressure();
+    }
+
+    public static double getCriticalTemperature(Fluid fluid) {
+        if (fluid == null) {
+            return 0.0d;
+        }
+        IFNFluidThermalRegistry.FluidProperties properties = IFNFluidThermalRegistry.require(fluid);
+        return properties.getCriticalTemperature();
+    }
+
+    public static double getFreezeTemperature(Fluid fluid) {
+        if (fluid == null) {
+            return 0.0d;
+        }
+        IFNFluidThermalRegistry.FluidProperties properties = IFNFluidThermalRegistry.require(fluid);
+        return properties.getFreezeTemperature();
     }
 }

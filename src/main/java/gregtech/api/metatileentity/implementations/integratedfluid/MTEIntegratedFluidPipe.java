@@ -25,6 +25,7 @@ import gregtech.api.interfaces.ITexture;
 import gregtech.api.interfaces.metatileentity.IMetaTileEntity;
 import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
 import gregtech.api.metatileentity.MetaPipeEntity;
+import gregtech.api.metatileentity.implementations.integratedfluid.IFNAmbientTemperature;
 import gregtech.api.render.TextureFactory;
 import gregtech.api.util.GTUtility;
 import gregtech.common.covers.Cover;
@@ -271,7 +272,20 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
             tag.setInteger("maxCapacity", network.getMaxCapacity());
             tag.setFloat("pressure", network.getPressure());
             tag.setFloat("temperature", network.getTemperature());
+            float ambientTemperature = IFNAmbientTemperature.getAmbientTemperature(world);
+            tag.setFloat("ambientTemperature", ambientTemperature);
+            double ambientSpecificEnthalpy = 0.0d;
             FluidStack fluid = network.getStoredFluid();
+            if (fluid != null) {
+                ambientSpecificEnthalpy = FluidThermalProperties.getSpecificEnthalpyFromPT(
+                    fluid.getFluid(),
+                    network.getPressure(),
+                    ambientTemperature
+                );
+            }
+            tag.setDouble("specificEnthalpyRelative", network.getSpecificEnthalpy() - ambientSpecificEnthalpy);
+            tag.setString("phase", network.getPhase().name());
+            tag.setDouble("quality", network.getQuality());
             if (fluid != null) {
                 tag.setTag("networkFluid", fluid.writeToNBT(new NBTTagCompound()));
             }
@@ -309,7 +323,11 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
             // Display current heat loss based on actual temperature difference
             int pipeCount = tag.getInteger("pipeCount");
             float temperature = tag.getFloat("temperature");
-            float temperatureDelta = Math.abs(temperature - 300.0f); // 300K = ambient
+            float ambientTemperature = tag.getFloat("ambientTemperature");
+            if (ambientTemperature <= 0.0f) {
+                ambientTemperature = 300.0f;
+            }
+            float temperatureDelta = Math.abs(temperature - ambientTemperature);
             float currentHeatLoss = pipeCount * temperatureDelta;
 
             currenttip.add(
@@ -323,7 +341,7 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
                         + String.format("%.1f", currentHeatLoss)
                         + " EU/s"
                         + EnumChatFormatting.RESET
-                        + " (ΔT=" + String.format("%.1f", temperatureDelta) + "K)");
+                        + " (dT=" + String.format("%.1f", temperatureDelta) + "K)");
             } else {
                 currenttip.add(
                     "Current Heat Loss: " + EnumChatFormatting.GREEN
@@ -342,6 +360,24 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
                     + String.format("%.2f", tag.getFloat("temperature"))
                     + " K"
                     + EnumChatFormatting.RESET);
+            currenttip.add(
+                "Specific Enthalpy: " + EnumChatFormatting.AQUA
+                    + String.format("%.2f", tag.getDouble("specificEnthalpyRelative"))
+                    + " EU/u"
+                    + EnumChatFormatting.RESET);
+            String phase = tag.getString("phase");
+            double quality = tag.getDouble("quality");
+            if ("TWO_PHASE".equals(phase)) {
+                currenttip.add(
+                    "Phase: " + EnumChatFormatting.LIGHT_PURPLE
+                        + "Two-Phase"
+                        + EnumChatFormatting.RESET
+                        + " (x="
+                        + String.format("%.2f", quality)
+                        + ")");
+            } else if (phase != null && !phase.isEmpty()) {
+                currenttip.add("Phase: " + EnumChatFormatting.LIGHT_PURPLE + phase + EnumChatFormatting.RESET);
+            }
         } else {
             currenttip.add(EnumChatFormatting.RED + "No network" + EnumChatFormatting.RESET);
         }
