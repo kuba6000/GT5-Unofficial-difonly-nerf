@@ -9,6 +9,7 @@ import net.minecraftforge.fluids.FluidRegistry;
 import net.minecraftforge.fluids.FluidStack;
 
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNFluidThermalRegistry;
+import gregtech.api.metatileentity.implementations.integratedfluid.IFNFluidThermalRegistration;
 
 /**
  * Manages a network of connected integrated fluid hatches and pipes.
@@ -350,6 +351,7 @@ public class IntegratedFluidNetwork {
         if (fluidName == null || amountQ <= 0L) {
             return null;
         }
+        IFNFluidThermalRegistration.init();
         Fluid fluid = FluidRegistry.getFluid(fluidName);
         if (fluid == null || !IFNFluidThermalRegistry.isRegistered(fluid)) {
             clearFluid();
@@ -683,4 +685,3 @@ public class IntegratedFluidNetwork {
         clearFluid();
     }
 }
-
