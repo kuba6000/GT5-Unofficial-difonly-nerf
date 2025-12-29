@@ -80,7 +80,7 @@ public class MTEHeatPumpGui extends MTEMultiBlockBaseGui<MTEHeatPump> {
                         // Check config value validity
                         float value = universalValueSync.getValue();
                         switch (modeSync.getValue()) {
-                            case 0: return value <= 0 || value < 200.0f || value > 500.0f;
+                            case 0: return false;
                             case 1: return value <= 0 || value < 1.1f;
                             case 2: return value <= 0;
                         }
@@ -101,8 +101,6 @@ public class MTEHeatPumpGui extends MTEMultiBlockBaseGui<MTEHeatPump> {
                         if (hasHxError || hasSfError || hasNormalError) return false;
 
                         // Check if config is invalid - if so, DON'T show Mode line
-                        float value = universalValueSync.getValue();
-                        if (value <= 0 || value < 200.0f || value > 500.0f) return false;
                         return true;
                     }))
             // MODE: TARGET COP
@@ -377,6 +375,10 @@ public class MTEHeatPumpGui extends MTEMultiBlockBaseGui<MTEHeatPump> {
         FloatSyncValue universalValueSync = new FloatSyncValue(multiblock::getUniversalValue, multiblock::setUniversalValue);
         syncManager.syncValue("universalValue", universalValueSync);
 
+        IntSyncValue heatDirectionSync = new IntSyncValue(() -> multiblock.isTargetHeating() ? 1 : 0,
+            val -> multiblock.setTargetHeating(val != 0));
+        syncManager.syncValue("heatDirection", heatDirectionSync);
+
         // Fluid amount per operation (in mB/L)
         IntSyncValue fluidAmountSync = new IntSyncValue(multiblock::getFluidAmountPerOperation, multiblock::setFluidAmountPerOperation);
         syncManager.syncValue("fluidAmount", fluidAmountSync);
@@ -535,19 +537,23 @@ public class MTEHeatPumpGui extends MTEMultiBlockBaseGui<MTEHeatPump> {
         IntSyncValue hotStreamSync = syncManager.findSyncHandler("hotStream", IntSyncValue.class);
         IntSyncValue splitFlowModeSync = syncManager.findSyncHandler("splitFlowMode", IntSyncValue.class);
         FloatSyncValue splitRatioSync = syncManager.findSyncHandler("splitRatio", FloatSyncValue.class);
+        IntSyncValue heatDirectionSync = syncManager.findSyncHandler("heatDirection", IntSyncValue.class);
 
         // Three separate panels for different modes - store as fields
         normalSettingsPanel = syncManager
             .panel("normalModeSettings", (p_syncManager, syncHandler) ->
-                openNormalModeSettingsPanel(parent, modeSync, universalValueSync, fluidAmountSync, lowerToleranceSync, upperToleranceSync), true);
+                openNormalModeSettingsPanel(parent, modeSync, universalValueSync, fluidAmountSync, lowerToleranceSync,
+                    upperToleranceSync, heatDirectionSync), true);
 
         hxSettingsPanel = syncManager
             .panel("hxModeSettings", (p_syncManager, syncHandler) ->
-                openHXModeSettingsPanel(parent, modeSync, universalValueSync, fluidAmountSync, hotStreamSync), true);
+                openHXModeSettingsPanel(parent, modeSync, universalValueSync, fluidAmountSync, hotStreamSync,
+                    heatDirectionSync), true);
 
         sfSettingsPanel = syncManager
             .panel("sfModeSettings", (p_syncManager, syncHandler) ->
-                openSFModeSettingsPanel(parent, modeSync, universalValueSync, fluidAmountSync, splitRatioSync), true);
+                openSFModeSettingsPanel(parent, modeSync, universalValueSync, fluidAmountSync, splitRatioSync,
+                    heatDirectionSync), true);
 
         return new ButtonWidget<>().size(18, 18)
             .marginRight(4)
@@ -584,7 +590,9 @@ public class MTEHeatPumpGui extends MTEMultiBlockBaseGui<MTEHeatPump> {
     /**
      * Settings panel for Normal Mode - includes all standard heat pump settings
      */
-    private ModularPanel openNormalModeSettingsPanel(ModularPanel parent, IntSyncValue modeSync, FloatSyncValue universalValueSync, IntSyncValue fluidAmountSync, FloatSyncValue lowerToleranceSync, FloatSyncValue upperToleranceSync) {
+    private ModularPanel openNormalModeSettingsPanel(ModularPanel parent, IntSyncValue modeSync, FloatSyncValue universalValueSync,
+        IntSyncValue fluidAmountSync, FloatSyncValue lowerToleranceSync, FloatSyncValue upperToleranceSync,
+        IntSyncValue heatDirectionSync) {
         return new ModularPanel("normalModeSettings").relative(parent)
             .leftRel(1)
             .topRel(0)
@@ -601,6 +609,7 @@ public class MTEHeatPumpGui extends MTEMultiBlockBaseGui<MTEHeatPump> {
                     .child(createSettingsButton1(modeSync, universalValueSync))
                     .child(createSettingsButton2(modeSync, universalValueSync))
                     .child(createSettingsButton3(modeSync, universalValueSync))
+                    .child(createHeatDirectionRow(modeSync, heatDirectionSync))
                     .child(createUniversalInputField(modeSync, universalValueSync))
                     .child(createFluidAmountField(fluidAmountSync))
                     .child(createToleranceFieldsColumn(modeSync, lowerToleranceSync, upperToleranceSync)));
@@ -609,7 +618,8 @@ public class MTEHeatPumpGui extends MTEMultiBlockBaseGui<MTEHeatPump> {
     /**
      * Settings panel for Heat Exchanger Mode - includes stream selector and per-stream settings
      */
-    private ModularPanel openHXModeSettingsPanel(ModularPanel parent, IntSyncValue modeSync, FloatSyncValue universalValueSync, IntSyncValue fluidAmountSync, IntSyncValue hotStreamSync) {
+    private ModularPanel openHXModeSettingsPanel(ModularPanel parent, IntSyncValue modeSync, FloatSyncValue universalValueSync,
+        IntSyncValue fluidAmountSync, IntSyncValue hotStreamSync, IntSyncValue heatDirectionSync) {
         return new ModularPanel("hxModeSettings").relative(parent)
             .leftRel(1)
             .topRel(0)
@@ -634,7 +644,8 @@ public class MTEHeatPumpGui extends MTEMultiBlockBaseGui<MTEHeatPump> {
     /**
      * Settings panel for Split Flow Mode - includes split ratio and standard settings
      */
-    private ModularPanel openSFModeSettingsPanel(ModularPanel parent, IntSyncValue modeSync, FloatSyncValue universalValueSync, IntSyncValue fluidAmountSync, FloatSyncValue splitRatioSync) {
+    private ModularPanel openSFModeSettingsPanel(ModularPanel parent, IntSyncValue modeSync, FloatSyncValue universalValueSync,
+        IntSyncValue fluidAmountSync, FloatSyncValue splitRatioSync, IntSyncValue heatDirectionSync) {
         return new ModularPanel("sfModeSettings").relative(parent)
             .leftRel(1)
             .topRel(0)
@@ -653,7 +664,9 @@ public class MTEHeatPumpGui extends MTEMultiBlockBaseGui<MTEHeatPump> {
                     .child(createSettingsButton2(modeSync, universalValueSync))
                     .child(createSettingsButton3(modeSync, universalValueSync))
                     .child(createUniversalInputField(modeSync, universalValueSync))
-                    .child(createFluidAmountField(fluidAmountSync)));
+                    .child(createFluidAmountField(fluidAmountSync))
+                    .child(createHeatDirectionRow(modeSync, heatDirectionSync))
+                    );
     }
 
     /**
@@ -682,6 +695,33 @@ public class MTEHeatPumpGui extends MTEMultiBlockBaseGui<MTEHeatPump> {
                     .tooltipBuilder(t -> t.addLine(IKey.str("Switch between Hot and Cold stream"))
                         .addLine(IKey.str("Hot stream (RED hatches)"))
                         .addLine(IKey.str("Cold stream (BLUE hatches)"))));
+    }
+
+    private IWidget createHeatDirectionRow(IntSyncValue modeSync, IntSyncValue heatDirectionSync) {
+        return new Row().widthRel(1).height(18).marginTop(4)
+            .setEnabledIf(w -> {
+                int mode = modeSync.getValue();
+                return mode == 1 || mode == 2;
+            })
+            .child(
+                new TextWidget<>("Direction:")
+                    .width(60)
+                    .alignment(Alignment.CenterLeft))
+            .child(
+                new ButtonWidget<>().width(60)
+                    .height(18)
+                    .overlay(IKey.dynamic(() -> heatDirectionSync.getValue() != 0
+                        ? EnumChatFormatting.RED + "HOT"
+                        : EnumChatFormatting.BLUE + "COLD"))
+                    .onMousePressed(d -> {
+                        heatDirectionSync.updateCacheFromSource(false);
+                        int newValue = heatDirectionSync.getValue() == 0 ? 1 : 0;
+                        heatDirectionSync.setValue(newValue);
+                        heatDirectionSync.syncToServer(1, buffer -> buffer.writeVarIntToBuffer(newValue));
+                        return true;
+                    })
+                    .tooltipBuilder(t -> t.addLine(IKey.str("Affects COP/Energy modes"))
+                        .addLine(IKey.str("HOT = heating, COLD = cooling"))));
     }
 
     /**
@@ -854,4 +894,3 @@ public class MTEHeatPumpGui extends MTEMultiBlockBaseGui<MTEHeatPump> {
                 .addLine("Primary stream gets MORE heating"));
     }
 }
-

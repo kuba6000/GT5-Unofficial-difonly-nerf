@@ -58,6 +58,7 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
     private boolean configuringHotStream = true; // true = configuring hot stream, false = configuring cold stream
     private boolean splitFlowMode = false; // Split Flow Mode - divides input into 2 streams with temp differential
     private float splitRatio = 0.5f; // Ratio for split (0.1 to 0.9) - fraction that goes to hot/primary stream
+    private boolean targetHeating = true; // Direction for COP/Energy modes (true = heating, false = cooling)
 
     // Cache for hatch validation (updated when structure changes or every 20 ticks)
     private boolean cachedHatchValidation = false;
@@ -257,10 +258,7 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         // Validate configuration based on operating mode
         switch (operatingMode) {
             case TARGET_TEMPERATURE:
-                // Validate target temperature (must be reasonable, e.g., 200K-500K)
-                if (targetTemperature <= 0 || targetTemperature < 200.0f || targetTemperature > 500.0f) {
-                    return SimpleCheckRecipeResult.ofFailure("awaiting_configuration");
-                }
+                // Allow full cooling/heating range (including below 0C)
                 break;
             case TARGET_COP:
                 // Validate COP
@@ -326,14 +324,16 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         double outputTemperature = inputTemperature;
         double temperatureDelta = 0.0d;
         double outputSpecificEnthalpy = inputSpecificEnthalpy;
-        long totalEnergyCost;
+        long totalEnergyCost = 0L;
         double penalty;
         boolean passthroughMode = false;
+        boolean heatingDirection = true;
 
         switch (operatingMode) {
             case TARGET_TEMPERATURE: {
                 outputTemperature = targetTemperature;
                 temperatureDelta = outputTemperature - inputTemperature;
+                heatingDirection = temperatureDelta >= 0.0d;
 
                 if (inputTemperature >= targetTemperature - lowerTemperatureTolerance
                     && inputTemperature <= targetTemperature + upperTemperatureTolerance) {
@@ -347,15 +347,14 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
                     currentEfficiencyPenalty = 1.0f;
                     effectiveCOP = 0.0f;
                 } else if (temperatureDelta < 0.0d) {
-                    return SimpleCheckRecipeResult.ofFailure("awaiting_configuration");
                 } else {
-                    currentCOP = FluidThermalProperties.calculateHeatPumpCOP(
-                        COLD_RESERVOIR_TEMPERATURE,
-                        (float) outputTemperature
-                    );
+                    float tCold = (float) Math.min(inputTemperature, outputTemperature);
+                    float tHot = (float) Math.max(inputTemperature, outputTemperature);
+                    currentCOP = FluidThermalProperties.calculateHeatPumpCOP(tCold, tHot);
 
-                    penalty = FluidThermalProperties.calculateTemperaturePenalty((float) temperatureDelta);
-                    currentTemperatureDelta = (float) temperatureDelta;
+                    double absDelta = Math.abs(temperatureDelta);
+                    penalty = FluidThermalProperties.calculateTemperaturePenalty((float) absDelta);
+                    currentTemperatureDelta = (float) absDelta;
                     currentEfficiencyPenalty = (float) penalty;
                     effectiveCOP = currentCOP / currentEfficiencyPenalty;
 
@@ -364,11 +363,11 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
                         inputNetwork.getPressure(),
                         outputTemperature
                     );
-                    double desiredDh = Math.max(0.0d, hTarget - inputSpecificEnthalpy);
-                    double desiredQhot = desiredDh * amountToProcess;
-                    totalEnergyCost = (long) Math.ceil(desiredQhot / currentCOP * penalty);
+                    double desiredDh = hTarget - inputSpecificEnthalpy;
+                    double desiredQ = Math.abs(desiredDh) * amountToProcess;
+                    totalEnergyCost = (long) Math.ceil(desiredQ / currentCOP * penalty);
                     this.totalEnergyCost = (int) ((totalEnergyCost + 19) / 20);
-                    outputSpecificEnthalpy = inputSpecificEnthalpy + desiredDh;
+                    outputSpecificEnthalpy = hTarget;
                 }
                 break;
             }
@@ -377,25 +376,22 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
                 if (targetCOP <= 1.0f) {
                     targetCOP = 1.1f;
                 }
-
-                outputTemperature = (targetCOP * COLD_RESERVOIR_TEMPERATURE) / (targetCOP - 1.0f);
-                temperatureDelta = outputTemperature - inputTemperature;
-                if (temperatureDelta <= 0.0d) {
-                    passthroughMode = true;
-                    currentCOP = 0.0f;
-                    totalEnergyCost = 0;
-                    this.totalEnergyCost = 0;
-                    outputTemperature = inputTemperature;
-                    temperatureDelta = 0.0d;
-                    currentTemperatureDelta = 0.0f;
-                    currentEfficiencyPenalty = 1.0f;
-                    effectiveCOP = 0.0f;
-                    break;
+                if (targetHeating) {
+                    outputTemperature = (targetCOP * inputTemperature) / (targetCOP - 1.0f);
+                } else {
+                    outputTemperature = (targetCOP * inputTemperature) / (targetCOP + 1.0f);
                 }
-
+                temperatureDelta = outputTemperature - inputTemperature;
+                heatingDirection = targetHeating;
+                double absDelta = Math.abs(temperatureDelta);
+                if (absDelta < 0.1d) {
+                    absDelta = 0.1d;
+                    outputTemperature = inputTemperature + (targetHeating ? absDelta : -absDelta);
+                    temperatureDelta = outputTemperature - inputTemperature;
+                }
                 currentCOP = targetCOP;
-                penalty = FluidThermalProperties.calculateTemperaturePenalty((float) temperatureDelta);
-                currentTemperatureDelta = (float) temperatureDelta;
+                penalty = FluidThermalProperties.calculateTemperaturePenalty((float) Math.abs(temperatureDelta));
+                currentTemperatureDelta = (float) Math.abs(temperatureDelta);
                 currentEfficiencyPenalty = (float) penalty;
                 effectiveCOP = currentCOP / currentEfficiencyPenalty;
 
@@ -404,11 +400,11 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
                     inputNetwork.getPressure(),
                     outputTemperature
                 );
-                double desiredDh = Math.max(0.0d, hTarget - inputSpecificEnthalpy);
-                double desiredQhot = desiredDh * amountToProcess;
-                totalEnergyCost = (long) Math.ceil(desiredQhot / currentCOP * penalty);
+                double desiredDh = hTarget - inputSpecificEnthalpy;
+                double desiredQ = Math.abs(desiredDh) * amountToProcess;
+                totalEnergyCost = (long) Math.ceil(desiredQ / currentCOP * penalty);
                 this.totalEnergyCost = (int) ((totalEnergyCost + 19) / 20);
-                outputSpecificEnthalpy = inputSpecificEnthalpy + desiredDh;
+                outputSpecificEnthalpy = hTarget;
                 break;
             }
 
@@ -425,15 +421,14 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
                 double effectiveCopLocal = 1.0d;
 
                 for (int i = 0; i < 2; i++) {
-                    copLocal = FluidThermalProperties.calculateHeatPumpCOP(
-                        COLD_RESERVOIR_TEMPERATURE,
-                        (float) tempEstimate
-                    );
-                    double delta = Math.max(0.0d, tempEstimate - inputTemperature);
+                    float tCold = (float) Math.min(tempEstimate, inputTemperature);
+                    float tHot = (float) Math.max(tempEstimate, inputTemperature);
+                    copLocal = FluidThermalProperties.calculateHeatPumpCOP(tCold, tHot);
+                    double delta = Math.abs(tempEstimate - inputTemperature);
                     penaltyLocal = FluidThermalProperties.calculateTemperaturePenalty((float) delta);
                     effectiveCopLocal = copLocal / penaltyLocal;
                     double qHot = effectiveCopLocal * targetTotalEnergy;
-                    outputSpecificEnthalpy = inputSpecificEnthalpy + qHot / amountToProcess;
+                    outputSpecificEnthalpy = inputSpecificEnthalpy + (targetHeating ? qHot : -qHot) / amountToProcess;
                     tempEstimate = FluidThermalProperties.getTemperatureFromPH(
                         inputFluid,
                         inputNetwork.getPressure(),
@@ -443,9 +438,10 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
 
                 outputTemperature = tempEstimate;
                 temperatureDelta = outputTemperature - inputTemperature;
+                heatingDirection = targetHeating;
                 currentCOP = (float) copLocal;
                 currentEfficiencyPenalty = (float) penaltyLocal;
-                currentTemperatureDelta = (float) temperatureDelta;
+                currentTemperatureDelta = (float) Math.abs(temperatureDelta);
                 effectiveCOP = (float) effectiveCopLocal;
                 this.totalEnergyCost = targetEnergyPerTick;
                 break;
@@ -457,8 +453,14 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
 
         currentOutputTemperature = (float) outputTemperature;
 
-        if (outputSpecificEnthalpy < inputSpecificEnthalpy - 1e-6d) {
-            return SimpleCheckRecipeResult.ofFailure("awaiting_configuration");
+        if (heatingDirection) {
+            if (outputSpecificEnthalpy < inputSpecificEnthalpy - 1e-6d) {
+                return SimpleCheckRecipeResult.ofFailure("awaiting_configuration");
+            }
+        } else {
+            if (outputSpecificEnthalpy > inputSpecificEnthalpy + 1e-6d) {
+                return SimpleCheckRecipeResult.ofFailure("awaiting_configuration");
+            }
         }
 
         long predictedOutputEnthalpyQ = toEnthalpyQ(outputSpecificEnthalpy, amountToProcessQ);
@@ -651,7 +653,7 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
     }
 
     public void setTargetTemperatureDelta(float temperature) {
-        this.targetTemperature = Math.max(200.0f, Math.min(temperature, 500.0f));
+        this.targetTemperature = temperature;
     }
 
     // Universal value - interpreted based on operating mode
@@ -671,7 +673,7 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
     public void setUniversalValue(float value) {
         switch (operatingMode) {
             case TARGET_TEMPERATURE:
-                this.targetTemperature = Math.max(200.0f, Math.min(value, 500.0f));
+                this.targetTemperature = value;
                 break;
             case TARGET_COP:
                 this.targetCOP = Math.max(1.1f, Math.min(value, 100.0f));
@@ -743,6 +745,7 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
 
     public void setConfiguringHotStream(boolean hot) {
         this.configuringHotStream = hot;
+        this.targetHeating = hot;
     }
 
     // Split Flow Mode
@@ -764,6 +767,14 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
 
     public void setSplitRatio(float ratio) {
         this.splitRatio = Math.max(0.1f, Math.min(0.9f, ratio)); // Clamp to 0.1-0.9
+    }
+
+    public boolean isTargetHeating() {
+        return targetHeating;
+    }
+
+    public void setTargetHeating(boolean heating) {
+        this.targetHeating = heating;
     }
 
     /**
@@ -874,6 +885,7 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         aNBT.setBoolean("configuringHotStream", configuringHotStream);
         aNBT.setBoolean("splitFlowMode", splitFlowMode);
         aNBT.setFloat("splitRatio", splitRatio);
+        aNBT.setBoolean("targetHeating", targetHeating);
 
     }
 
@@ -923,6 +935,9 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         }
         if (aNBT.hasKey("splitRatio")) {
             splitRatio = aNBT.getFloat("splitRatio");
+        }
+        if (aNBT.hasKey("targetHeating")) {
+            targetHeating = aNBT.getBoolean("targetHeating");
         }
 
         if (aNBT.hasKey("targetEnergy")) {
