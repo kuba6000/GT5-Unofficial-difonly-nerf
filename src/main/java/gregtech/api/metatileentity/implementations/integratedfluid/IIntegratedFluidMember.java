@@ -38,4 +38,18 @@ public interface IIntegratedFluidMember {
      * - Injector Hatches: 0L (0 mB)
      */
     int getCapacityContribution();
+
+    /**
+     * Returns the accumulator "compliance volume" contributed by this member in mB.
+     */
+    default int getAccumulatorContribution() {
+        return 0;
+    }
+
+    /**
+     * Returns the maximum pressure supported by this member's accumulator.
+     */
+    default float getAccumulatorMaxPressureBar() {
+        return 10.0f;
+    }
 }

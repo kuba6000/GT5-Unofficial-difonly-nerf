@@ -178,6 +178,8 @@ public class MTEIntegratedFluidOutputHatch extends MTEHatch implements IIntegrat
             tag.setBoolean("hasNetwork", true);
             tag.setInteger("memberCount", network.getMemberCount());
             tag.setInteger("maxCapacity", network.getMaxCapacity());
+            tag.setInteger("accumulatorCapacity", network.getAccumulatorCapacity());
+            tag.setInteger("totalCapacity", network.getTotalCapacity());
             tag.setFloat("pressure", network.getPressure());
             tag.setFloat("temperature", network.getTemperature());
             FluidStack fluid = network.getStoredFluid();
@@ -195,6 +197,11 @@ public class MTEIntegratedFluidOutputHatch extends MTEHatch implements IIntegrat
         super.getWailaBody(itemStack, currenttip, accessor, config);
         NBTTagCompound tag = accessor.getNBTData();
         if (tag.getBoolean("hasNetwork")) {
+            int maxCapacity = tag.getInteger("maxCapacity");
+            int accumulatorCapacity = tag.getInteger("accumulatorCapacity");
+            int totalCapacity = tag.hasKey("totalCapacity")
+                ? tag.getInteger("totalCapacity")
+                : maxCapacity + accumulatorCapacity;
             if (tag.hasKey("networkFluid")) {
                 FluidStack fluid = FluidStack.loadFluidStackFromNBT(tag.getCompoundTag("networkFluid"));
                 if (fluid != null) {
@@ -206,9 +213,15 @@ public class MTEIntegratedFluidOutputHatch extends MTEHatch implements IIntegrat
                         "Amount: " + EnumChatFormatting.GREEN
                             + GTUtility.formatNumbers(fluid.amount)
                             + "/"
-                            + GTUtility.formatNumbers(tag.getInteger("maxCapacity"))
+                            + GTUtility.formatNumbers(totalCapacity)
                             + " L"
                             + EnumChatFormatting.RESET);
+                    if (accumulatorCapacity > 0) {
+                        currenttip.add(
+                            EnumChatFormatting.GRAY + "(+"
+                                + GTUtility.formatNumbers(accumulatorCapacity)
+                                + " Hydrophore capacity)" + EnumChatFormatting.RESET);
+                    }
                 } else {
                     currenttip.add("Network: Empty");
                 }
@@ -269,6 +282,16 @@ public class MTEIntegratedFluidOutputHatch extends MTEHatch implements IIntegrat
     public int getCapacityContribution() {
         // Each output hatch adds 10,000L (10,000 mB) of capacity
         return 10000;
+    }
+
+    @Override
+    public int getAccumulatorContribution() {
+        return 10_000;
+    }
+
+    @Override
+    public float getAccumulatorMaxPressureBar() {
+        return 10.0f;
     }
 
     /**

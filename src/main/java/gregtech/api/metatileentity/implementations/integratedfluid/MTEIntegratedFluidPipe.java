@@ -45,6 +45,7 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
 
     private IntegratedFluidNetwork network;
     private java.util.UUID networkId;
+    private long lastConnectionUpdateTick = -1L;
 
     public MTEIntegratedFluidPipe(int aID, String aName, String aNameRegional) {
         super(aID, aName, aNameRegional, 0, false);
@@ -270,6 +271,8 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
             tag.setInteger("memberCount", network.getMemberCount());
             tag.setInteger("pipeCount", network.getPipeCount());
             tag.setInteger("maxCapacity", network.getMaxCapacity());
+            tag.setInteger("accumulatorCapacity", network.getAccumulatorCapacity());
+            tag.setInteger("totalCapacity", network.getTotalCapacity());
             tag.setFloat("pressure", network.getPressure());
             tag.setFloat("temperature", network.getTemperature());
             float ambientTemperature = IFNAmbientTemperature.getAmbientTemperature(world);
@@ -301,6 +304,10 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
         NBTTagCompound tag = accessor.getNBTData();
         if (tag.getBoolean("hasNetwork")) {
             int maxCapacity = tag.getInteger("maxCapacity");
+            int accumulatorCapacity = tag.getInteger("accumulatorCapacity");
+            int totalCapacity = tag.hasKey("totalCapacity")
+                ? tag.getInteger("totalCapacity")
+                : maxCapacity + accumulatorCapacity;
             if (tag.hasKey("networkFluid")) {
                 FluidStack fluid = FluidStack.loadFluidStackFromNBT(tag.getCompoundTag("networkFluid"));
                 if (fluid != null) {
@@ -312,19 +319,49 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
                         "Occupied: " + EnumChatFormatting.GREEN
                             + GTUtility.formatNumbers(occupiedRounded)
                             + "/"
-                            + GTUtility.formatNumbers(maxCapacity)
+                            + GTUtility.formatNumbers(totalCapacity)
                             + " L"
                             + EnumChatFormatting.RESET);
+                    if (accumulatorCapacity > 0) {
+                        currenttip.add(
+                            EnumChatFormatting.GRAY + "Capacity: "
+                                + GTUtility.formatNumbers(maxCapacity)
+                                + " + "
+                                + GTUtility.formatNumbers(accumulatorCapacity)
+                                + " = "
+                                + GTUtility.formatNumbers(totalCapacity)
+                                + " L" + EnumChatFormatting.RESET);
+                    }
                     currenttip.add(
                         "Std Amount: " + EnumChatFormatting.GRAY
                             + GTUtility.formatNumbers(fluid.amount)
                             + " L"
                             + EnumChatFormatting.RESET);
                 } else {
-                    currenttip.add("Empty (Capacity: " + GTUtility.formatNumbers(maxCapacity) + " L)");
+                    currenttip.add("Empty (Capacity: " + GTUtility.formatNumbers(totalCapacity) + " L)");
+                    if (accumulatorCapacity > 0) {
+                        currenttip.add(
+                            EnumChatFormatting.GRAY + "Capacity: "
+                                + GTUtility.formatNumbers(maxCapacity)
+                                + " + "
+                                + GTUtility.formatNumbers(accumulatorCapacity)
+                                + " = "
+                                + GTUtility.formatNumbers(totalCapacity)
+                                + " L" + EnumChatFormatting.RESET);
+                    }
                 }
             } else {
-                currenttip.add("Empty (Capacity: " + GTUtility.formatNumbers(maxCapacity) + " L)");
+                currenttip.add("Empty (Capacity: " + GTUtility.formatNumbers(totalCapacity) + " L)");
+                if (accumulatorCapacity > 0) {
+                    currenttip.add(
+                        EnumChatFormatting.GRAY + "Capacity: "
+                            + GTUtility.formatNumbers(maxCapacity)
+                            + " + "
+                            + GTUtility.formatNumbers(accumulatorCapacity)
+                            + " = "
+                            + GTUtility.formatNumbers(totalCapacity)
+                            + " L" + EnumChatFormatting.RESET);
+                }
             }
             currenttip.add("Network Members: " + tag.getInteger("memberCount"));
 
@@ -453,8 +490,14 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
     @Override
     public void onMachineBlockUpdate() {
         // This is called when a neighbor block changes
-        // DON'T rebuild network here - it causes fluid scaling issues
-        // Network will be properly built via onFirstTick/onMemberAdded
-        // Only manual wrench operations should trigger onConnectionChanged
+        IGregTechTileEntity baseTile = getBaseMetaTileEntity();
+        if (baseTile != null && baseTile.isServerSide()) {
+            long tick = baseTile.getWorld().getTotalWorldTime();
+            if (tick != lastConnectionUpdateTick) {
+                lastConnectionUpdateTick = tick;
+                NetworkManager manager = NetworkManager.getInstance(baseTile.getWorld());
+                manager.onConnectionChanged(this);
+            }
+        }
     }
 }

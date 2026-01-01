@@ -261,22 +261,31 @@ public class MTEIntegratedFluidExtractor extends MTEHatch implements IIntegrated
         if (network != null) {
             FluidStack fluid = network.getStoredFluid();
             if (fluid != null) {
+                int accumulatorCapacity = network.getAccumulatorCapacity();
+                int totalCapacity = network.getTotalCapacity();
                 aPlayer.addChatMessage(
                     new net.minecraft.util.ChatComponentText(
                         String.format(
                             "Network: %s - %d/%d mB (%.1fK, %.1f bar)",
                             fluid.getLocalizedName(),
                             fluid.amount,
-                            network.getMaxCapacity(),
+                            totalCapacity,
                             network.getTemperature(),
                             network.getPressure()
                         )
                     )
                 );
+                if (accumulatorCapacity > 0) {
+                    aPlayer.addChatMessage(
+                        new net.minecraft.util.ChatComponentText(
+                            String.format("(+%d Hydrophore capacity)", accumulatorCapacity)
+                        )
+                    );
+                }
             } else {
                 aPlayer.addChatMessage(
                     new net.minecraft.util.ChatComponentText(
-                        String.format("Network: Empty (%d mB capacity)", network.getMaxCapacity())
+                        String.format("Network: Empty (%d mB capacity)", network.getTotalCapacity())
                     )
                 );
             }

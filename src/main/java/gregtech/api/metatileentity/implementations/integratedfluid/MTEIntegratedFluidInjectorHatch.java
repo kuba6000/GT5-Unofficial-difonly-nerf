@@ -178,6 +178,8 @@ public class MTEIntegratedFluidInjectorHatch extends MTEHatch implements IIntegr
             tag.setBoolean("hasNetwork", true);
             tag.setInteger("memberCount", network.getMemberCount());
             tag.setInteger("maxCapacity", network.getMaxCapacity());
+            tag.setInteger("accumulatorCapacity", network.getAccumulatorCapacity());
+            tag.setInteger("totalCapacity", network.getTotalCapacity());
             tag.setFloat("pressure", network.getPressure());
             tag.setFloat("temperature", network.getTemperature());
             FluidStack fluid = network.getStoredFluid();
@@ -195,6 +197,11 @@ public class MTEIntegratedFluidInjectorHatch extends MTEHatch implements IIntegr
         super.getWailaBody(itemStack, currenttip, accessor, config);
         NBTTagCompound tag = accessor.getNBTData();
         if (tag.getBoolean("hasNetwork")) {
+            int maxCapacity = tag.getInteger("maxCapacity");
+            int accumulatorCapacity = tag.getInteger("accumulatorCapacity");
+            int totalCapacity = tag.hasKey("totalCapacity")
+                ? tag.getInteger("totalCapacity")
+                : maxCapacity + accumulatorCapacity;
             if (tag.hasKey("networkFluid")) {
                 FluidStack fluid = FluidStack.loadFluidStackFromNBT(tag.getCompoundTag("networkFluid"));
                 if (fluid != null) {
@@ -206,9 +213,15 @@ public class MTEIntegratedFluidInjectorHatch extends MTEHatch implements IIntegr
                         "Amount: " + EnumChatFormatting.GREEN
                             + GTUtility.formatNumbers(fluid.amount)
                             + "/"
-                            + GTUtility.formatNumbers(tag.getInteger("maxCapacity"))
+                            + GTUtility.formatNumbers(totalCapacity)
                             + " L"
                             + EnumChatFormatting.RESET);
+                    if (accumulatorCapacity > 0) {
+                        currenttip.add(
+                            EnumChatFormatting.GRAY + "(+"
+                                + GTUtility.formatNumbers(accumulatorCapacity)
+                                + " Hydrophore capacity)" + EnumChatFormatting.RESET);
+                    }
                 } else {
                     currenttip.add("Network: Empty");
                 }
@@ -222,10 +235,10 @@ public class MTEIntegratedFluidInjectorHatch extends MTEHatch implements IIntegr
                     + String.format("%.2f", pressure)
                     + " bar"
                     + EnumChatFormatting.RESET);
-            // Add warning if pressure is not 1 bar (injector won't work)
-            if (Math.abs(pressure - 1.0f) >= 0.01f) {
+            // Add warning if pressure is above 1 bar (injector won't inject above 1 bar)
+            if (pressure > 1.01f) {
                 currenttip.add(
-                    EnumChatFormatting.RED + "WARNING: Injector only works at 1.00 bar!" + EnumChatFormatting.RESET);
+                    EnumChatFormatting.RED + "WARNING: Injector only works up to 1.00 bar!" + EnumChatFormatting.RESET);
             }
             currenttip.add(
                 "Temperature: " + EnumChatFormatting.RED
@@ -286,76 +299,76 @@ public class MTEIntegratedFluidInjectorHatch extends MTEHatch implements IIntegr
             manager.onMemberAdded(this);
         }
         if (network != null && resource != null) {
-            // Only allow filling if pressure is at 1 bar
-            if (Math.abs(network.getPressure() - 1.0f) < 0.01f) {
-                if (resource.amount <= 0 || resource.getFluid() == null) {
-                    return 0;
-                }
-
-                double pInBar = 1.0d;
-                float ambientK = IFNAmbientTemperature.getAmbientTemperature(getBaseMetaTileEntity().getWorld());
-                double hSpecIn = FluidThermalProperties.getSpecificEnthalpyFromPT(
-                    resource.getFluid(),
-                    pInBar,
-                    ambientK
-                );
-                double vFactor = IntegratedFluidThermoModel
-                    .specificVolumeFromPressureAndSpecificEnthalpy(resource.getFluid(), (float) pInBar, hSpecIn);
-                if (vFactor <= 0.0d) {
-                    return 0;
-                }
-
-                double vRealMb = resource.amount;
-                double baseExact = injectMode == InjectMode.INJECT_REAL_PIPE_VOLUME
-                    ? (vRealMb / vFactor)
-                    : vRealMb;
-                double exact = baseExact + amountRemainderMb;
-                long addAmountMb = (long) Math.floor(exact);
-                double nextRemainder = exact - addAmountMb;
-                if (addAmountMb <= 0L) {
-                    if (doFill) {
-                        amountRemainderMb = nextRemainder;
-                    }
-                    return 0;
-                }
-
-                long tryAmountMb = addAmountMb;
-                while (tryAmountMb > 0L) {
-                    long tryAmountQ = toAmountQ(tryAmountMb);
-                    long tryEnthalpyQ = IntegratedFluidNetwork.toEnthalpyQFromSpecific(hSpecIn, tryAmountQ);
-                    if (network.canAccept(resource.getFluid(), tryAmountQ, tryEnthalpyQ)) {
-                        break;
-                    }
-                    tryAmountMb /= 2L;
-                }
-                if (tryAmountMb <= 0L) {
-                    if (doFill) {
-                        amountRemainderMb = nextRemainder;
-                    }
-                    return 0;
-                }
-
-                if (doFill) {
-                    long tryAmountQ = toAmountQ(tryAmountMb);
-                    long tryEnthalpyQ = IntegratedFluidNetwork.toEnthalpyQFromSpecific(hSpecIn, tryAmountQ);
-                    network.add(resource.getFluid(), tryAmountQ, tryEnthalpyQ);
-                    if (tryAmountMb < addAmountMb) {
-                        amountRemainderMb = nextRemainder + (addAmountMb - tryAmountMb);
-                    } else {
-                        amountRemainderMb = nextRemainder;
-                    }
-                }
-
-                if (injectMode == InjectMode.INJECT_REAL_PIPE_VOLUME) {
-                    long realAccepted = (long) Math.floor(tryAmountMb * vFactor);
-                    if (realAccepted <= 0L) {
-                        return 0;
-                    }
-                    return (int) Math.min(resource.amount, realAccepted);
-                }
-
-                return (int) Math.min(resource.amount, tryAmountMb);
+            if (network.getPressure() > 1.01f) {
+                return 0;
             }
+            if (resource.amount <= 0 || resource.getFluid() == null) {
+                return 0;
+            }
+
+            double pInBar = 1.0d;
+            float ambientK = IFNAmbientTemperature.getAmbientTemperature(getBaseMetaTileEntity().getWorld());
+            double hSpecIn = FluidThermalProperties.getSpecificEnthalpyFromPT(
+                resource.getFluid(),
+                pInBar,
+                ambientK
+            );
+            double vFactor = IntegratedFluidThermoModel
+                .specificVolumeFromPressureAndSpecificEnthalpy(resource.getFluid(), (float) pInBar, hSpecIn);
+            if (vFactor <= 0.0d) {
+                return 0;
+            }
+
+            double vRealMb = resource.amount;
+            double baseExact = injectMode == InjectMode.INJECT_REAL_PIPE_VOLUME
+                ? (vRealMb / vFactor)
+                : vRealMb;
+            double exact = baseExact + amountRemainderMb;
+            long addAmountMb = (long) Math.floor(exact);
+            double nextRemainder = exact - addAmountMb;
+            if (addAmountMb <= 0L) {
+                if (doFill) {
+                    amountRemainderMb = nextRemainder;
+                }
+                return 0;
+            }
+
+            long tryAmountMb = addAmountMb;
+            while (tryAmountMb > 0L) {
+                long tryAmountQ = toAmountQ(tryAmountMb);
+                long tryEnthalpyQ = IntegratedFluidNetwork.toEnthalpyQFromSpecific(hSpecIn, tryAmountQ);
+                if (network.canAccept(resource.getFluid(), tryAmountQ, tryEnthalpyQ)) {
+                    break;
+                }
+                tryAmountMb /= 2L;
+            }
+            if (tryAmountMb <= 0L) {
+                if (doFill) {
+                    amountRemainderMb = nextRemainder;
+                }
+                return 0;
+            }
+
+            if (doFill) {
+                long tryAmountQ = toAmountQ(tryAmountMb);
+                long tryEnthalpyQ = IntegratedFluidNetwork.toEnthalpyQFromSpecific(hSpecIn, tryAmountQ);
+                network.add(resource.getFluid(), tryAmountQ, tryEnthalpyQ);
+                if (tryAmountMb < addAmountMb) {
+                    amountRemainderMb = nextRemainder + (addAmountMb - tryAmountMb);
+                } else {
+                    amountRemainderMb = nextRemainder;
+                }
+            }
+
+            if (injectMode == InjectMode.INJECT_REAL_PIPE_VOLUME) {
+                long realAccepted = (long) Math.floor(tryAmountMb * vFactor);
+                if (realAccepted <= 0L) {
+                    return 0;
+                }
+                return (int) Math.min(resource.amount, realAccepted);
+            }
+
+            return (int) Math.min(resource.amount, tryAmountMb);
         }
         return 0;
     }

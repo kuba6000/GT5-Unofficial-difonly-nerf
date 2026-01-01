@@ -346,7 +346,6 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
                     currentTemperatureDelta = 0.0f;
                     currentEfficiencyPenalty = 1.0f;
                     effectiveCOP = 0.0f;
-                } else if (temperatureDelta < 0.0d) {
                 } else {
                     float tCold = (float) Math.min(inputTemperature, outputTemperature);
                     float tHot = (float) Math.max(inputTemperature, outputTemperature);
@@ -358,11 +357,13 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
                     currentEfficiencyPenalty = (float) penalty;
                     effectiveCOP = currentCOP / currentEfficiencyPenalty;
 
-                    double hTarget = FluidThermalProperties.getSpecificEnthalpyFromPT(
-                        inputFluid,
-                        inputNetwork.getPressure(),
-                        outputTemperature
-                    );
+                    double hTarget = inputNetwork == outputNetwork
+                        ? computeTargetSpecificEnthalpySameNetwork(inputNetwork, inputFluid, outputTemperature)
+                        : FluidThermalProperties.getSpecificEnthalpyFromPT(
+                            inputFluid,
+                            inputNetwork.getPressure(),
+                            outputTemperature
+                        );
                     double desiredDh = hTarget - inputSpecificEnthalpy;
                     double desiredQ = Math.abs(desiredDh) * amountToProcess;
                     totalEnergyCost = (long) Math.ceil(desiredQ / currentCOP * penalty);
@@ -465,7 +466,8 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
 
         long predictedOutputEnthalpyQ = toEnthalpyQ(outputSpecificEnthalpy, amountToProcessQ);
 
-        if (!outputNetwork.canAccept(inputFluid, amountToProcessQ, predictedOutputEnthalpyQ)) {
+        if (outputNetwork != inputNetwork
+            && !outputNetwork.canAccept(inputFluid, amountToProcessQ, predictedOutputEnthalpyQ)) {
             return CheckRecipeResultRegistry.ITEM_OUTPUT_FULL;
         }
 
@@ -542,7 +544,7 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
     public int getInputNetworkCapacity() {
         if (mIntegratedInputHatches.isEmpty()) return 0;
         var network = mIntegratedInputHatches.get(0).getNetwork();
-        return network != null ? network.getMaxCapacity() : 0;
+        return network != null ? network.getTotalCapacity() : 0;
     }
 
     public int getInputNetworkStored() {
@@ -556,7 +558,7 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
     public int getOutputNetworkCapacity() {
         if (mIntegratedOutputHatches.isEmpty()) return 0;
         var network = mIntegratedOutputHatches.get(0).getNetwork();
-        return network != null ? network.getMaxCapacity() : 0;
+        return network != null ? network.getTotalCapacity() : 0;
     }
 
     public int getOutputNetworkStored() {
@@ -605,6 +607,14 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
 
     private static long toEnthalpyQ(double specificEnthalpy, long amountQ) {
         return toEnthalpyQ(specificEnthalpy * toAmount(amountQ));
+    }
+
+    private static double computeTargetSpecificEnthalpySameNetwork(IntegratedFluidNetwork network, Fluid fluid,
+        double targetTemperature) {
+        if (network == null || fluid == null) {
+            return 0.0d;
+        }
+        return IntegratedFluidThermoModel.specificEnthalpyFromTemperature(fluid, (float) targetTemperature);
     }
 
     public float getCOP() {

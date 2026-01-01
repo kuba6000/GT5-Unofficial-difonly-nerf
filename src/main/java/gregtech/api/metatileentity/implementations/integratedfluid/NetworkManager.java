@@ -131,8 +131,7 @@ public class NetworkManager {
         long oldAmountQ = oldNetwork.getAmountQ();
         long oldEnthalpyQ = oldNetwork.getEnthalpyQ();
         double oldSpecificEnthalpy = oldAmountQ > 0L ? oldEnthalpyQ / (double) oldAmountQ : 0.0d;
-        float oldPressure = oldNetwork.getPressure();
-        int oldCapacity = oldNetwork.getMaxCapacity();
+        int oldCapacity = oldNetwork.getTotalCapacity();
 
         for (IIntegratedFluidMember remainingMember : remainingMembers) {
             oldNetwork.removeMember(remainingMember);
@@ -156,7 +155,7 @@ public class NetworkManager {
             }
 
             if (oldFluidName != null && oldAmountQ > 0L && oldCapacity > 0) {
-                int newCapacity = newNetwork.getMaxCapacity();
+                int newCapacity = newNetwork.getTotalCapacity();
                 long proportionalAmountQ = (oldAmountQ * newCapacity) / oldCapacity;
                 if (proportionalAmountQ >= IntegratedFluidNetwork.AMOUNT_SCALE) {
                     net.minecraftforge.fluids.Fluid fluid = net.minecraftforge.fluids.FluidRegistry.getFluid(oldFluidName);
@@ -167,8 +166,6 @@ public class NetworkManager {
                     }
                 }
             }
-
-            newNetwork.setPressure(oldPressure);
 
             newNetwork.setExpectedMemberCount(newNetwork.getMemberCount());
             newNetwork.setPending(false);
@@ -217,7 +214,6 @@ public class NetworkManager {
         long combinedAmountQ = 0L;
         long combinedEnthalpyQ = 0L;
         String combinedFluidName = null;
-        float avgPressure = 0.0f;
         int totalCapacity = 0;
         int networkCount = 0;
 
@@ -245,15 +241,8 @@ public class NetworkManager {
                     combinedEnthalpyQ = enthalpyQ;
                 }
             }
-            avgPressure += net.getPressure();
-            totalCapacity += net.getMaxCapacity();
+            totalCapacity += net.getTotalCapacity();
             networkCount++;
-        }
-
-        if (networkCount > 0) {
-            avgPressure /= networkCount;
-        } else {
-            avgPressure = IntegratedFluidNetwork.DEFAULT_PRESSURE;
         }
         double combinedSpecificEnthalpy = combinedAmountQ > 0L ? combinedEnthalpyQ / (double) combinedAmountQ : 0.0d;
 
@@ -302,7 +291,7 @@ public class NetworkManager {
                         newNetwork.add(fluid, combinedAmountQ, combinedEnthalpyQ);
                     }
                 } else if (totalCapacity > 0) {
-                    int newCapacity = newNetwork.getMaxCapacity();
+                    int newCapacity = newNetwork.getTotalCapacity();
                     long proportionalAmountQ = (combinedAmountQ * newCapacity) / totalCapacity;
                     if (proportionalAmountQ >= IntegratedFluidNetwork.AMOUNT_SCALE && fluid != null) {
                         long proportionalEnthalpyQ = IntegratedFluidNetwork
@@ -311,8 +300,6 @@ public class NetworkManager {
                     }
                 }
             }
-
-            newNetwork.setPressure(avgPressure);
 
             newNetwork.setExpectedMemberCount(newNetwork.getMemberCount());
             newNetwork.setPending(false);
@@ -481,7 +468,13 @@ public class NetworkManager {
         IntegratedFluidNetwork network = createEmptyNetwork(networkId);
         IntegratedFluidNetworkSavedData.NetworkState state = savedData.getState(network.getNetworkId());
         if (state != null) {
-            network.loadState(state.fluidName, state.amountQ, state.enthalpyQ, state.pressure, state.expectedMemberCount);
+            network.loadState(
+                state.fluidName,
+                state.amountQ,
+                state.enthalpyQ,
+                IntegratedFluidNetwork.DEFAULT_PRESSURE,
+                state.expectedMemberCount
+            );
         }
         return network;
     }

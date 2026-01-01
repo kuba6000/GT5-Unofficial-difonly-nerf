@@ -1,15 +1,21 @@
 package gregtech.api.metatileentity.implementations.integratedfluid;
 
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
 
+import net.minecraft.world.World;
 import net.minecraftforge.fluids.Fluid;
 import net.minecraftforge.fluids.FluidRegistry;
 import net.minecraftforge.fluids.FluidStack;
 
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNFluidThermalRegistry;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNFluidThermalRegistration;
+import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
+import gregtech.api.metatileentity.MetaPipeEntity;
 
 /**
  * Manages a network of connected integrated fluid hatches and pipes.
@@ -97,6 +103,7 @@ public class IntegratedFluidNetwork {
         members.add(member);
         member.setNetwork(this);
         member.setNetworkId(networkId);
+        updatePressure();
     }
 
     /**
@@ -107,6 +114,7 @@ public class IntegratedFluidNetwork {
         if (member.getNetwork() == this) {
             member.setNetwork(null);
         }
+        updatePressure();
     }
 
     /**
@@ -151,12 +159,41 @@ public class IntegratedFluidNetwork {
         return totalCapacity;
     }
 
+    public int getAccumulatorCapacity() {
+        int total = 0;
+        for (IIntegratedFluidMember member : members) {
+            total += member.getAccumulatorContribution();
+        }
+        return total;
+    }
+
+    public float getAccumulatorMaxPressureBar() {
+        float pMax = 10.0f;
+        boolean any = false;
+        for (IIntegratedFluidMember member : members) {
+            int volume = member.getAccumulatorContribution();
+            if (volume > 0) {
+                any = true;
+                pMax = Math.min(pMax, member.getAccumulatorMaxPressureBar());
+            }
+        }
+        return any ? pMax : 10.0f;
+    }
+
+    public int getBaseCapacity() {
+        return getMaxCapacity();
+    }
+
+    public int getTotalCapacity() {
+        return getBaseCapacity() + getAccumulatorCapacity();
+    }
+
     /**
      * Gets the available space in the network.
      */
     public int getAvailableSpace() {
         double used = getOccupiedVolume();
-        double available = getMaxCapacity() - used;
+        double available = getTotalCapacity() - used;
         if (available <= 0.0d) {
             return 0;
         }
@@ -277,10 +314,24 @@ public class IntegratedFluidNetwork {
         long nextAmountQ = amountQ + addAmountQ;
         long nextEnthalpyQ = enthalpyQ + addEnthalpyQ;
         double specificEnthalpy = toSpecificEnthalpy(nextEnthalpyQ, nextAmountQ);
+        double pGuess = Math.max(1e-4d, (double) pressure);
+        FluidThermalProperties.PhaseResult phase =
+            FluidThermalProperties.getPhaseFromPH(fluid, pGuess, specificEnthalpy);
+        int totalCapacity = getTotalCapacity();
+        if (totalCapacity <= 0) {
+            return false;
+        }
+
+        if (phase.phase == FluidThermalProperties.Phase.VAPOR
+            || phase.phase == FluidThermalProperties.Phase.SUPERCRITICAL) {
+            double pGas = computeGasPressureBar(fluid, toAmount(nextAmountQ), specificEnthalpy, totalCapacity, pGuess);
+            return pGas <= getAccumulatorMaxPressureBar();
+        }
+
         double specificVolume = IntegratedFluidThermoModel
-            .specificVolumeFromPressureAndSpecificEnthalpy(fluid, pressure, specificEnthalpy);
+            .specificVolumeFromPressureAndSpecificEnthalpy(fluid, (float) pGuess, specificEnthalpy);
         double occupied = toAmount(nextAmountQ) * specificVolume;
-        return occupied <= getMaxCapacity();
+        return occupied <= getTotalCapacity();
     }
 
     public void add(Fluid fluid, long addAmountQ, long addEnthalpyQ) {
@@ -294,6 +345,7 @@ public class IntegratedFluidNetwork {
         }
         amountQ += addAmountQ;
         enthalpyQ += addEnthalpyQ;
+        updatePressure();
     }
 
     public ExtractedPayload extractProportional(long requestAmountQ, boolean simulate) {
@@ -308,6 +360,7 @@ public class IntegratedFluidNetwork {
             if (amountQ < AMOUNT_SCALE) {
                 clearFluid();
             }
+            updatePressure();
         }
         return new ExtractedPayload(gotAmountQ, gotEnthalpyQ);
     }
@@ -343,6 +396,7 @@ public class IntegratedFluidNetwork {
             if (amountQ < AMOUNT_SCALE) {
                 clearFluid();
             }
+            updatePressure();
         }
         return new ExtractedPayload(gotAmountQ, gotEnthalpyQ);
     }
@@ -429,6 +483,17 @@ public class IntegratedFluidNetwork {
     public double getOccupiedVolume() {
         if (amountQ <= 0L) {
             return 0.0d;
+        }
+        Fluid fluid = getFluid();
+        if (fluid == null) {
+            return 0.0d;
+        }
+        double specificEnthalpy = getSpecificEnthalpy();
+        FluidThermalProperties.PhaseResult phase =
+            FluidThermalProperties.getPhaseFromPH(fluid, pressure, specificEnthalpy);
+        if (phase.phase == FluidThermalProperties.Phase.VAPOR
+            || phase.phase == FluidThermalProperties.Phase.SUPERCRITICAL) {
+            return getTotalCapacity();
         }
         return toAmount(amountQ) * getSpecificVolume();
     }
@@ -538,6 +603,7 @@ public class IntegratedFluidNetwork {
         }
         double specificEnthalpy = IntegratedFluidThermoModel.specificEnthalpyFromTemperature(fluid, temperature);
         enthalpyQ = toEnthalpyQ(specificEnthalpy, amountQ);
+        updatePressure();
     }
 
     public UUID getNetworkId() {
@@ -568,8 +634,9 @@ public class IntegratedFluidNetwork {
         } else {
             this.fluidName = fluidName;
         }
-        this.pressure = pressure;
+        this.pressure = DEFAULT_PRESSURE;
         this.expectedMemberCount = expectedMembers;
+        updatePressure();
     }
 
     /**
@@ -580,6 +647,7 @@ public class IntegratedFluidNetwork {
         fluidName = null;
         amountQ = 0L;
         enthalpyQ = 0L;
+        pressure = DEFAULT_PRESSURE;
     }
 
     /**
@@ -632,6 +700,7 @@ public class IntegratedFluidNetwork {
 
         float energyDelta = -pipeCount * HEAT_LOSS_PER_PIPE_PER_SECOND * temperatureDelta;
         enthalpyQ += toEnthalpyQ(energyDelta);
+        updatePressure();
     }
 
     /**
@@ -663,6 +732,144 @@ public class IntegratedFluidNetwork {
         }
 
         other.clearFluid();
+        updatePressure();
+    }
+
+    /**
+     * Updates pressure based on current network state (A, H) and capacity.
+     *
+     * Pressure is derived from the network state (A,H) plus capacities. For liquid/two-phase we use an
+     * accumulator overfill curve (temporary model). For vapor/supercritical we use a simple
+     * ideal-gas-like rule. This provides pressure compliance between machines without explicit
+     * inter-machine communication.
+     */
+    private void updatePressure() {
+        Fluid fluid = getFluid();
+        pressure = computePressureForState(fluid, amountQ, enthalpyQ, pressure);
+    }
+
+    private float computePressureForState(Fluid fluid, long nextAmountQ, long nextEnthalpyQ, float currentPressure) {
+        if (fluid == null || nextAmountQ <= 0L) {
+            return IntegratedFluidThermoModel.BASE_PRESSURE;
+        }
+
+        int baseCapacity = getBaseCapacity();
+        int accumulatorCapacity = getAccumulatorCapacity();
+        int totalCapacity = getTotalCapacity();
+        float maxPressure = getAccumulatorMaxPressureBar();
+        if (totalCapacity <= 0) {
+            return IntegratedFluidThermoModel.BASE_PRESSURE;
+        }
+
+        double amount = toAmount(nextAmountQ);
+        double specificEnthalpy = toSpecificEnthalpy(nextEnthalpyQ, nextAmountQ);
+
+        double pGuess = Math.max(1e-4d, (double) currentPressure);
+        FluidThermalProperties.PhaseResult phase =
+            FluidThermalProperties.getPhaseFromPH(fluid, pGuess, specificEnthalpy);
+
+        if (phase.phase == FluidThermalProperties.Phase.VAPOR
+            || phase.phase == FluidThermalProperties.Phase.SUPERCRITICAL) {
+            double pGas = computeGasPressureBar(fluid, amount, specificEnthalpy, totalCapacity, pGuess);
+            boolean incomplete = pending || (expectedMemberCount > 0 && members.size() < expectedMemberCount);
+            if (incomplete) {
+                return (float) Math.max(1e-4d, Math.min(pGas, (double) maxPressure));
+            }
+            if (pGas > (double) maxPressure * 1.10d) {
+                ruptureNetwork();
+                return IntegratedFluidThermoModel.BASE_PRESSURE;
+            }
+            return (float) Math.max(1e-4d, Math.min(pGas, (double) maxPressure));
+        }
+
+        if (accumulatorCapacity <= 0) {
+            return IntegratedFluidThermoModel.BASE_PRESSURE;
+        }
+
+        double p = Math.max(1.0d, pGuess);
+        for (int it = 0; it < 3; it++) {
+            double specificVolume = IntegratedFluidThermoModel
+                .specificVolumeFromPressureAndSpecificEnthalpy(fluid, (float) p, specificEnthalpy);
+            if (specificVolume <= 0.0d) {
+                specificVolume = 1.0d;
+            }
+
+            double occupied = amount * specificVolume;
+            double over = occupied - (double) baseCapacity;
+            if (over < 0.0d) {
+                over = 0.0d;
+            }
+            if (over > (double) accumulatorCapacity) {
+                over = (double) accumulatorCapacity;
+            }
+
+            double fill = over / (double) accumulatorCapacity;
+            double pTarget = 1.0d + ((double) maxPressure - 1.0d) * fill;
+            pTarget = Math.max(1.0d, Math.min(pTarget, (double) maxPressure));
+
+            if (Math.abs(pTarget - p) < 1e-6d) {
+                p = pTarget;
+                break;
+            }
+            p = pTarget;
+        }
+
+        return (float) Math.max(1.0d, Math.min(p, (double) maxPressure));
+    }
+
+    private double computeGasPressureBar(Fluid fluid, double amountStd, double specificEnthalpy, int totalCapacity,
+        double pInit) {
+        if (totalCapacity <= 0) {
+            return IntegratedFluidThermoModel.BASE_PRESSURE;
+        }
+        double p = Math.max(1e-4d, pInit);
+        for (int it = 0; it < 3; it++) {
+            double temperature = FluidThermalProperties.getTemperatureFromPH(fluid, p, specificEnthalpy);
+            double pNew = IntegratedFluidThermoModel.BASE_PRESSURE
+                * (amountStd / (double) totalCapacity)
+                * (temperature / IntegratedFluidThermoModel.BASE_TEMPERATURE);
+            if (Math.abs(pNew - p) < 1e-6d) {
+                return pNew;
+            }
+            p = pNew;
+        }
+        return p;
+    }
+
+    private void ruptureNetwork() {
+        clearFluid();
+        MetaPipeEntity pipe = pickRandomPipe();
+        if (pipe == null) {
+            return;
+        }
+        IGregTechTileEntity baseTile = pipe.getBaseMetaTileEntity();
+        if (baseTile == null) {
+            return;
+        }
+        World world = baseTile.getWorld();
+        if (world == null || world.isRemote) {
+            return;
+        }
+        NetworkManager manager = NetworkManager.getInstance(world);
+        if (pipe instanceof IIntegratedFluidMember member) {
+            manager.onMemberRemoved(member);
+        }
+        world.setBlockToAir(baseTile.getXCoord(), baseTile.getYCoord(), baseTile.getZCoord());
+    }
+
+    private MetaPipeEntity pickRandomPipe() {
+        List<MetaPipeEntity> pipes = new ArrayList<>();
+        for (IIntegratedFluidMember member : members) {
+            if (member instanceof MetaPipeEntity pipe) {
+                pipes.add(pipe);
+            }
+        }
+        if (pipes.isEmpty()) {
+            return null;
+        }
+        IGregTechTileEntity base = pipes.get(0).getBaseMetaTileEntity();
+        Random rng = base != null ? base.getWorld().rand : new Random();
+        return pipes.get(rng.nextInt(pipes.size()));
     }
 
     /**
