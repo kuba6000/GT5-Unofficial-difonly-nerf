@@ -1,5 +1,6 @@
 package gregtech.api.metatileentity.implementations.integratedfluid;
 
+import static com.gtnewhorizon.gtnhlib.util.numberformatting.NumberFormatUtil.formatNumber;
 import static gregtech.api.enums.Textures.BlockIcons.MACHINE_CASINGS;
 
 import java.util.ArrayList;
@@ -48,7 +49,7 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
     private long lastConnectionUpdateTick = -1L;
 
     public MTEIntegratedFluidPipe(int aID, String aName, String aNameRegional) {
-        super(aID, aName, aNameRegional, 0, false);
+        super(aID, aName, 0, false);
     }
 
     public MTEIntegratedFluidPipe(String aName) {
@@ -317,49 +318,49 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
                     int occupiedRounded = (int) Math.round(occupiedVolume);
                     currenttip.add(
                         "Occupied: " + EnumChatFormatting.GREEN
-                            + GTUtility.formatNumbers(occupiedRounded)
+                            + formatNumber(occupiedRounded)
                             + "/"
-                            + GTUtility.formatNumbers(totalCapacity)
+                            + formatNumber(totalCapacity)
                             + " L"
                             + EnumChatFormatting.RESET);
                     if (accumulatorCapacity > 0) {
                         currenttip.add(
                             EnumChatFormatting.GRAY + "Capacity: "
-                                + GTUtility.formatNumbers(maxCapacity)
+                                + formatNumber(maxCapacity)
                                 + " + "
-                                + GTUtility.formatNumbers(accumulatorCapacity)
+                                + formatNumber(accumulatorCapacity)
                                 + " = "
-                                + GTUtility.formatNumbers(totalCapacity)
+                                + formatNumber(totalCapacity)
                                 + " L" + EnumChatFormatting.RESET);
                     }
                     currenttip.add(
                         "Std Amount: " + EnumChatFormatting.GRAY
-                            + GTUtility.formatNumbers(fluid.amount)
+                            + formatNumber(fluid.amount)
                             + " L"
                             + EnumChatFormatting.RESET);
                 } else {
-                    currenttip.add("Empty (Capacity: " + GTUtility.formatNumbers(totalCapacity) + " L)");
+                    currenttip.add("Empty (Capacity: " + formatNumber(totalCapacity) + " L)");
                     if (accumulatorCapacity > 0) {
                         currenttip.add(
                             EnumChatFormatting.GRAY + "Capacity: "
-                                + GTUtility.formatNumbers(maxCapacity)
+                                + formatNumber(maxCapacity)
                                 + " + "
-                                + GTUtility.formatNumbers(accumulatorCapacity)
+                                + formatNumber(accumulatorCapacity)
                                 + " = "
-                                + GTUtility.formatNumbers(totalCapacity)
+                                + formatNumber(totalCapacity)
                                 + " L" + EnumChatFormatting.RESET);
                     }
                 }
             } else {
-                currenttip.add("Empty (Capacity: " + GTUtility.formatNumbers(totalCapacity) + " L)");
+                currenttip.add("Empty (Capacity: " + formatNumber(totalCapacity) + " L)");
                 if (accumulatorCapacity > 0) {
                     currenttip.add(
                         EnumChatFormatting.GRAY + "Capacity: "
-                            + GTUtility.formatNumbers(maxCapacity)
+                            + formatNumber(maxCapacity)
                             + " + "
-                            + GTUtility.formatNumbers(accumulatorCapacity)
+                            + formatNumber(accumulatorCapacity)
                             + " = "
-                            + GTUtility.formatNumbers(totalCapacity)
+                            + formatNumber(totalCapacity)
                             + " L" + EnumChatFormatting.RESET);
                 }
             }

@@ -63,8 +63,8 @@ public class MTERadiator extends MTEEnhancedMultiBlockBase<MTERadiator> implemen
                 buildHatchAdder(MTERadiator.class)
                     .atLeast(Energy, Maintenance)
                     .casingIndex(((BlockCasings2) GregTechAPI.sBlockCasings2).getTextureIndex(0))
-                    .dot(1)
-                    .buildAndChain(onElementPass(x -> ++x.mCasingAmount, ofBlock(GregTechAPI.sBlockCasings2, 0))),
+                    .hint(1)
+                    .buildAndChain(onElementPass(x -> ++((MTERadiator) x).mCasingAmount, ofBlock(GregTechAPI.sBlockCasings2, 0))),
                 // THEN: Accept any remaining GregTech machines (like Integrated Fluid Hatches)
                 ofBlockAnyMeta(GregTechAPI.sBlockMachines)))
         .build();

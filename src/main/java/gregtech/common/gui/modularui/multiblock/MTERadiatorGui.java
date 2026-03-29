@@ -1,5 +1,7 @@
 package gregtech.common.gui.modularui.multiblock;
 
+import static com.gtnewhorizon.gtnhlib.util.numberformatting.NumberFormatUtil.formatNumber;
+
 import net.minecraft.util.EnumChatFormatting;
 
 import com.cleanroommc.modularui.api.drawable.IKey;
@@ -58,9 +60,9 @@ public class MTERadiatorGui extends MTEMultiBlockBaseGui<MTERadiator> {
             .child(
                 IKey.dynamic(
                     () -> EnumChatFormatting.WHITE + "  Capacity: "
-                        + EnumChatFormatting.GREEN + GTUtility.formatNumbers(inputStoredSync.getValue()) + "L"
+                        + EnumChatFormatting.GREEN + formatNumber(inputStoredSync.getValue()) + "L"
                         + EnumChatFormatting.WHITE + " / "
-                        + EnumChatFormatting.YELLOW + GTUtility.formatNumbers(inputCapacitySync.getValue()) + "L")
+                        + EnumChatFormatting.YELLOW + formatNumber(inputCapacitySync.getValue()) + "L")
                     .asWidget()
                     .setEnabledIf(w -> multiblock.getBaseMetaTileEntity().isActive()))
             .child(
@@ -78,9 +80,9 @@ public class MTERadiatorGui extends MTEMultiBlockBaseGui<MTERadiator> {
             .child(
                 IKey.dynamic(
                     () -> EnumChatFormatting.WHITE + "  Capacity: "
-                        + EnumChatFormatting.GREEN + GTUtility.formatNumbers(outputStoredSync.getValue()) + "L"
+                        + EnumChatFormatting.GREEN + formatNumber(outputStoredSync.getValue()) + "L"
                         + EnumChatFormatting.WHITE + " / "
-                        + EnumChatFormatting.YELLOW + GTUtility.formatNumbers(outputCapacitySync.getValue()) + "L")
+                        + EnumChatFormatting.YELLOW + formatNumber(outputCapacitySync.getValue()) + "L")
                     .asWidget()
                     .setEnabledIf(w -> multiblock.getBaseMetaTileEntity().isActive()));
     }
@@ -111,4 +113,3 @@ public class MTERadiatorGui extends MTEMultiBlockBaseGui<MTERadiator> {
         syncManager.syncValue("fluidName", fluidNameSync);
     }
 }
-

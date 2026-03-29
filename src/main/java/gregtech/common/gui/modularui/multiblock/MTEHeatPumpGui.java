@@ -1,5 +1,6 @@
 package gregtech.common.gui.modularui.multiblock;
 
+import static com.gtnewhorizon.gtnhlib.util.numberformatting.NumberFormatUtil.formatNumber;
 import static gregtech.api.enums.Mods.GregTech;
 
 import net.minecraft.util.EnumChatFormatting;
@@ -187,7 +188,7 @@ public class MTEHeatPumpGui extends MTEMultiBlockBaseGui<MTEHeatPump> {
                                 + EnumChatFormatting.LIGHT_PURPLE + "COP " + String.format("%.2f", universalValueSync.getValue());
                         case 2: // TARGET_ENERGY
                             return EnumChatFormatting.WHITE + "Target: "
-                                + EnumChatFormatting.GOLD + GTUtility.formatNumbers(universalValueSync.getValue().intValue()) + " EU/t";
+                                + EnumChatFormatting.GOLD + formatNumber(universalValueSync.getValue().intValue()) + " EU/t";
                         default:
                             return "";
                     }
@@ -244,7 +245,7 @@ public class MTEHeatPumpGui extends MTEMultiBlockBaseGui<MTEHeatPump> {
                     }
 
                     String energyStr = EnumChatFormatting.WHITE + "Energy: "
-                        + EnumChatFormatting.GOLD + GTUtility.formatNumbers(energy) + " EU/t";
+                        + EnumChatFormatting.GOLD + formatNumber(energy) + " EU/t";
 
                     // Add penalty indicator if significant
                     if (penalty > 1.01f) {
@@ -300,9 +301,9 @@ public class MTEHeatPumpGui extends MTEMultiBlockBaseGui<MTEHeatPump> {
             .child(
                 IKey.dynamic(
                     () -> EnumChatFormatting.WHITE + "  Capacity: "
-                        + EnumChatFormatting.GREEN + GTUtility.formatNumbers(inputStoredSync.getValue()) + "L"
+                        + EnumChatFormatting.GREEN + formatNumber(inputStoredSync.getValue()) + "L"
                         + EnumChatFormatting.WHITE + " / "
-                        + EnumChatFormatting.YELLOW + GTUtility.formatNumbers(inputCapacitySync.getValue()) + "L")
+                        + EnumChatFormatting.YELLOW + formatNumber(inputCapacitySync.getValue()) + "L")
                     .asWidget()
                     .setEnabledIf(w -> multiblock.getBaseMetaTileEntity().isActive()))
             .child(
@@ -319,9 +320,9 @@ public class MTEHeatPumpGui extends MTEMultiBlockBaseGui<MTEHeatPump> {
             .child(
                 IKey.dynamic(
                     () -> EnumChatFormatting.WHITE + "  Capacity: "
-                        + EnumChatFormatting.GREEN + GTUtility.formatNumbers(outputStoredSync.getValue()) + "L"
+                        + EnumChatFormatting.GREEN + formatNumber(outputStoredSync.getValue()) + "L"
                         + EnumChatFormatting.WHITE + " / "
-                        + EnumChatFormatting.YELLOW + GTUtility.formatNumbers(outputCapacitySync.getValue()) + "L")
+                        + EnumChatFormatting.YELLOW + formatNumber(outputCapacitySync.getValue()) + "L")
                     .asWidget()
                     .setEnabledIf(w -> multiblock.getBaseMetaTileEntity().isActive()));
     }

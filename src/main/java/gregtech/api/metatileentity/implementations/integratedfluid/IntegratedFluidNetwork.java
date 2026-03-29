@@ -353,7 +353,15 @@ public class IntegratedFluidNetwork {
             return ExtractedPayload.empty();
         }
         long gotAmountQ = Math.min(requestAmountQ, amountQ);
-        long gotEnthalpyQ = (enthalpyQ * gotAmountQ) / amountQ;
+
+        long gotEnthalpyQ;
+        if (gotAmountQ == amountQ) {
+            gotEnthalpyQ = enthalpyQ;
+        } else {
+            double fraction = (double) gotAmountQ / (double) amountQ;
+            gotEnthalpyQ = (long) (enthalpyQ * fraction);
+        }
+
         if (!simulate) {
             amountQ -= gotAmountQ;
             enthalpyQ -= gotEnthalpyQ;
@@ -787,7 +795,7 @@ public class IntegratedFluidNetwork {
         }
 
         double p = Math.max(1.0d, pGuess);
-        for (int it = 0; it < 3; it++) {
+        for (int it = 0; it < 20; it++) {
             double specificVolume = IntegratedFluidThermoModel
                 .specificVolumeFromPressureAndSpecificEnthalpy(fluid, (float) p, specificEnthalpy);
             if (specificVolume <= 0.0d) {
@@ -807,11 +815,11 @@ public class IntegratedFluidNetwork {
             double pTarget = 1.0d + ((double) maxPressure - 1.0d) * fill;
             pTarget = Math.max(1.0d, Math.min(pTarget, (double) maxPressure));
 
-            if (Math.abs(pTarget - p) < 1e-6d) {
+            if (Math.abs(pTarget - p) < 1e-4d) {
                 p = pTarget;
                 break;
             }
-            p = pTarget;
+            p = 0.5d * p + 0.5d * pTarget;
         }
 
         return (float) Math.max(1.0d, Math.min(p, (double) maxPressure));
@@ -823,15 +831,15 @@ public class IntegratedFluidNetwork {
             return IntegratedFluidThermoModel.BASE_PRESSURE;
         }
         double p = Math.max(1e-4d, pInit);
-        for (int it = 0; it < 3; it++) {
+        for (int it = 0; it < 20; it++) {
             double temperature = FluidThermalProperties.getTemperatureFromPH(fluid, p, specificEnthalpy);
             double pNew = IntegratedFluidThermoModel.BASE_PRESSURE
                 * (amountStd / (double) totalCapacity)
                 * (temperature / IntegratedFluidThermoModel.BASE_TEMPERATURE);
-            if (Math.abs(pNew - p) < 1e-6d) {
+            if (Math.abs(pNew - p) < 1e-4d) {
                 return pNew;
             }
-            p = pNew;
+            p = 0.5d * p + 0.5d * pNew;
         }
         return p;
     }

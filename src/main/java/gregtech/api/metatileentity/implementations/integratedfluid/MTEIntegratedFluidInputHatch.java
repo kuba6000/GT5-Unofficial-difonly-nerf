@@ -1,5 +1,6 @@
 package gregtech.api.metatileentity.implementations.integratedfluid;
 
+import static com.gtnewhorizon.gtnhlib.util.numberformatting.NumberFormatUtil.formatNumber;
 import static gregtech.api.enums.Textures.BlockIcons.OVERLAY_PIPE_IN;
 
 import java.util.List;
@@ -214,15 +215,15 @@ public class MTEIntegratedFluidInputHatch extends MTEHatch implements IIntegrate
                             + EnumChatFormatting.RESET);
                     currenttip.add(
                         "Amount: " + EnumChatFormatting.GREEN
-                            + GTUtility.formatNumbers(fluid.amount)
+                            + formatNumber(fluid.amount)
                             + "/"
-                            + GTUtility.formatNumbers(totalCapacity)
+                            + formatNumber(totalCapacity)
                             + " L"
                             + EnumChatFormatting.RESET);
                     if (accumulatorCapacity > 0) {
                         currenttip.add(
                             EnumChatFormatting.GRAY + "(+"
-                                + GTUtility.formatNumbers(accumulatorCapacity)
+                                + formatNumber(accumulatorCapacity)
                                 + " Hydrophore capacity)" + EnumChatFormatting.RESET);
                     }
                 } else {

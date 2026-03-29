@@ -3,6 +3,7 @@ package gregtech.common.tileentities.machines.multi;
 import static com.gtnewhorizon.structurelib.structure.StructureUtility.*;
 import static gregtech.api.enums.HatchElement.*;
 import static gregtech.api.util.GTStructureUtility.buildHatchAdder;
+import static gregtech.api.util.GTStructureUtility.ofHatchAdder;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -98,10 +99,10 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
                 buildHatchAdder(MTEHeatPump.class)
                     .atLeast(Energy, Maintenance)
                     .casingIndex(((BlockCasings2) GregTechAPI.sBlockCasings2).getTextureIndex(0))
-                    .dot(1)
+                    .hint(1)
                     .buildAndChain(
                         onElementPass(
-                            x -> ++x.mCasingAmount,
+                            x -> ++((MTEHeatPump) x).mCasingAmount,
                             ofBlock(GregTechAPI.sBlockCasings2, 0)
                         )
                     ),
@@ -1469,13 +1470,23 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         }
     }
 
-    public boolean addIntegratedInputHatch(MTEIntegratedFluidInputHatch hatch) {
-        hatch.updateTexture(((BlockCasings2) GregTechAPI.sBlockCasings2).getTextureIndex(0));
-        return mIntegratedInputHatches.add(hatch);
+    public boolean addIntegratedInputHatch(IGregTechTileEntity aBaseMetaTileEntity, Short aColor) {
+        if (aBaseMetaTileEntity == null) return false;
+        IMetaTileEntity mte = aBaseMetaTileEntity.getMetaTileEntity();
+        if (mte instanceof MTEIntegratedFluidInputHatch hatch) {
+            hatch.updateTexture(((BlockCasings2) GregTechAPI.sBlockCasings2).getTextureIndex(0));
+            return mIntegratedInputHatches.add(hatch);
+        }
+        return false;
     }
 
-    public boolean addIntegratedOutputHatch(MTEIntegratedFluidOutputHatch hatch) {
-        hatch.updateTexture(((BlockCasings2) GregTechAPI.sBlockCasings2).getTextureIndex(0));
-        return mIntegratedOutputHatches.add(hatch);
+    public boolean addIntegratedOutputHatch(IGregTechTileEntity aBaseMetaTileEntity, Short aColor) {
+        if (aBaseMetaTileEntity == null) return false;
+        IMetaTileEntity mte = aBaseMetaTileEntity.getMetaTileEntity();
+        if (mte instanceof MTEIntegratedFluidOutputHatch hatch) {
+            hatch.updateTexture(((BlockCasings2) GregTechAPI.sBlockCasings2).getTextureIndex(0));
+            return mIntegratedOutputHatches.add(hatch);
+        }
+        return false;
     }
 }
