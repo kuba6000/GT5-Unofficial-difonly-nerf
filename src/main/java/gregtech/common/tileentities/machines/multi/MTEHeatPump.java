@@ -99,9 +99,21 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
                     .atLeast(Energy, Maintenance)
                     .casingIndex(((BlockCasings2) GregTechAPI.sBlockCasings2).getTextureIndex(0))
                     .dot(1)
-                    .buildAndChain(onElementPass(x -> ++x.mCasingAmount, ofBlock(GregTechAPI.sBlockCasings2, 0))),
+                    .buildAndChain(
+                        onElementPass(
+                            x -> ++x.mCasingAmount,
+                            ofBlock(GregTechAPI.sBlockCasings2, 0)
+                        )
+                    ),
                 // THEN: Accept any remaining GregTech machines (like Integrated Fluid Hatches)
-                ofBlockAnyMeta(GregTechAPI.sBlockMachines)))
+                ofHatchAdder(
+                    MTEHeatPump::addIntegratedInputHatch, ((BlockCasings2) GregTechAPI.sBlockCasings2).getTextureIndex(0), 1
+                ),
+                ofHatchAdder(
+                    MTEHeatPump::addIntegratedOutputHatch, ((BlockCasings2) GregTechAPI.sBlockCasings2).getTextureIndex(0), 1
+                )
+            )
+        )
         .build();
 
     private int mCasingAmount;
@@ -176,37 +188,8 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         mIntegratedInputHatches.clear();
         mIntegratedOutputHatches.clear();
 
-        boolean result = checkPiece(STRUCTURE_PIECE_MAIN, 1, 1, 0) && mCasingAmount >= 18;
-
-        // Manually search for Integrated Fluid Hatches in the 3x3x3 structure
-        int baseX = aBaseMetaTileEntity.getXCoord();
-        int baseY = aBaseMetaTileEntity.getYCoord();
-        int baseZ = aBaseMetaTileEntity.getZCoord();
-
-        for (int x = -1; x <= 1; x++) {
-            for (int y = -1; y <= 1; y++) {
-                for (int z = -1; z <= 1; z++) {
-                    var tile = aBaseMetaTileEntity.getWorld().getTileEntity(baseX + x, baseY + y, baseZ + z);
-
-                    if (tile instanceof IGregTechTileEntity gtTile) {
-                        IMetaTileEntity mte = gtTile.getMetaTileEntity();
-                        if (mte != null) {
-                            if (mte instanceof MTEIntegratedFluidInputHatch hatch) {
-                                mIntegratedInputHatches.add(hatch);
-                                // Set texture to match multiblock casing (Steel Machine Casing texture index = 16)
-                                hatch.updateTexture(((BlockCasings2) GregTechAPI.sBlockCasings2).getTextureIndex(0));
-                            } else if (mte instanceof MTEIntegratedFluidOutputHatch hatch) {
-                                mIntegratedOutputHatches.add(hatch);
-                                // Set texture to match multiblock casing (Steel Machine Casing texture index = 16)
-                                hatch.updateTexture(((BlockCasings2) GregTechAPI.sBlockCasings2).getTextureIndex(0));
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        return result
+        return checkPiece(STRUCTURE_PIECE_MAIN, 1, 1, 0)
+            && mCasingAmount >= 18
             && !mIntegratedInputHatches.isEmpty()
             && !mIntegratedOutputHatches.isEmpty()
             && !mEnergyHatches.isEmpty()
@@ -215,65 +198,549 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
 
     @Override
     public @NotNull CheckRecipeResult checkProcessing() {
-        // CHECK: Split Flow Mode validation
         if (splitFlowMode) {
-            // In Split Flow mode, we need 1 input + 2 differently colored outputs
-            if (!hasValidSplitFlowHatches()) {
-                // Return NO_RECIPE to avoid showing error text
-                // GUI already shows nice colored warning message
-                return CheckRecipeResultRegistry.NO_RECIPE;
-            }
-            // TODO: Implement split flow logic here
-            // For now, return NO_RECIPE (no error text)
+            return processSplitFlow();
+        } else if (heatExchangerMode) {
+            return processHeatExchanger();
+        } else {
+            return processNormalMode();
+        }
+    }
+
+    private @NotNull CheckRecipeResult processSplitFlow() {
+        if (!hasValidSplitFlowHatches()) {
             return CheckRecipeResultRegistry.NO_RECIPE;
         }
 
-        // CHECK: Normal Mode - too many hatches
-        if (!heatExchangerMode && !splitFlowMode && hasTooManyHatchesForNormalMode()) {
-            // Return NO_RECIPE to avoid showing error text
-            // GUI already shows nice colored warning message
+        // Validate configuration
+        CheckRecipeResult configResult = validateConfiguration();
+        if (configResult != CheckRecipeResultRegistry.SUCCESSFUL) {
+            return configResult;
+        }
+
+        MTEIntegratedFluidInputHatch inputHatch = mIntegratedInputHatches.get(0);
+        MTEIntegratedFluidOutputHatch redOutput = getOutputHatchByColor(1); // Red
+        MTEIntegratedFluidOutputHatch blueOutput = getOutputHatchByColor(4); // Blue
+
+        if (redOutput == null || blueOutput == null) return CheckRecipeResultRegistry.NO_RECIPE;
+
+        var inputNetwork = inputHatch.getNetwork();
+        var redNetwork = redOutput.getNetwork();
+        var blueNetwork = blueOutput.getNetwork();
+
+        if (inputNetwork == null || redNetwork == null || blueNetwork == null) {
             return CheckRecipeResultRegistry.NO_RECIPE;
         }
 
-        // CHECK: Heat Exchanger Mode validation
-        if (heatExchangerMode) {
-            // In HX mode, we need colored hatches - validate structure
-            if (!hasValidHeatExchangerHatches()) {
-                // Return NO_RECIPE to avoid showing any error text
-                // GUI already shows nice colored warning message
-                return CheckRecipeResultRegistry.NO_RECIPE;
-            }
-            // TODO: Implement heat exchanger logic here
-            // For now, return NO_RECIPE (no error text)
-            return CheckRecipeResultRegistry.NO_RECIPE;
-        }
+        Fluid inputFluid = inputNetwork.getFluid();
+        if (inputFluid == null) return CheckRecipeResultRegistry.NO_RECIPE;
 
-        // NORMAL MODE: Single-stream heat pump operation
+        long availableAmountQ = inputNetwork.getAmountQ();
+        if (availableAmountQ <= 0) return CheckRecipeResultRegistry.NO_RECIPE;
 
-        // THEN: Verify we have integrated fluid hatches
-        if (mIntegratedInputHatches.isEmpty() || mIntegratedOutputHatches.isEmpty()) {
-            return CheckRecipeResultRegistry.NO_RECIPE;
-        }
+        double inputSpecificEnthalpy = inputNetwork.getSpecificEnthalpy();
+        double vFactor = IntegratedFluidThermoModel
+            .specificVolumeFromPressureAndSpecificEnthalpy(inputFluid, inputNetwork.getPressure(), inputSpecificEnthalpy);
+        if (vFactor <= 0.0d) return CheckRecipeResultRegistry.NO_RECIPE;
 
-        // Validate configuration based on operating mode
+        double desiredVocc = fluidAmountPerOperation;
+        long desiredAmountMb = (long) Math.floor(desiredVocc / vFactor);
+        long amountToProcessQ = Math.min(availableAmountQ, desiredAmountMb * IntegratedFluidNetwork.AMOUNT_SCALE);
+        if (amountToProcessQ <= 0) return CheckRecipeResultRegistry.NO_RECIPE;
+
+        double inputTemperature = FluidThermalProperties.getTemperatureFromPH(
+            inputFluid, inputNetwork.getPressure(), inputSpecificEnthalpy
+        );
+        if (inputTemperature <= 0.0d) inputTemperature = COLD_RESERVOIR_TEMPERATURE;
+
+        // Split amounts based on ratio
+        long hotAmountQ = (long) (amountToProcessQ * splitRatio);
+        long coldAmountQ = amountToProcessQ - hotAmountQ;
+
+        if (hotAmountQ <= 0 || coldAmountQ <= 0) return CheckRecipeResultRegistry.NO_RECIPE;
+
+        double hotAmount = toAmount(hotAmountQ);
+        double coldAmount = toAmount(coldAmountQ);
+
+        double hotSpecificEnthalpy = inputSpecificEnthalpy;
+        double hotTemperature = inputTemperature;
+        double temperatureDelta = 0.0d;
+        long energyCost = 0L;
+        boolean passthroughMode = false;
+
+        // --- Calculate Hot Stream (Primary) ---
+        // Treat inputTemperature as the cold reservoir T_cold for Carnot efficiency.
         switch (operatingMode) {
             case TARGET_TEMPERATURE:
-                // Allow full cooling/heating range (including below 0C)
+                hotTemperature = targetTemperature;
+                temperatureDelta = hotTemperature - inputTemperature;
+
+                if (inputTemperature >= targetTemperature - lowerTemperatureTolerance
+                    && inputTemperature <= targetTemperature + upperTemperatureTolerance) {
+                    passthroughMode = true;
+                    currentCOP = 0.0f;
+                    energyCost = 0;
+                    hotTemperature = inputTemperature;
+                    temperatureDelta = 0.0d;
+                    currentTemperatureDelta = 0.0f;
+                    currentEfficiencyPenalty = 1.0f;
+                    effectiveCOP = 0.0f;
+                } else {
+                    float tCold = (float) Math.min(inputTemperature, hotTemperature);
+                    float tHot = (float) Math.max(inputTemperature, hotTemperature);
+                    currentCOP = FluidThermalProperties.calculateHeatPumpCOP(tCold, tHot);
+
+                    double absDelta = Math.abs(temperatureDelta);
+                    double penalty = FluidThermalProperties.calculateTemperaturePenalty((float) absDelta);
+                    currentTemperatureDelta = (float) absDelta;
+                    currentEfficiencyPenalty = (float) penalty;
+                    effectiveCOP = currentCOP / currentEfficiencyPenalty;
+
+                    double hTarget = FluidThermalProperties.getSpecificEnthalpyFromPT(
+                        inputFluid, redNetwork.getPressure(), hotTemperature
+                    );
+                    double desiredDh = hTarget - inputSpecificEnthalpy;
+                    double desiredQ = Math.abs(desiredDh) * hotAmount;
+                    energyCost = (long) Math.ceil(desiredQ / currentCOP * penalty);
+                    hotSpecificEnthalpy = hTarget;
+                }
+                break;
+
+            case TARGET_COP:
+                if (targetCOP <= 1.0f) targetCOP = 1.1f;
+                if (targetHeating) {
+                    hotTemperature = (targetCOP * inputTemperature) / (targetCOP - 1.0f);
+                } else {
+                    hotTemperature = inputTemperature * (targetCOP - 1.0f) / targetCOP;
+                }
+                temperatureDelta = hotTemperature - inputTemperature;
+                double absDelta = Math.abs(temperatureDelta);
+                if (absDelta < 0.1d) {
+                    absDelta = 0.1d;
+                    hotTemperature = inputTemperature + (targetHeating ? absDelta : -absDelta);
+                    temperatureDelta = hotTemperature - inputTemperature;
+                }
+                currentCOP = targetCOP;
+                double penalty = FluidThermalProperties.calculateTemperaturePenalty((float) Math.abs(temperatureDelta));
+                currentTemperatureDelta = (float) Math.abs(temperatureDelta);
+                currentEfficiencyPenalty = (float) penalty;
+                effectiveCOP = currentCOP / currentEfficiencyPenalty;
+
+                double hTarget = FluidThermalProperties.getSpecificEnthalpyFromPT(
+                    inputFluid, redNetwork.getPressure(), hotTemperature
+                );
+                double desiredDh = hTarget - inputSpecificEnthalpy;
+                double desiredQ = Math.abs(desiredDh) * hotAmount;
+                energyCost = (long) Math.ceil(desiredQ / currentCOP * penalty);
+                hotSpecificEnthalpy = hTarget;
+                break;
+
+            case TARGET_ENERGY:
+                long targetTotalEnergy = (long) targetEnergyPerTick * 20L;
+                energyCost = targetTotalEnergy;
+
+                double tempEstimate = inputTemperature;
+                double lastTempEstimate;
+                for (int i = 0; i < 10; i++) {
+                    lastTempEstimate = tempEstimate;
+                    float tCold = (float) Math.min(tempEstimate, inputTemperature);
+                    float tHot = (float) Math.max(tempEstimate, inputTemperature);
+                    double copLocal = FluidThermalProperties.calculateHeatPumpCOP(tCold, tHot);
+                    double delta = Math.abs(tempEstimate - inputTemperature);
+                    double penaltyLocal = FluidThermalProperties.calculateTemperaturePenalty((float) delta);
+                    double effectiveCopLocal = copLocal / penaltyLocal;
+                    double qHot = effectiveCopLocal * targetTotalEnergy;
+
+                    hotSpecificEnthalpy = inputSpecificEnthalpy + (targetHeating ? qHot : -qHot) / hotAmount;
+                    tempEstimate = FluidThermalProperties.getTemperatureFromPH(
+                        inputFluid, redNetwork.getPressure(), hotSpecificEnthalpy
+                    );
+
+                    if (Double.isNaN(tempEstimate) || Double.isInfinite(tempEstimate)) {
+                        tempEstimate = lastTempEstimate;
+                        break;
+                    }
+                    if (Math.abs(tempEstimate - lastTempEstimate) < 1e-3) break;
+                }
+
+                hotTemperature = tempEstimate;
+                temperatureDelta = hotTemperature - inputTemperature;
+                currentCOP = FluidThermalProperties.calculateHeatPumpCOP((float) Math.min(hotTemperature, inputTemperature), (float) Math.max(hotTemperature, inputTemperature));
+                currentEfficiencyPenalty = FluidThermalProperties.calculateTemperaturePenalty((float) Math.abs(temperatureDelta));
+                currentTemperatureDelta = (float) Math.abs(temperatureDelta);
+                effectiveCOP = currentCOP / currentEfficiencyPenalty;
+                break;
+        }
+
+        // Validate hot stream direction
+        if (!passthroughMode) {
+            if (targetHeating && hotSpecificEnthalpy < inputSpecificEnthalpy - 1e-6d) return SimpleCheckRecipeResult.ofFailure("awaiting_configuration");
+            if (!targetHeating && hotSpecificEnthalpy > inputSpecificEnthalpy + 1e-6d) return SimpleCheckRecipeResult.ofFailure("awaiting_configuration");
+        }
+
+        // --- Calculate Cold Stream (Secondary) ---
+        // Energy conservation: Energy extracted from cold stream = Heat delivered to hot stream - Input Work
+        double qHotTotal = Math.abs(hotSpecificEnthalpy - inputSpecificEnthalpy) * hotAmount;
+        double wTotal = energyCost;
+        double qColdTotal = qHotTotal - wTotal;
+
+        // If qColdTotal is negative, it means the work input was greater than the heat delivered,
+        // which physically shouldn't happen with Carnot efficiency >= 1, but we clamp it to 0 just in case.
+        if (qColdTotal < 0) qColdTotal = 0;
+
+        double coldSpecificEnthalpy;
+        if (targetHeating) {
+            // Heating hot stream means we cooled the cold stream
+            coldSpecificEnthalpy = inputSpecificEnthalpy - (qColdTotal / coldAmount);
+        } else {
+            // Cooling hot stream means we heated the cold stream
+            coldSpecificEnthalpy = inputSpecificEnthalpy + (qColdTotal / coldAmount);
+        }
+
+        // Calculate predicted properties to check capacities
+        long predictedHotEnthalpyQ = toEnthalpyQ(hotSpecificEnthalpy, hotAmountQ);
+        long predictedColdEnthalpyQ = toEnthalpyQ(coldSpecificEnthalpy, coldAmountQ);
+
+        if (!redNetwork.canAccept(inputFluid, hotAmountQ, predictedHotEnthalpyQ)) {
+            return CheckRecipeResultRegistry.ITEM_OUTPUT_FULL;
+        }
+        if (!blueNetwork.canAccept(inputFluid, coldAmountQ, predictedColdEnthalpyQ)) {
+            return CheckRecipeResultRegistry.ITEM_OUTPUT_FULL;
+        }
+
+        // Extract from input
+        IntegratedFluidNetwork.ExtractedPayload extracted = inputNetwork.extractProportional(amountToProcessQ, false);
+        if (extracted.amountQ <= 0L) return CheckRecipeResultRegistry.NO_RECIPE;
+
+        // Adjust if extraction was partial
+        if (extracted.amountQ != amountToProcessQ) {
+            double ratio = extracted.amountQ / (double) amountToProcessQ;
+            hotAmountQ = (long) (hotAmountQ * ratio);
+            coldAmountQ = (long) (coldAmountQ * ratio);
+            if (energyCost > 0L) {
+                energyCost = (long) Math.ceil(energyCost * ratio);
+            }
+        }
+
+        currentEnergyUsage = energyCost;
+        this.totalEnergyCost = (int) ((energyCost + 19) / 20);
+
+        long outHotEnthalpyQ = toEnthalpyQ(hotSpecificEnthalpy, hotAmountQ);
+        long outColdEnthalpyQ = toEnthalpyQ(coldSpecificEnthalpy, coldAmountQ);
+
+        // Add to outputs
+        redNetwork.add(inputFluid, hotAmountQ, outHotEnthalpyQ);
+        blueNetwork.add(inputFluid, coldAmountQ, outColdEnthalpyQ);
+
+        currentOutputTemperature = (float) hotTemperature;
+
+        if (passthroughMode) {
+            this.mMaxProgresstime = 5;
+            this.mEUt = 0;
+        } else {
+            this.mMaxProgresstime = 20;
+            this.mEfficiency = 10000;
+            this.mEUt = (operatingMode == HeatPumpMode.TARGET_ENERGY) ? -targetEnergyPerTick : -this.totalEnergyCost;
+        }
+
+        return CheckRecipeResultRegistry.SUCCESSFUL;
+    }
+
+    private @NotNull CheckRecipeResult processHeatExchanger() {
+        if (!hasValidHeatExchangerHatches()) {
+            return CheckRecipeResultRegistry.NO_RECIPE;
+        }
+
+        CheckRecipeResult configResult = validateConfiguration();
+        if (configResult != CheckRecipeResultRegistry.SUCCESSFUL) {
+            return configResult;
+        }
+
+        MTEIntegratedFluidInputHatch redInput = getInputHatchByColor(1);
+        MTEIntegratedFluidInputHatch blueInput = getInputHatchByColor(4);
+        MTEIntegratedFluidOutputHatch redOutput = getOutputHatchByColor(1);
+        MTEIntegratedFluidOutputHatch blueOutput = getOutputHatchByColor(4);
+
+        if (redInput == null || blueInput == null || redOutput == null || blueOutput == null) {
+            return CheckRecipeResultRegistry.NO_RECIPE;
+        }
+
+        var redInNet = redInput.getNetwork();
+        var blueInNet = blueInput.getNetwork();
+        var redOutNet = redOutput.getNetwork();
+        var blueOutNet = blueOutput.getNetwork();
+
+        if (redInNet == null || blueInNet == null || redOutNet == null || blueOutNet == null) {
+            return CheckRecipeResultRegistry.NO_RECIPE;
+        }
+
+        Fluid redFluid = redInNet.getFluid();
+        Fluid blueFluid = blueInNet.getFluid();
+        if (redFluid == null || blueFluid == null) return CheckRecipeResultRegistry.NO_RECIPE;
+
+        long redAvailQ = redInNet.getAmountQ();
+        long blueAvailQ = blueInNet.getAmountQ();
+        if (redAvailQ <= 0 || blueAvailQ <= 0) return CheckRecipeResultRegistry.NO_RECIPE;
+
+        double redInH = redInNet.getSpecificEnthalpy();
+        double blueInH = blueInNet.getSpecificEnthalpy();
+
+        double redInTemp = FluidThermalProperties.getTemperatureFromPH(redFluid, redInNet.getPressure(), redInH);
+        double blueInTemp = FluidThermalProperties.getTemperatureFromPH(blueFluid, blueInNet.getPressure(), blueInH);
+
+        // HEAT FLOW DIRECTION: ALWAYS BLUE (Source) -> RED (Target)
+        // This means we extract heat from Blue (cooling it down) and pump it into Red (heating it up).
+        // GUI settings (targetTemp, targetCOP) apply to the Red (Target) stream.
+        // If configuringHotStream is true, it means we are actively configuring the Target (Red) to reach a specific heat.
+        // If configuringHotStream is false, we are theoretically configuring the Source (Blue) to reach a specific coldness,
+        // BUT to keep logic simple and consistent with the physical heat flow, we will evaluate the GUI settings
+        // on the Target (Red) by default, and just flip the target direction if configuringHotStream is false.
+
+        // Actually, let's make it intuitive:
+        // configuringHotStream = true  -> We want to hit a specific property on the RED stream.
+        // configuringHotStream = false -> We want to hit a specific property on the BLUE stream.
+        // Heat STILL flows from Blue to Red.
+
+        boolean configureRed = configuringHotStream;
+
+        var targetInNet = configureRed ? redInNet : blueInNet;
+        var targetOutNet = configureRed ? redOutNet : blueOutNet;
+        Fluid targetFluid = configureRed ? redFluid : blueFluid;
+        long targetAvailQ = configureRed ? redAvailQ : blueAvailQ;
+        double targetInH = configureRed ? redInH : blueInH;
+        double targetInTemp = configureRed ? redInTemp : blueInTemp;
+
+        var sourceInNet = !configureRed ? redInNet : blueInNet;
+        var sourceOutNet = !configureRed ? redOutNet : blueOutNet;
+        Fluid sourceFluid = !configureRed ? redFluid : blueFluid;
+        long sourceAvailQ = !configureRed ? redAvailQ : blueAvailQ;
+        double sourceInH = !configureRed ? redInH : blueInH;
+        double sourceInTemp = !configureRed ? redInTemp : blueInTemp;
+
+
+        // Calculate max amount to process
+        double tVFactor = IntegratedFluidThermoModel.specificVolumeFromPressureAndSpecificEnthalpy(targetFluid, targetInNet.getPressure(), targetInH);
+        if (tVFactor <= 0.0d) return CheckRecipeResultRegistry.NO_RECIPE;
+        long targetProcessQ = Math.min(targetAvailQ, (long) Math.floor(fluidAmountPerOperation / tVFactor) * IntegratedFluidNetwork.AMOUNT_SCALE);
+        if (targetProcessQ <= 0) return CheckRecipeResultRegistry.NO_RECIPE;
+
+        double sVFactor = IntegratedFluidThermoModel.specificVolumeFromPressureAndSpecificEnthalpy(sourceFluid, sourceInNet.getPressure(), sourceInH);
+        if (sVFactor <= 0.0d) return CheckRecipeResultRegistry.NO_RECIPE;
+        long sourceProcessQ = Math.min(sourceAvailQ, (long) Math.floor(fluidAmountPerOperation / sVFactor) * IntegratedFluidNetwork.AMOUNT_SCALE);
+        if (sourceProcessQ <= 0) return CheckRecipeResultRegistry.NO_RECIPE;
+
+        double targetProcessAmt = toAmount(targetProcessQ);
+        double sourceProcessAmt = toAmount(sourceProcessQ);
+
+        double targetOutTemp = targetInTemp;
+        double targetOutH = targetInH;
+        double temperatureDelta = 0.0d;
+        long energyCost = 0L;
+        boolean passthroughMode = false;
+
+        // The "Cold" reservoir for Carnot COP is ALWAYS the Blue stream,
+        // and the "Hot" reservoir is ALWAYS the Red stream, regardless of actual temps.
+        // Wait, Carnot efficiency depends on actual temperatures: COP = T_hot / (T_hot - T_cold).
+        // To pump heat from Blue to Red, we must do work.
+        // Let's define the Source Temp for COP calculation as the starting temp of the stream we are extracting from (Blue).
+        double copSourceTemp = blueInTemp;
+
+        // If configuringRed == true, targetHeating MUST be true (we are heating Red by pumping from Blue).
+        // If configuringRed == false, targetHeating MUST be false (we are cooling Blue by pumping to Red).
+        // We will override user's targetHeating flag to match physical reality to prevent weird bugs.
+        boolean actualTargetHeating = configureRed;
+
+
+        switch (operatingMode) {
+            case TARGET_TEMPERATURE:
+                targetOutTemp = targetTemperature;
+                temperatureDelta = targetOutTemp - targetInTemp;
+
+                // Check if target is physically possible with current direction
+                if ((actualTargetHeating && targetOutTemp < targetInTemp) ||
+                    (!actualTargetHeating && targetOutTemp > targetInTemp)) {
+                    return SimpleCheckRecipeResult.ofFailure("awaiting_configuration");
+                }
+
+                if (Math.abs(temperatureDelta) <= (actualTargetHeating ? lowerTemperatureTolerance : upperTemperatureTolerance)) {
+                    passthroughMode = true;
+                    currentCOP = 0.0f;
+                    energyCost = 0;
+                    targetOutTemp = targetInTemp;
+                    temperatureDelta = 0.0d;
+                    currentTemperatureDelta = 0.0f;
+                    currentEfficiencyPenalty = 1.0f;
+                    effectiveCOP = 0.0f;
+                } else {
+                    // For COP, Hot is Red, Cold is Blue.
+                    float tColdForCop = (float) Math.min(blueInTemp, configureRed ? targetOutTemp : targetInTemp);
+                    float tHotForCop = (float) Math.max(redInTemp, configureRed ? targetOutTemp : targetInTemp);
+                    currentCOP = FluidThermalProperties.calculateHeatPumpCOP(tColdForCop, tHotForCop);
+
+                    double absDelta = Math.abs(temperatureDelta);
+                    double penalty = FluidThermalProperties.calculateTemperaturePenalty((float) absDelta);
+                    currentTemperatureDelta = (float) absDelta;
+                    currentEfficiencyPenalty = (float) penalty;
+                    effectiveCOP = currentCOP / currentEfficiencyPenalty;
+
+                    double hTarget = FluidThermalProperties.getSpecificEnthalpyFromPT(targetFluid, targetOutNet.getPressure(), targetOutTemp);
+                    double desiredDh = hTarget - targetInH;
+                    double desiredQ = Math.abs(desiredDh) * targetProcessAmt;
+                    energyCost = (long) Math.ceil(desiredQ / currentCOP * penalty);
+                    targetOutH = hTarget;
+                }
                 break;
             case TARGET_COP:
-                // Validate COP
-                if (targetCOP <= 0 || targetCOP < 1.1f) {
-                    return SimpleCheckRecipeResult.ofFailure("awaiting_configuration");
+                if (targetCOP <= 1.0f) targetCOP = 1.1f;
+
+                if (actualTargetHeating) {
+                     // Heating Red. Source is Blue.
+                     targetOutTemp = (targetCOP * blueInTemp) / (targetCOP - 1.0f);
+                } else {
+                     // Cooling Blue. Source is Blue (cooling it down). Target is Red.
+                     // T_cold = T_hot * (COP - 1) / COP.
+                     // Here we know Red's temp (T_hot), want to find Blue's new temp (T_cold).
+                     targetOutTemp = redInTemp * (targetCOP - 1.0f) / targetCOP;
                 }
+
+                temperatureDelta = targetOutTemp - targetInTemp;
+                double absDelta = Math.abs(temperatureDelta);
+                if (absDelta < 0.1d) {
+                    absDelta = 0.1d;
+                    targetOutTemp = targetInTemp + (actualTargetHeating ? absDelta : -absDelta);
+                    temperatureDelta = targetOutTemp - targetInTemp;
+                }
+                currentCOP = targetCOP;
+                double penalty = FluidThermalProperties.calculateTemperaturePenalty((float) Math.abs(temperatureDelta));
+                currentTemperatureDelta = (float) Math.abs(temperatureDelta);
+                currentEfficiencyPenalty = (float) penalty;
+                effectiveCOP = currentCOP / currentEfficiencyPenalty;
+
+                double hTarget = FluidThermalProperties.getSpecificEnthalpyFromPT(targetFluid, targetOutNet.getPressure(), targetOutTemp);
+                double desiredDh = hTarget - targetInH;
+                double desiredQ = Math.abs(desiredDh) * targetProcessAmt;
+                energyCost = (long) Math.ceil(desiredQ / currentCOP * penalty);
+                targetOutH = hTarget;
                 break;
             case TARGET_ENERGY:
-                // Validate energy per tick
-                if (targetEnergyPerTick <= 0) {
-                    return SimpleCheckRecipeResult.ofFailure("awaiting_configuration");
+                long targetTotalEnergy = (long) targetEnergyPerTick * 20L;
+                energyCost = targetTotalEnergy;
+
+                double tempEstimate = targetInTemp;
+                double lastTempEstimate;
+                for (int i = 0; i < 10; i++) {
+                    lastTempEstimate = tempEstimate;
+
+                    float tColdForCop = (float) Math.min(blueInTemp, configureRed ? tempEstimate : targetInTemp);
+                    float tHotForCop = (float) Math.max(redInTemp, configureRed ? tempEstimate : targetInTemp);
+
+                    double copLocal = FluidThermalProperties.calculateHeatPumpCOP(tColdForCop, tHotForCop);
+                    double delta = Math.abs(tempEstimate - targetInTemp);
+                    double penaltyLocal = FluidThermalProperties.calculateTemperaturePenalty((float) delta);
+                    double effectiveCopLocal = copLocal / penaltyLocal;
+                    double qTransferred = effectiveCopLocal * targetTotalEnergy;
+
+                    targetOutH = targetInH + (actualTargetHeating ? qTransferred : -qTransferred) / targetProcessAmt;
+                    tempEstimate = FluidThermalProperties.getTemperatureFromPH(targetFluid, targetOutNet.getPressure(), targetOutH);
+
+                    if (Double.isNaN(tempEstimate) || Double.isInfinite(tempEstimate)) {
+                        tempEstimate = lastTempEstimate;
+                        break;
+                    }
+                    if (Math.abs(tempEstimate - lastTempEstimate) < 1e-3) break;
                 }
+
+                targetOutTemp = tempEstimate;
+                temperatureDelta = targetOutTemp - targetInTemp;
+                float finalCold = (float) Math.min(blueInTemp, configureRed ? targetOutTemp : targetInTemp);
+                float finalHot = (float) Math.max(redInTemp, configureRed ? targetOutTemp : targetInTemp);
+                currentCOP = FluidThermalProperties.calculateHeatPumpCOP(finalCold, finalHot);
+                currentEfficiencyPenalty = FluidThermalProperties.calculateTemperaturePenalty((float) Math.abs(temperatureDelta));
+                currentTemperatureDelta = (float) Math.abs(temperatureDelta);
+                effectiveCOP = currentCOP / currentEfficiencyPenalty;
                 break;
-            default:
-                return SimpleCheckRecipeResult.ofFailure("awaiting_configuration");
+        }
+
+        if (!passthroughMode) {
+            if (actualTargetHeating && targetOutH < targetInH - 1e-6d) return SimpleCheckRecipeResult.ofFailure("awaiting_configuration");
+            if (!actualTargetHeating && targetOutH > targetInH + 1e-6d) return SimpleCheckRecipeResult.ofFailure("awaiting_configuration");
+        }
+
+        // Heat flow logic: Q_delivered_to_Red = Q_extracted_from_Blue + W
+        // We know the Q change for our Target stream.
+        double qTargetTotal = Math.abs(targetOutH - targetInH) * targetProcessAmt;
+        double wTotal = energyCost;
+
+        double qSourceTotal;
+        double sourceOutH;
+
+        if (configureRed) {
+            // We configured Red (Target). We know how much heat went INTO Red (qTargetTotal).
+            // Q_extracted_from_Blue = Q_delivered_to_Red - W
+            qSourceTotal = qTargetTotal - wTotal;
+            if (qSourceTotal < 0) qSourceTotal = 0;
+            // Blue loses heat
+            sourceOutH = sourceInH - (qSourceTotal / sourceProcessAmt);
+        } else {
+            // We configured Blue (Target). We know how much heat came OUT OF Blue (qTargetTotal).
+            // Q_delivered_to_Red = Q_extracted_from_Blue + W
+            qSourceTotal = qTargetTotal + wTotal;
+            // Red gains heat
+            sourceOutH = sourceInH + (qSourceTotal / sourceProcessAmt);
+        }
+
+        // Map Target/Source back to Red/Blue for output logic
+        double redOutH = configureRed ? targetOutH : sourceOutH;
+        double blueOutH = configureRed ? sourceOutH : targetOutH;
+        long redProcessQ = configureRed ? targetProcessQ : sourceProcessQ;
+        long blueProcessQ = configureRed ? sourceProcessQ : targetProcessQ;
+
+
+        long outRedEnthalpyQ = toEnthalpyQ(redOutH, redProcessQ);
+        long outBlueEnthalpyQ = toEnthalpyQ(blueOutH, blueProcessQ);
+
+        if (!redOutNet.canAccept(redFluid, redProcessQ, outRedEnthalpyQ)) return CheckRecipeResultRegistry.ITEM_OUTPUT_FULL;
+        if (!blueOutNet.canAccept(blueFluid, blueProcessQ, outBlueEnthalpyQ)) return CheckRecipeResultRegistry.ITEM_OUTPUT_FULL;
+
+        var extractedRed = redInNet.extractProportional(redProcessQ, false);
+        var extractedBlue = blueInNet.extractProportional(blueProcessQ, false);
+
+        if (extractedRed.amountQ <= 0L || extractedBlue.amountQ <= 0L) {
+            return CheckRecipeResultRegistry.NO_RECIPE;
+        }
+
+        currentEnergyUsage = energyCost;
+        this.totalEnergyCost = (int) ((energyCost + 19) / 20);
+
+        redOutNet.add(redFluid, extractedRed.amountQ, toEnthalpyQ(redOutH, extractedRed.amountQ));
+        blueOutNet.add(blueFluid, extractedBlue.amountQ, toEnthalpyQ(blueOutH, extractedBlue.amountQ));
+
+        currentOutputTemperature = (float) targetOutTemp;
+
+        if (passthroughMode) {
+            this.mMaxProgresstime = 5;
+            this.mEUt = 0;
+        } else {
+            this.mMaxProgresstime = 20;
+            this.mEfficiency = 10000;
+            this.mEUt = (operatingMode == HeatPumpMode.TARGET_ENERGY) ? -targetEnergyPerTick : -this.totalEnergyCost;
+        }
+
+        return CheckRecipeResultRegistry.SUCCESSFUL;
+    }
+
+    private @NotNull CheckRecipeResult processNormalMode() {
+        if (hasTooManyHatchesForNormalMode()) {
+            return CheckRecipeResultRegistry.NO_RECIPE;
+        }
+
+        CheckRecipeResult configResult = validateConfiguration();
+        if (configResult != CheckRecipeResultRegistry.SUCCESSFUL) {
+            return configResult;
+        }
+
+        if (mIntegratedInputHatches.isEmpty() || mIntegratedOutputHatches.isEmpty()) {
+            return CheckRecipeResultRegistry.NO_RECIPE;
         }
 
         MTEIntegratedFluidInputHatch inputHatch = mIntegratedInputHatches.get(0);
@@ -380,7 +847,8 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
                 if (targetHeating) {
                     outputTemperature = (targetCOP * inputTemperature) / (targetCOP - 1.0f);
                 } else {
-                    outputTemperature = (targetCOP * inputTemperature) / (targetCOP + 1.0f);
+                    // T_cold = T_hot * (COP_heating - 1) / COP_heating
+                    outputTemperature = inputTemperature * (targetCOP - 1.0f) / targetCOP;
                 }
                 temperatureDelta = outputTemperature - inputTemperature;
                 heatingDirection = targetHeating;
@@ -417,11 +885,13 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
                 totalEnergyCost = targetTotalEnergy;
 
                 double tempEstimate = inputTemperature;
+                double lastTempEstimate;
                 double copLocal = 1.0d;
                 double penaltyLocal = 1.0d;
                 double effectiveCopLocal = 1.0d;
 
-                for (int i = 0; i < 2; i++) {
+                for (int i = 0; i < 10; i++) {
+                    lastTempEstimate = tempEstimate;
                     float tCold = (float) Math.min(tempEstimate, inputTemperature);
                     float tHot = (float) Math.max(tempEstimate, inputTemperature);
                     copLocal = FluidThermalProperties.calculateHeatPumpCOP(tCold, tHot);
@@ -435,6 +905,14 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
                         inputNetwork.getPressure(),
                         outputSpecificEnthalpy
                     );
+
+                    if (Double.isNaN(tempEstimate) || Double.isInfinite(tempEstimate)) {
+                        tempEstimate = lastTempEstimate;
+                        break;
+                    }
+                    if (Math.abs(tempEstimate - lastTempEstimate) < 1e-3) {
+                        break;
+                    }
                 }
 
                 outputTemperature = tempEstimate;
@@ -505,6 +983,41 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
 
         return CheckRecipeResultRegistry.SUCCESSFUL;
     }
+
+    private CheckRecipeResult validateConfiguration() {
+        switch (operatingMode) {
+            case TARGET_TEMPERATURE:
+                break;
+            case TARGET_COP:
+                if (targetCOP <= 0 || targetCOP < 1.1f) {
+                    return SimpleCheckRecipeResult.ofFailure("awaiting_configuration");
+                }
+                break;
+            case TARGET_ENERGY:
+                if (targetEnergyPerTick <= 0) {
+                    return SimpleCheckRecipeResult.ofFailure("awaiting_configuration");
+                }
+                break;
+            default:
+                return SimpleCheckRecipeResult.ofFailure("awaiting_configuration");
+        }
+        return CheckRecipeResultRegistry.SUCCESSFUL;
+    }
+
+    private MTEIntegratedFluidInputHatch getInputHatchByColor(int color) {
+        for (MTEIntegratedFluidInputHatch hatch : mIntegratedInputHatches) {
+            if (hatch.getBaseMetaTileEntity().getColorization() == color) return hatch;
+        }
+        return null;
+    }
+
+    private MTEIntegratedFluidOutputHatch getOutputHatchByColor(int color) {
+        for (MTEIntegratedFluidOutputHatch hatch : mIntegratedOutputHatches) {
+            if (hatch.getBaseMetaTileEntity().getColorization() == color) return hatch;
+        }
+        return null;
+    }
+
 
     @Override
     public void construct(ItemStack stackSize, boolean hintsOnly) {
@@ -954,5 +1467,15 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
             // Backward compatibility - convert old total energy to per-tick
             targetEnergyPerTick = aNBT.getInteger("targetEnergy") / 20;
         }
+    }
+
+    public boolean addIntegratedInputHatch(MTEIntegratedFluidInputHatch hatch) {
+        hatch.updateTexture(((BlockCasings2) GregTechAPI.sBlockCasings2).getTextureIndex(0));
+        return mIntegratedInputHatches.add(hatch);
+    }
+
+    public boolean addIntegratedOutputHatch(MTEIntegratedFluidOutputHatch hatch) {
+        hatch.updateTexture(((BlockCasings2) GregTechAPI.sBlockCasings2).getTextureIndex(0));
+        return mIntegratedOutputHatches.add(hatch);
     }
 }
