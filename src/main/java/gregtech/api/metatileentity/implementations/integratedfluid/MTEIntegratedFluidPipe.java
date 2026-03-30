@@ -14,6 +14,7 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumChatFormatting;
+import net.minecraft.util.StatCollector;
 import net.minecraft.world.World;
 import net.minecraftforge.common.util.ForgeDirection;
 import net.minecraftforge.fluids.FluidStack;
@@ -182,10 +183,10 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
             final ForgeDirection tSide = GTUtility.determineWrenchingSide(side, aX, aY, aZ);
             if (isConnectedAtSide(tSide)) {
                 disconnect(tSide);
-                GTUtility.sendChatToPlayer(aPlayer, GTUtility.trans("215", "Disconnected"));
+                GTUtility.sendChatToPlayer(aPlayer, StatCollector.translateToLocal("GT5U.chat.disconnected"));
             } else {
                 if (connect(tSide) > 0) {
-                    GTUtility.sendChatToPlayer(aPlayer, GTUtility.trans("214", "Connected"));
+                    GTUtility.sendChatToPlayer(aPlayer, StatCollector.translateToLocal("GT5U.chat.connected"));
                 }
             }
             // Connection changed - use NetworkManager

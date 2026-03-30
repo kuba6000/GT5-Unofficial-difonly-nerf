@@ -398,30 +398,72 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
             coldSpecificEnthalpy = inputSpecificEnthalpy + (qColdTotal / coldAmount);
         }
 
-        // Calculate predicted properties to check capacities
-        long predictedHotEnthalpyQ = toEnthalpyQ(hotSpecificEnthalpy, hotAmountQ);
-        long predictedColdEnthalpyQ = toEnthalpyQ(coldSpecificEnthalpy, coldAmountQ);
+        long originalAmountToProcessQ = amountToProcessQ;
+        long originalEnergyCost = energyCost;
 
-        if (!redNetwork.canAccept(inputFluid, hotAmountQ, predictedHotEnthalpyQ)) {
-            return CheckRecipeResultRegistry.ITEM_OUTPUT_FULL;
-        }
-        if (!blueNetwork.canAccept(inputFluid, coldAmountQ, predictedColdEnthalpyQ)) {
-            return CheckRecipeResultRegistry.ITEM_OUTPUT_FULL;
+        if (redNetwork != inputNetwork || blueNetwork != inputNetwork) {
+            long low = 0;
+            long high = amountToProcessQ;
+            long bestAmountQ = 0;
+
+            for (int i = 0; i < 35; i++) {
+                if (low > high) break;
+                long mid = (low + high) / 2;
+                if (mid < IntegratedFluidNetwork.AMOUNT_SCALE) {
+                    low = mid + 1;
+                    continue;
+                }
+
+                long testHotQ = (long) (mid * splitRatio);
+                long testColdQ = mid - testHotQ;
+
+                long testHotEnthalpyQ = toEnthalpyQ(hotSpecificEnthalpy, testHotQ);
+                long testColdEnthalpyQ = toEnthalpyQ(coldSpecificEnthalpy, testColdQ);
+
+                boolean ok = true;
+                if (redNetwork != inputNetwork && !redNetwork.canAccept(inputFluid, testHotQ, testHotEnthalpyQ)) ok = false;
+                if (blueNetwork != inputNetwork && !blueNetwork.canAccept(inputFluid, testColdQ, testColdEnthalpyQ)) ok = false;
+
+                if (ok) {
+                    float pIn = inputNetwork.predictPressureAfterExtract(mid);
+                    if (redNetwork != inputNetwork) {
+                        float pRed = redNetwork.predictPressureAfterAdd(inputFluid, testHotQ, testHotEnthalpyQ);
+                        if (pRed > pIn * 1.05f) ok = false;
+                    }
+                    if (ok && blueNetwork != inputNetwork) {
+                        float pBlue = blueNetwork.predictPressureAfterAdd(inputFluid, testColdQ, testColdEnthalpyQ);
+                        if (pBlue > pIn * 1.05f) ok = false;
+                    }
+                }
+
+                if (ok) {
+                    bestAmountQ = mid;
+                    low = mid + 1;
+                } else {
+                    high = mid - 1;
+                }
+            }
+
+            if (bestAmountQ < IntegratedFluidNetwork.AMOUNT_SCALE) {
+                return CheckRecipeResultRegistry.ITEM_OUTPUT_FULL;
+            }
+            amountToProcessQ = bestAmountQ;
         }
 
         // Extract from input
         IntegratedFluidNetwork.ExtractedPayload extracted = inputNetwork.extractProportional(amountToProcessQ, false);
         if (extracted.amountQ <= 0L) return CheckRecipeResultRegistry.NO_RECIPE;
 
-        // Adjust if extraction was partial
-        if (extracted.amountQ != amountToProcessQ) {
-            double ratio = extracted.amountQ / (double) amountToProcessQ;
-            hotAmountQ = (long) (hotAmountQ * ratio);
-            coldAmountQ = (long) (coldAmountQ * ratio);
+        // Adjust if extraction was partial OR if we scaled down due to pressure
+        if (extracted.amountQ != originalAmountToProcessQ) {
+            double ratio = extracted.amountQ / (double) originalAmountToProcessQ;
             if (energyCost > 0L) {
-                energyCost = (long) Math.ceil(energyCost * ratio);
+                energyCost = (long) Math.ceil(originalEnergyCost * ratio);
             }
         }
+
+        hotAmountQ = (long) (extracted.amountQ * splitRatio);
+        coldAmountQ = extracted.amountQ - hotAmountQ;
 
         currentEnergyUsage = energyCost;
         this.totalEnergyCost = (int) ((energyCost + 19) / 20);
@@ -693,15 +735,67 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         // Map Target/Source back to Red/Blue for output logic
         double redOutH = configureRed ? targetOutH : sourceOutH;
         double blueOutH = configureRed ? sourceOutH : targetOutH;
-        long redProcessQ = configureRed ? targetProcessQ : sourceProcessQ;
-        long blueProcessQ = configureRed ? sourceProcessQ : targetProcessQ;
+        long redBaseQ = configureRed ? targetProcessQ : sourceProcessQ;
+        long blueBaseQ = configureRed ? sourceProcessQ : targetProcessQ;
 
+        long originalRedProcessQ = redBaseQ;
+        long originalBlueProcessQ = blueBaseQ;
+        long originalEnergyCost = energyCost;
 
-        long outRedEnthalpyQ = toEnthalpyQ(redOutH, redProcessQ);
-        long outBlueEnthalpyQ = toEnthalpyQ(blueOutH, blueProcessQ);
+        long redProcessQ = redBaseQ;
+        long blueProcessQ = blueBaseQ;
 
-        if (!redOutNet.canAccept(redFluid, redProcessQ, outRedEnthalpyQ)) return CheckRecipeResultRegistry.ITEM_OUTPUT_FULL;
-        if (!blueOutNet.canAccept(blueFluid, blueProcessQ, outBlueEnthalpyQ)) return CheckRecipeResultRegistry.ITEM_OUTPUT_FULL;
+        if (redOutNet != redInNet || blueOutNet != blueInNet) {
+            double low = 0.0;
+            double high = 1.0;
+            double bestRatio = 0.0;
+
+            for (int i = 0; i < 35; i++) {
+                double mid = (low + high) / 2.0;
+
+                long testRedQ = (long) (redProcessQ * mid);
+                long testBlueQ = (long) (blueProcessQ * mid);
+
+                if (testRedQ < IntegratedFluidNetwork.AMOUNT_SCALE || testBlueQ < IntegratedFluidNetwork.AMOUNT_SCALE) {
+                    low = mid;
+                    continue;
+                }
+
+                long testOutRedEnthalpyQ = toEnthalpyQ(redOutH, testRedQ);
+                long testOutBlueEnthalpyQ = toEnthalpyQ(blueOutH, testBlueQ);
+
+                boolean ok = true;
+                if (redOutNet != redInNet && !redOutNet.canAccept(redFluid, testRedQ, testOutRedEnthalpyQ)) ok = false;
+                if (blueOutNet != blueInNet && !blueOutNet.canAccept(blueFluid, testBlueQ, testOutBlueEnthalpyQ)) ok = false;
+
+                if (ok) {
+                    if (redOutNet != redInNet) {
+                        float pIn = redInNet.predictPressureAfterExtract(testRedQ);
+                        float pOut = redOutNet.predictPressureAfterAdd(redFluid, testRedQ, testOutRedEnthalpyQ);
+                        if (pOut > pIn * 1.05f) ok = false;
+                    }
+                    if (ok && blueOutNet != blueInNet) {
+                        float pIn = blueInNet.predictPressureAfterExtract(testBlueQ);
+                        float pOut = blueOutNet.predictPressureAfterAdd(blueFluid, testBlueQ, testOutBlueEnthalpyQ);
+                        if (pOut > pIn * 1.05f) ok = false;
+                    }
+                }
+
+                if (ok) {
+                    bestRatio = mid;
+                    low = mid;
+                } else {
+                    high = mid;
+                }
+            }
+
+            if (bestRatio <= 0.0 || (redBaseQ * bestRatio) < IntegratedFluidNetwork.AMOUNT_SCALE || (blueBaseQ * bestRatio) < IntegratedFluidNetwork.AMOUNT_SCALE) {
+                return CheckRecipeResultRegistry.ITEM_OUTPUT_FULL;
+            }
+
+            redProcessQ = (long) (redProcessQ * bestRatio);
+            blueProcessQ = (long) (blueProcessQ * bestRatio);
+        }
 
         var extractedRed = redInNet.extractProportional(redProcessQ, false);
         var extractedBlue = blueInNet.extractProportional(blueProcessQ, false);
@@ -710,11 +804,23 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
             return CheckRecipeResultRegistry.NO_RECIPE;
         }
 
+        // Adjust if extraction was partial OR if we scaled down due to pressure
+        double ratioRed = extractedRed.amountQ / (double) originalRedProcessQ;
+        double ratioBlue = extractedBlue.amountQ / (double) originalBlueProcessQ;
+        double finalRatio = Math.min(ratioRed, ratioBlue);
+
+        if (finalRatio < 1.0 && originalEnergyCost > 0L) {
+            energyCost = (long) Math.ceil(originalEnergyCost * finalRatio);
+        }
+
         currentEnergyUsage = energyCost;
         this.totalEnergyCost = (int) ((energyCost + 19) / 20);
 
-        redOutNet.add(redFluid, extractedRed.amountQ, toEnthalpyQ(redOutH, extractedRed.amountQ));
-        blueOutNet.add(blueFluid, extractedBlue.amountQ, toEnthalpyQ(blueOutH, extractedBlue.amountQ));
+        long outRedEnthalpyQ = toEnthalpyQ(redOutH, extractedRed.amountQ);
+        long outBlueEnthalpyQ = toEnthalpyQ(blueOutH, extractedBlue.amountQ);
+
+        redOutNet.add(redFluid, extractedRed.amountQ, outRedEnthalpyQ);
+        blueOutNet.add(blueFluid, extractedBlue.amountQ, outBlueEnthalpyQ);
 
         currentOutputTemperature = (float) targetOutTemp;
 
@@ -943,11 +1049,43 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
             }
         }
 
-        long predictedOutputEnthalpyQ = toEnthalpyQ(outputSpecificEnthalpy, amountToProcessQ);
+        long originalAmountToProcessQ = amountToProcessQ;
 
-        if (outputNetwork != inputNetwork
-            && !outputNetwork.canAccept(inputFluid, amountToProcessQ, predictedOutputEnthalpyQ)) {
-            return CheckRecipeResultRegistry.ITEM_OUTPUT_FULL;
+        if (outputNetwork != inputNetwork) {
+            long low = 0;
+            long high = amountToProcessQ;
+            long bestAmountQ = 0;
+
+            for (int i = 0; i < 35; i++) {
+                if (low > high) break;
+                long mid = (low + high) / 2;
+                if (mid < IntegratedFluidNetwork.AMOUNT_SCALE) {
+                    low = mid + 1;
+                    continue;
+                }
+
+                long testEnthalpyQ = toEnthalpyQ(outputSpecificEnthalpy, mid);
+
+                if (!outputNetwork.canAccept(inputFluid, mid, testEnthalpyQ)) {
+                    high = mid - 1;
+                    continue;
+                }
+
+                float pIn = inputNetwork.predictPressureAfterExtract(mid);
+                float pOut = outputNetwork.predictPressureAfterAdd(inputFluid, mid, testEnthalpyQ);
+
+                if (pOut <= pIn * 1.05f) {
+                    bestAmountQ = mid;
+                    low = mid + 1;
+                } else {
+                    high = mid - 1;
+                }
+            }
+
+            if (bestAmountQ < IntegratedFluidNetwork.AMOUNT_SCALE) {
+                return CheckRecipeResultRegistry.ITEM_OUTPUT_FULL;
+            }
+            amountToProcessQ = bestAmountQ;
         }
 
         IntegratedFluidNetwork.ExtractedPayload extracted =
@@ -956,8 +1094,8 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
             return CheckRecipeResultRegistry.NO_RECIPE;
         }
 
-        if (extracted.amountQ != amountToProcessQ && totalEnergyCost > 0L) {
-            double ratio = extracted.amountQ / (double) amountToProcessQ;
+        if (extracted.amountQ != originalAmountToProcessQ && totalEnergyCost > 0L) {
+            double ratio = extracted.amountQ / (double) originalAmountToProcessQ;
             totalEnergyCost = (long) Math.ceil(totalEnergyCost * ratio);
             this.totalEnergyCost = (int) ((totalEnergyCost + 19) / 20);
         }
