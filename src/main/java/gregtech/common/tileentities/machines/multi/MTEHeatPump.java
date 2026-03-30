@@ -27,8 +27,10 @@ import gregtech.api.interfaces.metatileentity.IMetaTileEntity;
 import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
 import gregtech.api.metatileentity.implementations.MTEEnhancedMultiBlockBase;
 import gregtech.api.metatileentity.implementations.integratedfluid.FluidThermalProperties;
+import gregtech.api.metatileentity.implementations.integratedfluid.IFNMachineThermo;
 import gregtech.api.metatileentity.implementations.integratedfluid.IntegratedFluidNetwork;
 import gregtech.api.metatileentity.implementations.integratedfluid.IntegratedFluidThermoModel;
+import gregtech.api.metatileentity.implementations.integratedfluid.IFNStateTransferPlanner;
 import gregtech.api.metatileentity.implementations.integratedfluid.MTEIntegratedFluidInputHatch;
 import gregtech.api.metatileentity.implementations.integratedfluid.MTEIntegratedFluidOutputHatch;
 import gregtech.api.recipe.check.CheckRecipeResult;
@@ -297,12 +299,14 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
                     currentEfficiencyPenalty = (float) penalty;
                     effectiveCOP = currentCOP / currentEfficiencyPenalty;
 
-                    double hTarget = FluidThermalProperties.getSpecificEnthalpyFromPT(
-                        inputFluid, redNetwork.getPressure(), hotTemperature
+                    double hTarget = FluidThermalProperties.getSpecificEnthalpyFromPT(inputFluid, redNetwork.getPressure(), hotTemperature);
+                    energyCost = IFNMachineThermo.computeHeatPumpEnergyCost(
+                        inputSpecificEnthalpy,
+                        hTarget,
+                        hotAmountQ,
+                        currentCOP,
+                        (float) penalty
                     );
-                    double desiredDh = hTarget - inputSpecificEnthalpy;
-                    double desiredQ = Math.abs(desiredDh) * hotAmount;
-                    energyCost = (long) Math.ceil(desiredQ / currentCOP * penalty);
                     hotSpecificEnthalpy = hTarget;
                 }
                 break;
@@ -327,12 +331,14 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
                 currentEfficiencyPenalty = (float) penalty;
                 effectiveCOP = currentCOP / currentEfficiencyPenalty;
 
-                double hTarget = FluidThermalProperties.getSpecificEnthalpyFromPT(
-                    inputFluid, redNetwork.getPressure(), hotTemperature
+                double hTarget = FluidThermalProperties.getSpecificEnthalpyFromPT(inputFluid, redNetwork.getPressure(), hotTemperature);
+                energyCost = IFNMachineThermo.computeHeatPumpEnergyCost(
+                    inputSpecificEnthalpy,
+                    hTarget,
+                    hotAmountQ,
+                    currentCOP,
+                    (float) penalty
                 );
-                double desiredDh = hTarget - inputSpecificEnthalpy;
-                double desiredQ = Math.abs(desiredDh) * hotAmount;
-                energyCost = (long) Math.ceil(desiredQ / currentCOP * penalty);
                 hotSpecificEnthalpy = hTarget;
                 break;
 
@@ -400,65 +406,23 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
 
         long originalAmountToProcessQ = amountToProcessQ;
         long originalEnergyCost = energyCost;
-        long maxRedAddableQ = redNetwork != inputNetwork
-            ? redNetwork.getMaxAddableAmountQ(inputFluid, hotSpecificEnthalpy, hotAmountQ)
-            : hotAmountQ;
-        long maxBlueAddableQ = blueNetwork != inputNetwork
-            ? blueNetwork.getMaxAddableAmountQ(inputFluid, coldSpecificEnthalpy, coldAmountQ)
-            : coldAmountQ;
-
         if (redNetwork != inputNetwork || blueNetwork != inputNetwork) {
-            if ((redNetwork != inputNetwork && maxRedAddableQ < IntegratedFluidNetwork.AMOUNT_SCALE)
-                || (blueNetwork != inputNetwork && maxBlueAddableQ < IntegratedFluidNetwork.AMOUNT_SCALE)) {
+            var plan = IFNStateTransferPlanner.planSplitStateAdd(
+                inputNetwork,
+                redNetwork,
+                inputFluid,
+                hotSpecificEnthalpy,
+                blueNetwork,
+                inputFluid,
+                coldSpecificEnthalpy,
+                amountToProcessQ,
+                splitRatio,
+                1.05f
+            );
+            if (plan.acceptedTotalAmountQ < IntegratedFluidNetwork.AMOUNT_SCALE) {
                 return CheckRecipeResultRegistry.ITEM_OUTPUT_FULL;
             }
-
-            long low = 0;
-            long high = amountToProcessQ;
-            long bestAmountQ = 0;
-
-            for (int i = 0; i < 35; i++) {
-                if (low > high) break;
-                long mid = (low + high) / 2;
-                if (mid < IntegratedFluidNetwork.AMOUNT_SCALE) {
-                    low = mid + 1;
-                    continue;
-                }
-
-                long testHotQ = (long) (mid * splitRatio);
-                long testColdQ = mid - testHotQ;
-
-                long testHotEnthalpyQ = toEnthalpyQ(hotSpecificEnthalpy, testHotQ);
-                long testColdEnthalpyQ = toEnthalpyQ(coldSpecificEnthalpy, testColdQ);
-
-                boolean ok = true;
-                if (redNetwork != inputNetwork && testHotQ > maxRedAddableQ) ok = false;
-                if (blueNetwork != inputNetwork && testColdQ > maxBlueAddableQ) ok = false;
-
-                if (ok) {
-                    float pIn = inputNetwork.predictPressureAfterExtract(mid);
-                    if (redNetwork != inputNetwork) {
-                        float pRed = redNetwork.predictPressureAfterStateAdd(inputFluid, testHotQ, testHotEnthalpyQ);
-                        if (pRed > pIn * 1.05f) ok = false;
-                    }
-                    if (ok && blueNetwork != inputNetwork) {
-                        float pBlue = blueNetwork.predictPressureAfterStateAdd(inputFluid, testColdQ, testColdEnthalpyQ);
-                        if (pBlue > pIn * 1.05f) ok = false;
-                    }
-                }
-
-                if (ok) {
-                    bestAmountQ = mid;
-                    low = mid + 1;
-                } else {
-                    high = mid - 1;
-                }
-            }
-
-            if (bestAmountQ < IntegratedFluidNetwork.AMOUNT_SCALE) {
-                return CheckRecipeResultRegistry.ITEM_OUTPUT_FULL;
-            }
-            amountToProcessQ = bestAmountQ;
+            amountToProcessQ = plan.acceptedTotalAmountQ;
         }
 
         // Extract from input
@@ -469,7 +433,7 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         if (extracted.amountQ != originalAmountToProcessQ) {
             double ratio = extracted.amountQ / (double) originalAmountToProcessQ;
             if (energyCost > 0L) {
-                energyCost = (long) Math.ceil(originalEnergyCost * ratio);
+                energyCost = IFNMachineThermo.scaleEnergyCost(originalEnergyCost, originalAmountToProcessQ, extracted.amountQ);
             }
         }
 
@@ -638,9 +602,13 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
                     effectiveCOP = currentCOP / currentEfficiencyPenalty;
 
                     double hTarget = FluidThermalProperties.getSpecificEnthalpyFromPT(targetFluid, targetOutNet.getPressure(), targetOutTemp);
-                    double desiredDh = hTarget - targetInH;
-                    double desiredQ = Math.abs(desiredDh) * targetProcessAmt;
-                    energyCost = (long) Math.ceil(desiredQ / currentCOP * penalty);
+                    energyCost = IFNMachineThermo.computeHeatPumpEnergyCost(
+                        targetInH,
+                        hTarget,
+                        targetProcessQ,
+                        currentCOP,
+                        (float) penalty
+                    );
                     targetOutH = hTarget;
                 }
                 break;
@@ -671,9 +639,13 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
                 effectiveCOP = currentCOP / currentEfficiencyPenalty;
 
                 double hTarget = FluidThermalProperties.getSpecificEnthalpyFromPT(targetFluid, targetOutNet.getPressure(), targetOutTemp);
-                double desiredDh = hTarget - targetInH;
-                double desiredQ = Math.abs(desiredDh) * targetProcessAmt;
-                energyCost = (long) Math.ceil(desiredQ / currentCOP * penalty);
+                energyCost = IFNMachineThermo.computeHeatPumpEnergyCost(
+                    targetInH,
+                    hTarget,
+                    targetProcessQ,
+                    currentCOP,
+                    (float) penalty
+                );
                 targetOutH = hTarget;
                 break;
             case TARGET_ENERGY:
@@ -752,71 +724,31 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         long originalRedProcessQ = redBaseQ;
         long originalBlueProcessQ = blueBaseQ;
         long originalEnergyCost = energyCost;
-        long maxRedAddableQ = redOutNet != redInNet
-            ? redOutNet.getMaxAddableAmountQ(redFluid, redOutH, redBaseQ)
-            : redBaseQ;
-        long maxBlueAddableQ = blueOutNet != blueInNet
-            ? blueOutNet.getMaxAddableAmountQ(blueFluid, blueOutH, blueBaseQ)
-            : blueBaseQ;
-
         long redProcessQ = redBaseQ;
         long blueProcessQ = blueBaseQ;
 
         if (redOutNet != redInNet || blueOutNet != blueInNet) {
-            if ((redOutNet != redInNet && maxRedAddableQ < IntegratedFluidNetwork.AMOUNT_SCALE)
-                || (blueOutNet != blueInNet && maxBlueAddableQ < IntegratedFluidNetwork.AMOUNT_SCALE)) {
+            var plan = IFNStateTransferPlanner.planDualStateAddWithSharedRatio(
+                redInNet,
+                redOutNet,
+                redFluid,
+                redOutH,
+                redBaseQ,
+                blueInNet,
+                blueOutNet,
+                blueFluid,
+                blueOutH,
+                blueBaseQ,
+                1.05f
+            );
+            if (plan.acceptedRatio <= 0.0d
+                || plan.acceptedRedAmountQ < IntegratedFluidNetwork.AMOUNT_SCALE
+                || plan.acceptedBlueAmountQ < IntegratedFluidNetwork.AMOUNT_SCALE) {
                 return CheckRecipeResultRegistry.ITEM_OUTPUT_FULL;
             }
 
-            double low = 0.0;
-            double high = 1.0;
-            double bestRatio = 0.0;
-
-            for (int i = 0; i < 35; i++) {
-                double mid = (low + high) / 2.0;
-
-                long testRedQ = (long) (redProcessQ * mid);
-                long testBlueQ = (long) (blueProcessQ * mid);
-
-                if (testRedQ < IntegratedFluidNetwork.AMOUNT_SCALE || testBlueQ < IntegratedFluidNetwork.AMOUNT_SCALE) {
-                    low = mid;
-                    continue;
-                }
-
-                long testOutRedEnthalpyQ = toEnthalpyQ(redOutH, testRedQ);
-                long testOutBlueEnthalpyQ = toEnthalpyQ(blueOutH, testBlueQ);
-
-                boolean ok = true;
-                if (redOutNet != redInNet && testRedQ > maxRedAddableQ) ok = false;
-                if (blueOutNet != blueInNet && testBlueQ > maxBlueAddableQ) ok = false;
-
-                if (ok) {
-                    if (redOutNet != redInNet) {
-                        float pIn = redInNet.predictPressureAfterExtract(testRedQ);
-                        float pOut = redOutNet.predictPressureAfterStateAdd(redFluid, testRedQ, testOutRedEnthalpyQ);
-                        if (pOut > pIn * 1.05f) ok = false;
-                    }
-                    if (ok && blueOutNet != blueInNet) {
-                        float pIn = blueInNet.predictPressureAfterExtract(testBlueQ);
-                        float pOut = blueOutNet.predictPressureAfterStateAdd(blueFluid, testBlueQ, testOutBlueEnthalpyQ);
-                        if (pOut > pIn * 1.05f) ok = false;
-                    }
-                }
-
-                if (ok) {
-                    bestRatio = mid;
-                    low = mid;
-                } else {
-                    high = mid;
-                }
-            }
-
-            if (bestRatio <= 0.0 || (redBaseQ * bestRatio) < IntegratedFluidNetwork.AMOUNT_SCALE || (blueBaseQ * bestRatio) < IntegratedFluidNetwork.AMOUNT_SCALE) {
-                return CheckRecipeResultRegistry.ITEM_OUTPUT_FULL;
-            }
-
-            redProcessQ = (long) (redProcessQ * bestRatio);
-            blueProcessQ = (long) (blueProcessQ * bestRatio);
+            redProcessQ = plan.acceptedRedAmountQ;
+            blueProcessQ = plan.acceptedBlueAmountQ;
         }
 
         var extractedRed = redInNet.extractProportional(redProcessQ, false);
@@ -832,7 +764,9 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         double finalRatio = Math.min(ratioRed, ratioBlue);
 
         if (finalRatio < 1.0 && originalEnergyCost > 0L) {
-            energyCost = (long) Math.ceil(originalEnergyCost * finalRatio);
+            long scaledRedEnergy = IFNMachineThermo.scaleEnergyCost(originalEnergyCost, originalRedProcessQ, extractedRed.amountQ);
+            long scaledBlueEnergy = IFNMachineThermo.scaleEnergyCost(originalEnergyCost, originalBlueProcessQ, extractedBlue.amountQ);
+            energyCost = Math.min(scaledRedEnergy, scaledBlueEnergy);
         }
 
         currentEnergyUsage = energyCost;
@@ -953,15 +887,19 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
                     currentEfficiencyPenalty = (float) penalty;
                     effectiveCOP = currentCOP / currentEfficiencyPenalty;
 
-                    double hTarget = computeTargetSpecificEnthalpyForStateAdd(
+                    double hTarget = IFNMachineThermo.computeTargetSpecificEnthalpyForStateAdd(
                         outputNetwork,
                         inputFluid,
                         outputTemperature,
                         amountToProcessQ
                     );
-                    double desiredDh = hTarget - inputSpecificEnthalpy;
-                    double desiredQ = Math.abs(desiredDh) * amountToProcess;
-                    totalEnergyCost = (long) Math.ceil(desiredQ / currentCOP * penalty);
+                    totalEnergyCost = IFNMachineThermo.computeHeatPumpEnergyCost(
+                        inputSpecificEnthalpy,
+                        hTarget,
+                        amountToProcessQ,
+                        currentCOP,
+                        (float) penalty
+                    );
                     this.totalEnergyCost = (int) ((totalEnergyCost + 19) / 20);
                     outputSpecificEnthalpy = hTarget;
                 }
@@ -992,15 +930,19 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
                 currentEfficiencyPenalty = (float) penalty;
                 effectiveCOP = currentCOP / currentEfficiencyPenalty;
 
-                double hTarget = computeTargetSpecificEnthalpyForStateAdd(
+                double hTarget = IFNMachineThermo.computeTargetSpecificEnthalpyForStateAdd(
                     outputNetwork,
                     inputFluid,
                     outputTemperature,
                     amountToProcessQ
                 );
-                double desiredDh = hTarget - inputSpecificEnthalpy;
-                double desiredQ = Math.abs(desiredDh) * amountToProcess;
-                totalEnergyCost = (long) Math.ceil(desiredQ / currentCOP * penalty);
+                totalEnergyCost = IFNMachineThermo.computeHeatPumpEnergyCost(
+                    inputSpecificEnthalpy,
+                    hTarget,
+                    amountToProcessQ,
+                    currentCOP,
+                    (float) penalty
+                );
                 this.totalEnergyCost = (int) ((totalEnergyCost + 19) / 20);
                 outputSpecificEnthalpy = hTarget;
                 break;
@@ -1074,39 +1016,18 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         long originalAmountToProcessQ = amountToProcessQ;
 
         if (outputNetwork != inputNetwork) {
-            long maxAddableQ = outputNetwork.getMaxAddableAmountQ(inputFluid, outputSpecificEnthalpy, amountToProcessQ);
-            if (maxAddableQ < IntegratedFluidNetwork.AMOUNT_SCALE) {
+            var plan = IFNStateTransferPlanner.planSingleOutputStateAdd(
+                inputNetwork,
+                outputNetwork,
+                inputFluid,
+                outputSpecificEnthalpy,
+                amountToProcessQ,
+                1.05f
+            );
+            if (plan.acceptedAmountQ < IntegratedFluidNetwork.AMOUNT_SCALE) {
                 return CheckRecipeResultRegistry.ITEM_OUTPUT_FULL;
             }
-
-            long low = 0;
-            long high = Math.min(amountToProcessQ, maxAddableQ);
-            long bestAmountQ = 0;
-
-            for (int i = 0; i < 35; i++) {
-                if (low > high) break;
-                long mid = (low + high) / 2;
-                if (mid < IntegratedFluidNetwork.AMOUNT_SCALE) {
-                    low = mid + 1;
-                    continue;
-                }
-
-                long testEnthalpyQ = toEnthalpyQ(outputSpecificEnthalpy, mid);
-                float pIn = inputNetwork.predictPressureAfterExtract(mid);
-                float pOut = outputNetwork.predictPressureAfterStateAdd(inputFluid, mid, testEnthalpyQ);
-
-                if (pOut <= pIn * 1.05f) {
-                    bestAmountQ = mid;
-                    low = mid + 1;
-                } else {
-                    high = mid - 1;
-                }
-            }
-
-            if (bestAmountQ < IntegratedFluidNetwork.AMOUNT_SCALE) {
-                return CheckRecipeResultRegistry.ITEM_OUTPUT_FULL;
-            }
-            amountToProcessQ = bestAmountQ;
+            amountToProcessQ = plan.acceptedAmountQ;
         }
 
         IntegratedFluidNetwork.ExtractedPayload extracted =
@@ -1116,22 +1037,25 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         }
 
         if (extracted.amountQ != originalAmountToProcessQ && totalEnergyCost > 0L) {
-            double ratio = extracted.amountQ / (double) originalAmountToProcessQ;
-            totalEnergyCost = (long) Math.ceil(totalEnergyCost * ratio);
+            totalEnergyCost = IFNMachineThermo.scaleEnergyCost(totalEnergyCost, originalAmountToProcessQ, extracted.amountQ);
             this.totalEnergyCost = (int) ((totalEnergyCost + 19) / 20);
         }
 
         if (!passthroughMode && operatingMode != HeatPumpMode.TARGET_ENERGY) {
-            outputSpecificEnthalpy = computeTargetSpecificEnthalpyForStateAdd(
+            outputSpecificEnthalpy = IFNMachineThermo.computeTargetSpecificEnthalpyForStateAdd(
                 outputNetwork,
                 inputFluid,
                 outputTemperature,
                 extracted.amountQ
             );
 
-            double exactDesiredDh = Math.abs(outputSpecificEnthalpy - inputSpecificEnthalpy);
-            double exactDesiredQ = exactDesiredDh * toAmount(extracted.amountQ);
-            totalEnergyCost = (long) Math.ceil(exactDesiredQ / currentCOP * currentEfficiencyPenalty);
+            totalEnergyCost = IFNMachineThermo.computeHeatPumpEnergyCost(
+                inputSpecificEnthalpy,
+                outputSpecificEnthalpy,
+                extracted.amountQ,
+                currentCOP,
+                currentEfficiencyPenalty
+            );
             this.totalEnergyCost = (int) ((totalEnergyCost + 19) / 20);
         }
 
@@ -1294,42 +1218,6 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
 
     private static long toEnthalpyQ(double specificEnthalpy, long amountQ) {
         return toEnthalpyQ(specificEnthalpy * toAmount(amountQ));
-    }
-
-    private static double computeTargetSpecificEnthalpyForStateAdd(IntegratedFluidNetwork network, Fluid fluid,
-        double targetTemperature, long addAmountQ) {
-        if (network == null || fluid == null) {
-            return 0.0d;
-        }
-
-        float initialPressure = Math.max(1.0e-4f, network.getPressure());
-        double targetSpecificEnthalpy = FluidThermalProperties.getSpecificEnthalpyFromPT(
-            fluid,
-            initialPressure,
-            targetTemperature
-        );
-        if (addAmountQ < IntegratedFluidNetwork.AMOUNT_SCALE) {
-            return targetSpecificEnthalpy;
-        }
-
-        long targetEnthalpyQ = toEnthalpyQ(targetSpecificEnthalpy, addAmountQ);
-        float predictedPressure = network.predictPressureAfterStateAdd(fluid, addAmountQ, targetEnthalpyQ);
-        if (Float.isNaN(predictedPressure) || Float.isInfinite(predictedPressure) || predictedPressure <= 0.0f) {
-            return targetSpecificEnthalpy;
-        }
-
-        double correctedSpecificEnthalpy = FluidThermalProperties.getSpecificEnthalpyFromPT(
-            fluid,
-            predictedPressure,
-            targetTemperature
-        );
-        long correctedEnthalpyQ = toEnthalpyQ(correctedSpecificEnthalpy, addAmountQ);
-        float correctedPressure = network.predictPressureAfterStateAdd(fluid, addAmountQ, correctedEnthalpyQ);
-        if (Float.isNaN(correctedPressure) || Float.isInfinite(correctedPressure) || correctedPressure <= 0.0f) {
-            return correctedSpecificEnthalpy;
-        }
-
-        return FluidThermalProperties.getSpecificEnthalpyFromPT(fluid, correctedPressure, targetTemperature);
     }
 
     public float getCOP() {

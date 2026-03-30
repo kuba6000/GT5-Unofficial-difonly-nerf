@@ -28,6 +28,7 @@ import gregtech.api.metatileentity.implementations.integratedfluid.FluidThermalP
 import gregtech.api.metatileentity.implementations.integratedfluid.MTEIntegratedFluidInputHatch;
 import gregtech.api.metatileentity.implementations.integratedfluid.MTEIntegratedFluidOutputHatch;
 import gregtech.api.metatileentity.implementations.integratedfluid.IntegratedFluidNetwork;
+import gregtech.api.metatileentity.implementations.integratedfluid.IFNStateTransferPlanner;
 import gregtech.api.recipe.check.CheckRecipeResult;
 import gregtech.api.recipe.check.CheckRecipeResultRegistry;
 import gregtech.api.recipe.check.SimpleCheckRecipeResult;
@@ -239,39 +240,19 @@ public class MTERadiator extends MTEEnhancedMultiBlockBase<MTERadiator> implemen
         long originalEnergyCost = totalEnergyCost;
 
         if (outputNetwork != inputNetwork) {
-            long maxCandidateAmountQ = fluidToProcess * IntegratedFluidNetwork.AMOUNT_SCALE;
-            long maxAddableQ = outputNetwork.getMaxAddableAmountQ(inputFluid.getFluid(), outSpecH, maxCandidateAmountQ);
-            if (maxAddableQ < IntegratedFluidNetwork.AMOUNT_SCALE) {
+            long requestedAmountQ = fluidToProcess * IntegratedFluidNetwork.AMOUNT_SCALE;
+            var plan = IFNStateTransferPlanner.planSingleOutputStateAdd(
+                inputNetwork,
+                outputNetwork,
+                inputFluid.getFluid(),
+                outSpecH,
+                requestedAmountQ,
+                1.0f
+            );
+            if (plan.acceptedAmountQ < IntegratedFluidNetwork.AMOUNT_SCALE) {
                 return CheckRecipeResultRegistry.ITEM_OUTPUT_FULL;
             }
-
-            long low = 0;
-            long high = Math.min(fluidToProcess, toAmountMb(maxAddableQ));
-            long bestAmount = 0;
-
-            for (int i = 0; i < 20; i++) {
-                if (low > high) break;
-                long mid = (low + high) / 2;
-                if (mid <= 0) break;
-
-                long testAmountQ = mid * IntegratedFluidNetwork.AMOUNT_SCALE;
-                long testEnthalpyQ = IntegratedFluidNetwork.toEnthalpyQFromSpecific(outSpecH, testAmountQ);
-
-                float pIn = inputNetwork.predictPressureAfterExtract(testAmountQ);
-                float pOut = outputNetwork.predictPressureAfterStateAdd(inputFluid.getFluid(), testAmountQ, testEnthalpyQ);
-
-                if (pOut <= pIn * 1.0f) {
-                    bestAmount = mid;
-                    low = mid + 1;
-                } else {
-                    high = mid - 1;
-                }
-            }
-
-            if (bestAmount <= 0) {
-                return CheckRecipeResultRegistry.ITEM_OUTPUT_FULL;
-            }
-            fluidToProcess = (int) bestAmount;
+            fluidToProcess = toAmountMb(plan.acceptedAmountQ);
         }
 
         double ratio = fluidToProcess / (double) originalFluidToProcess;
