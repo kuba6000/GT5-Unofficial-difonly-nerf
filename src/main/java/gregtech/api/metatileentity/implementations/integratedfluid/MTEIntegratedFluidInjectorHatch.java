@@ -334,16 +334,10 @@ public class MTEIntegratedFluidInjectorHatch extends MTEHatch implements IIntegr
                 return 0;
             }
 
-            long tryAmountMb = addAmountMb;
-            while (tryAmountMb > 0L) {
-                long tryAmountQ = toAmountQ(tryAmountMb);
-                long tryEnthalpyQ = IntegratedFluidNetwork.toEnthalpyQFromSpecific(hSpecIn, tryAmountQ);
-                if (network.canAccept(resource.getFluid(), tryAmountQ, tryEnthalpyQ)) {
-                    break;
-                }
-                tryAmountMb /= 2L;
-            }
-            if (tryAmountMb <= 0L) {
+            long maxCandidateAmountQ = toAmountQ(addAmountMb);
+            long acceptedAmountQ = network.getMaxAddableAmountQ(resource.getFluid(), hSpecIn, maxCandidateAmountQ);
+            long acceptedAmountMb = acceptedAmountQ / IntegratedFluidNetwork.AMOUNT_SCALE;
+            if (acceptedAmountMb <= 0L) {
                 if (doFill) {
                     amountRemainderMb = nextRemainder;
                 }
@@ -351,25 +345,25 @@ public class MTEIntegratedFluidInjectorHatch extends MTEHatch implements IIntegr
             }
 
             if (doFill) {
-                long tryAmountQ = toAmountQ(tryAmountMb);
-                long tryEnthalpyQ = IntegratedFluidNetwork.toEnthalpyQFromSpecific(hSpecIn, tryAmountQ);
-                network.add(resource.getFluid(), tryAmountQ, tryEnthalpyQ);
-                if (tryAmountMb < addAmountMb) {
-                    amountRemainderMb = nextRemainder + (addAmountMb - tryAmountMb);
+                long acceptedWholeAmountQ = toAmountQ(acceptedAmountMb);
+                long acceptedEnthalpyQ = IntegratedFluidNetwork.toEnthalpyQFromSpecific(hSpecIn, acceptedWholeAmountQ);
+                network.add(resource.getFluid(), acceptedWholeAmountQ, acceptedEnthalpyQ);
+                if (acceptedAmountMb < addAmountMb) {
+                    amountRemainderMb = nextRemainder + (addAmountMb - acceptedAmountMb);
                 } else {
                     amountRemainderMb = nextRemainder;
                 }
             }
 
             if (injectMode == InjectMode.INJECT_REAL_PIPE_VOLUME) {
-                long realAccepted = (long) Math.floor(tryAmountMb * vFactor);
+                long realAccepted = (long) Math.floor(acceptedAmountMb * vFactor);
                 if (realAccepted <= 0L) {
                     return 0;
                 }
                 return (int) Math.min(resource.amount, realAccepted);
             }
 
-            return (int) Math.min(resource.amount, tryAmountMb);
+            return (int) Math.min(resource.amount, acceptedAmountMb);
         }
         return 0;
     }

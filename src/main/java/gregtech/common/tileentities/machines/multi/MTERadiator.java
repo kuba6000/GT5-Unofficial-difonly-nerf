@@ -28,7 +28,6 @@ import gregtech.api.metatileentity.implementations.integratedfluid.FluidThermalP
 import gregtech.api.metatileentity.implementations.integratedfluid.MTEIntegratedFluidInputHatch;
 import gregtech.api.metatileentity.implementations.integratedfluid.MTEIntegratedFluidOutputHatch;
 import gregtech.api.metatileentity.implementations.integratedfluid.IntegratedFluidNetwork;
-import gregtech.api.metatileentity.implementations.integratedfluid.IntegratedFluidThermoModel;
 import gregtech.api.recipe.check.CheckRecipeResult;
 import gregtech.api.recipe.check.CheckRecipeResultRegistry;
 import gregtech.api.recipe.check.SimpleCheckRecipeResult;
@@ -206,11 +205,6 @@ public class MTERadiator extends MTEEnhancedMultiBlockBase<MTERadiator> implemen
             return CheckRecipeResultRegistry.ITEM_OUTPUT_FULL;
         }
 
-        int availableSpace = outputNetwork.getAvailableSpace();
-        if (availableSpace <= 0) {
-            return CheckRecipeResultRegistry.ITEM_OUTPUT_FULL;
-        }
-
         // IMPORTANT: Remember input temperature BEFORE draining!
         // This preserves temperature for output calculation even if network becomes empty
         float inputTemperature = inputNetwork.getTemperature();
@@ -220,7 +214,6 @@ public class MTERadiator extends MTEEnhancedMultiBlockBase<MTERadiator> implemen
 
         // Calculate how much fluid to process
         int fluidToProcess = Math.min(inputFluid.amount, HEAT_CAPACITY_PER_TICK);
-        fluidToProcess = Math.min(fluidToProcess, availableSpace);
 
         if (fluidToProcess <= 0) {
             return CheckRecipeResultRegistry.NO_RECIPE;
@@ -239,16 +232,22 @@ public class MTERadiator extends MTEEnhancedMultiBlockBase<MTERadiator> implemen
             fluidForCalculation,
             temperatureDelta
         );
+        double outSpecH = FluidThermalProperties
+            .getSpecificEnthalpyFromPT(inputFluid.getFluid(), outputNetwork.getPressure(), TARGET_TEMPERATURE);
 
         long originalFluidToProcess = fluidToProcess;
         long originalEnergyCost = totalEnergyCost;
 
         if (outputNetwork != inputNetwork) {
-            long low = 0;
-            long high = fluidToProcess;
-            long bestAmount = 0;
+            long maxCandidateAmountQ = fluidToProcess * IntegratedFluidNetwork.AMOUNT_SCALE;
+            long maxAddableQ = outputNetwork.getMaxAddableAmountQ(inputFluid.getFluid(), outSpecH, maxCandidateAmountQ);
+            if (maxAddableQ < IntegratedFluidNetwork.AMOUNT_SCALE) {
+                return CheckRecipeResultRegistry.ITEM_OUTPUT_FULL;
+            }
 
-            double outSpecH = IntegratedFluidThermoModel.specificEnthalpyFromTemperature(inputFluid.getFluid(), TARGET_TEMPERATURE);
+            long low = 0;
+            long high = Math.min(fluidToProcess, toAmountMb(maxAddableQ));
+            long bestAmount = 0;
 
             for (int i = 0; i < 20; i++) {
                 if (low > high) break;
@@ -259,7 +258,7 @@ public class MTERadiator extends MTEEnhancedMultiBlockBase<MTERadiator> implemen
                 long testEnthalpyQ = IntegratedFluidNetwork.toEnthalpyQFromSpecific(outSpecH, testAmountQ);
 
                 float pIn = inputNetwork.predictPressureAfterExtract(testAmountQ);
-                float pOut = outputNetwork.predictPressureAfterAdd(inputFluid.getFluid(), testAmountQ, testEnthalpyQ);
+                float pOut = outputNetwork.predictPressureAfterStateAdd(inputFluid.getFluid(), testAmountQ, testEnthalpyQ);
 
                 if (pOut <= pIn * 1.0f) {
                     bestAmount = mid;
@@ -292,20 +291,9 @@ public class MTERadiator extends MTEEnhancedMultiBlockBase<MTERadiator> implemen
             return CheckRecipeResultRegistry.NO_RECIPE;
         }
 
-        // Cool the fluid (create copy for output)
-        FluidStack cooledFluid = drainedFluid.copy();
-
-
-        // Add to output network with decreased temperature (cool to TARGET_TEMPERATURE = 300K)
-        int added = outputNetwork.addFluid(cooledFluid, false, TARGET_TEMPERATURE);
-        if (added != cooledFluid.amount) {
-            // Couldn't add all fluid - return excess to input at original temperature
-            if (added < cooledFluid.amount) {
-                FluidStack excess = cooledFluid.copy();
-                excess.amount = cooledFluid.amount - added;
-                inputNetwork.addFluid(excess, false, inputTemperature);
-            }
-        }
+        long drainedAmountQ = drainedFluid.amount * IntegratedFluidNetwork.AMOUNT_SCALE;
+        long cooledEnthalpyQ = IntegratedFluidNetwork.toEnthalpyQFromSpecific(outSpecH, drainedAmountQ);
+        outputNetwork.addState(inputFluid.getFluid(), drainedAmountQ, cooledEnthalpyQ);
 
         // Recipe successful - set to continuous operation
         this.mMaxProgresstime = 20; // 1 second (20 ticks)
@@ -383,5 +371,9 @@ public class MTERadiator extends MTEEnhancedMultiBlockBase<MTERadiator> implemen
         if (network == null) return "";
         var fluid = network.getStoredFluid();
         return fluid != null ? fluid.getLocalizedName() : "";
+    }
+
+    private static int toAmountMb(long amountQ) {
+        return (int) Math.min(Integer.MAX_VALUE, amountQ / IntegratedFluidNetwork.AMOUNT_SCALE);
     }
 }

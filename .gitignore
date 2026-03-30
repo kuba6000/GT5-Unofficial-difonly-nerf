@@ -38,3 +38,5 @@ addon.late.local.gradle.kts
 /.vs
 layout.json
 /scratch/
+/.gradle-home
+TODO.md

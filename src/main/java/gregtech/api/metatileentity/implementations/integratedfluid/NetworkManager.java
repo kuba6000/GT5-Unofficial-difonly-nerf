@@ -162,7 +162,7 @@ public class NetworkManager {
                     if (fluid != null) {
                         long proportionalEnthalpyQ = IntegratedFluidNetwork
                             .toEnthalpyQFromSpecific(oldSpecificEnthalpy, proportionalAmountQ);
-                        newNetwork.add(fluid, proportionalAmountQ, proportionalEnthalpyQ);
+                        newNetwork.addState(fluid, proportionalAmountQ, proportionalEnthalpyQ);
                     }
                 }
             }
@@ -288,7 +288,7 @@ public class NetworkManager {
                     net.minecraftforge.fluids.FluidRegistry.getFluid(combinedFluidName);
                 if (isMerge) {
                     if (fluid != null) {
-                        newNetwork.add(fluid, combinedAmountQ, combinedEnthalpyQ);
+                        newNetwork.addState(fluid, combinedAmountQ, combinedEnthalpyQ);
                     }
                 } else if (totalCapacity > 0) {
                     int newCapacity = newNetwork.getTotalCapacity();
@@ -296,7 +296,7 @@ public class NetworkManager {
                     if (proportionalAmountQ >= IntegratedFluidNetwork.AMOUNT_SCALE && fluid != null) {
                         long proportionalEnthalpyQ = IntegratedFluidNetwork
                             .toEnthalpyQFromSpecific(combinedSpecificEnthalpy, proportionalAmountQ);
-                        newNetwork.add(fluid, proportionalAmountQ, proportionalEnthalpyQ);
+                        newNetwork.addState(fluid, proportionalAmountQ, proportionalEnthalpyQ);
                     }
                 }
             }
