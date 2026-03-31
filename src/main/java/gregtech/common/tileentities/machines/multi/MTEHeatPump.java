@@ -46,6 +46,7 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
 
     private static final String STRUCTURE_PIECE_MAIN = "main";
     private static final int MAX_FLUID_PER_OPERATION = 1000; // Maximum fluid amount per operation (in mB)
+    private static final float MAX_OUTPUT_TO_INPUT_PRESSURE_RATIO = 1.00f;
     private static final float COLD_RESERVOIR_TEMPERATURE = 300.0f; // Ambient temperature for COP calculation
     private static final float DEFAULT_TARGET_TEMPERATURE = 310.0f; // Default target output temperature (310K)
     private static final float DEFAULT_TARGET_COP = 5.0f; // Default COP target
@@ -417,7 +418,7 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
                 coldSpecificEnthalpy,
                 amountToProcessQ,
                 splitRatio,
-                1.05f
+                MAX_OUTPUT_TO_INPUT_PRESSURE_RATIO
             );
             if (plan.acceptedTotalAmountQ < IntegratedFluidNetwork.AMOUNT_SCALE) {
                 return CheckRecipeResultRegistry.ITEM_OUTPUT_FULL;
@@ -739,7 +740,7 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
                 blueFluid,
                 blueOutH,
                 blueBaseQ,
-                1.05f
+                MAX_OUTPUT_TO_INPUT_PRESSURE_RATIO
             );
             if (plan.acceptedRatio <= 0.0d
                 || plan.acceptedRedAmountQ < IntegratedFluidNetwork.AMOUNT_SCALE
@@ -1016,18 +1017,34 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         long originalAmountToProcessQ = amountToProcessQ;
 
         if (outputNetwork != inputNetwork) {
-            var plan = IFNStateTransferPlanner.planSingleOutputStateAdd(
-                inputNetwork,
-                outputNetwork,
-                inputFluid,
-                outputSpecificEnthalpy,
-                amountToProcessQ,
-                1.05f
-            );
-            if (plan.acceptedAmountQ < IntegratedFluidNetwork.AMOUNT_SCALE) {
-                return CheckRecipeResultRegistry.ITEM_OUTPUT_FULL;
+            long plannedAmountQ = amountToProcessQ;
+            for (int pass = 0; pass < 3; pass++) {
+                if (!passthroughMode && operatingMode != HeatPumpMode.TARGET_ENERGY) {
+                    outputSpecificEnthalpy = IFNMachineThermo.computeTargetSpecificEnthalpyForStateAdd(
+                        outputNetwork,
+                        inputFluid,
+                        outputTemperature,
+                        plannedAmountQ
+                    );
+                }
+
+                var plan = IFNStateTransferPlanner.planSingleOutputStateAdd(
+                    inputNetwork,
+                    outputNetwork,
+                    inputFluid,
+                    outputSpecificEnthalpy,
+                    plannedAmountQ,
+                    MAX_OUTPUT_TO_INPUT_PRESSURE_RATIO
+                );
+                if (plan.acceptedAmountQ < IntegratedFluidNetwork.AMOUNT_SCALE) {
+                    return CheckRecipeResultRegistry.ITEM_OUTPUT_FULL;
+                }
+                amountToProcessQ = plan.acceptedAmountQ;
+                if (plan.acceptedAmountQ >= plannedAmountQ) {
+                    break;
+                }
+                plannedAmountQ = plan.acceptedAmountQ;
             }
-            amountToProcessQ = plan.acceptedAmountQ;
         }
 
         IntegratedFluidNetwork.ExtractedPayload extracted =

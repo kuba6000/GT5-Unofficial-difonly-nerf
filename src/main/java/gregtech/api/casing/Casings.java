@@ -352,6 +352,14 @@ public enum Casings implements ICasing {
         (() -> GregTechAPI.sBlockCasings11, 6, gt(16, 4, 6)),
     BlackPlutoniumItemPipeCasing
         (() -> GregTechAPI.sBlockCasings11, 7, gt(16, 4, 7)),
+    RadiatorLoopPort
+        (() -> GregTechAPI.sBlockCasings11, 8, gt(16, 4, 8)),
+    RadiatorLoopPipe
+        (() -> GregTechAPI.sBlockCasings11, 9, gt(16, 4, 9)),
+    RadiatorConductionModule
+        (() -> GregTechAPI.sBlockCasings11, 10, gt(16, 4, 10)),
+    RadiatorHeatExchangeModule
+        (() -> GregTechAPI.sBlockCasings11, 11, gt(16, 4, 11)),
 
     // Block Casings 12
     CokeOvenBricks

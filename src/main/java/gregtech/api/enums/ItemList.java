@@ -1536,6 +1536,10 @@ public enum ItemList implements IItemContainer {
     Machine_Multi_Autoclave,
     Machine_HeatPump,
     Machine_Radiator,
+    Radiator_Loop_Port,
+    Radiator_Loop_Pipe,
+    Radiator_Conduction_Module,
+    Radiator_Heat_Exchange_Module,
     Integrated_Fluid_Extractor,
     Casing_Autoclave,
 

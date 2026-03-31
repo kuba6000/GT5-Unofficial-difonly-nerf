@@ -28,6 +28,8 @@ public class BlockCasings11 extends BlockCasingsAbstract {
         register(5, ItemList.Casing_Item_Pipe_Quantium);
         register(6, ItemList.Casing_Item_Pipe_Fluxed_Electrum);
         register(7, ItemList.Casing_Item_Pipe_Black_Plutonium);
+        register(8, ItemList.Radiator_Loop_Port);
+        register(9, ItemList.Radiator_Loop_Pipe);
 
         for (int i = 0; i < 8; i++) {
             GTStructureChannels.ITEM_PIPE_CASING.registerAsIndicator(new ItemStack(this, 1, i), i + 1);
@@ -50,6 +52,10 @@ public class BlockCasings11 extends BlockCasingsAbstract {
             case 5 -> Textures.BlockIcons.MACHINE_CASING_ITEM_PIPE_QUANTIUM.getIcon();
             case 6 -> Textures.BlockIcons.MACHINE_CASING_ITEM_PIPE_FLUXED_ELECTRUM.getIcon();
             case 7 -> Textures.BlockIcons.MACHINE_CASING_ITEM_PIPE_BLACK_PLUTONIUM.getIcon();
+            case 8 -> Textures.BlockIcons.COOLANT_DUCT_CASING.getIcon();
+            case 9 -> Textures.BlockIcons.MACHINE_CASING_INSULATED_FLUID_PIPE.getIcon();
+            case 10 -> Textures.BlockIcons.MACHINE_CASING_CABLE.getIcon();
+            case 11 -> Textures.BlockIcons.MASS_SOLIDIFIER_RADIATOR_CASING.getIcon();
             default -> Textures.BlockIcons.MACHINE_CASING_ITEM_PIPE_TIN.getIcon();
         };
     }

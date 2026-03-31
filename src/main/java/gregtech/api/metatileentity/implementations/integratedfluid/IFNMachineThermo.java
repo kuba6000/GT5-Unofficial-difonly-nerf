@@ -18,34 +18,33 @@ public final class IFNMachineThermo {
             return 0.0d;
         }
 
-        float initialPressure = Math.max(1.0e-4f, network.getPressure());
-        double targetSpecificEnthalpy = FluidThermalProperties.getSpecificEnthalpyFromPT(
-            fluid,
-            initialPressure,
-            targetTemperature
-        );
         if (addAmountQ < IntegratedFluidNetwork.AMOUNT_SCALE) {
-            return targetSpecificEnthalpy;
+            float initialPressure = Math.max(1.0e-4f, network.getPressure());
+            return FluidThermalProperties.getSpecificEnthalpyFromPT(fluid, initialPressure, targetTemperature);
         }
 
-        long targetEnthalpyQ = toEnthalpyQ(targetSpecificEnthalpy, addAmountQ);
-        float predictedPressure = network.predictPressureAfterStateAdd(fluid, addAmountQ, targetEnthalpyQ);
-        if (Float.isNaN(predictedPressure) || Float.isInfinite(predictedPressure) || predictedPressure <= 0.0f) {
-            return targetSpecificEnthalpy;
+        float pressureGuess = Math.max(1.0e-4f, network.getPressure());
+        double specificEnthalpy = FluidThermalProperties.getSpecificEnthalpyFromPT(fluid, pressureGuess, targetTemperature);
+
+        for (int pass = 0; pass < 4; pass++) {
+            long enthalpyQ = toEnthalpyQ(specificEnthalpy, addAmountQ);
+            float predictedPressure = network.predictPressureAfterStateAdd(fluid, addAmountQ, enthalpyQ);
+            if (Float.isNaN(predictedPressure) || Float.isInfinite(predictedPressure) || predictedPressure <= 0.0f) {
+                return specificEnthalpy;
+            }
+
+            double correctedSpecificEnthalpy = FluidThermalProperties.getSpecificEnthalpyFromPT(
+                fluid,
+                predictedPressure,
+                targetTemperature
+            );
+            if (Math.abs(correctedSpecificEnthalpy - specificEnthalpy) < 1.0e-6d) {
+                return correctedSpecificEnthalpy;
+            }
+            specificEnthalpy = correctedSpecificEnthalpy;
         }
 
-        double correctedSpecificEnthalpy = FluidThermalProperties.getSpecificEnthalpyFromPT(
-            fluid,
-            predictedPressure,
-            targetTemperature
-        );
-        long correctedEnthalpyQ = toEnthalpyQ(correctedSpecificEnthalpy, addAmountQ);
-        float correctedPressure = network.predictPressureAfterStateAdd(fluid, addAmountQ, correctedEnthalpyQ);
-        if (Float.isNaN(correctedPressure) || Float.isInfinite(correctedPressure) || correctedPressure <= 0.0f) {
-            return correctedSpecificEnthalpy;
-        }
-
-        return FluidThermalProperties.getSpecificEnthalpyFromPT(fluid, correctedPressure, targetTemperature);
+        return specificEnthalpy;
     }
 
     public static long computeHeatPumpEnergyCost(double inputSpecificEnthalpy, double outputSpecificEnthalpy,

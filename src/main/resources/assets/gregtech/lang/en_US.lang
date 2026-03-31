@@ -9180,6 +9180,12 @@ gt.blockcasings11.4.name=Osmium Item Pipe Casing
 gt.blockcasings11.5.name=Quantium Item Pipe Casing
 gt.blockcasings11.6.name=Fluxed Electrum Item Pipe Casing
 gt.blockcasings11.7.name=Black Plutonium Item Pipe Casing
+gt.blockcasings11.8.name=Radiator Loop Port
+gt.blockcasings11.9.name=Radiator Loop Pipe
+gt.blockcasings11.10.name=Radiator Conduction Module
+gt.blockcasings11.11.name=Radiator Heat Exchange Module
+GT5U.RADIATOR.mode.0=Constant Time
+GT5U.RADIATOR.mode.1=Target Temperature
 
 gt.blockcasings12.0.name=Coke Oven Bricks
 gt.blockcasings12.1.name=Nanochip Mesh Interface Casing

@@ -16,6 +16,20 @@ public final class IFNStateTransferPlanner {
     public static PlannedStateTransfer planSingleOutputStateAdd(IntegratedFluidNetwork inputNetwork,
         IntegratedFluidNetwork outputNetwork, Fluid fluid, double outputSpecificEnthalpy, long requestedAmountQ,
         float maxOutputToInputPressureRatio) {
+        return planSingleOutputStateAdd(
+            inputNetwork,
+            outputNetwork,
+            fluid,
+            outputSpecificEnthalpy,
+            requestedAmountQ,
+            maxOutputToInputPressureRatio,
+            0.0f
+        );
+    }
+
+    public static PlannedStateTransfer planSingleOutputStateAdd(IntegratedFluidNetwork inputNetwork,
+        IntegratedFluidNetwork outputNetwork, Fluid fluid, double outputSpecificEnthalpy, long requestedAmountQ,
+        float maxOutputToInputPressureRatio, float sourcePressureDropBar) {
         if (inputNetwork == null || outputNetwork == null || fluid == null
             || requestedAmountQ < IntegratedFluidNetwork.AMOUNT_SCALE) {
             return PlannedStateTransfer.empty();
@@ -52,7 +66,10 @@ public final class IFNStateTransferPlanner {
             }
 
             long testEnthalpyQ = IntegratedFluidNetwork.toEnthalpyQFromSpecific(outputSpecificEnthalpy, mid);
-            float pIn = inputNetwork.predictPressureAfterExtract(mid);
+            float pIn = Math.max(
+                1.0e-4f,
+                inputNetwork.predictPressureAfterExtract(mid) - sourcePressureDropBar
+            );
             float pOut = outputNetwork.predictPressureAfterStateAdd(fluid, mid, testEnthalpyQ);
 
             if (pOut <= pIn * maxOutputToInputPressureRatio) {

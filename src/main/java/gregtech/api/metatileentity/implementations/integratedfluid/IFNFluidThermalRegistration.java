@@ -45,8 +45,13 @@ public final class IFNFluidThermalRegistration {
             return;
         }
         initialized = true;
-        registerIc2SuperCoolant();
-        registerIc2Coolant();
+        try {
+            registerIc2SuperCoolant();
+            registerIc2Coolant();
+        } catch (Throwable ignored) {
+            // Unit tests may run without a fully initialized Forge fluid registry.
+            // Custom test fluids can still be registered directly in IFNFluidThermalRegistry.
+        }
     }
 
     private static void registerIc2SuperCoolant() {

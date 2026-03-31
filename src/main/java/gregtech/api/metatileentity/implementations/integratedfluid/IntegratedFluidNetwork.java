@@ -388,7 +388,7 @@ public class IntegratedFluidNetwork {
             pEnthalpyQ = toEnthalpyQFromSpecific(newSpecificEnthalpy, amountQ);
         }
 
-        float finalP = computePressureForState(fluid, pAmountQ, pEnthalpyQ, pressure);
+        float finalP = computePressureForState(fluid, pAmountQ, pEnthalpyQ, rawP);
 
         amountQ = savedAmountQ;
         enthalpyQ = savedEnthalpyQ;
@@ -437,7 +437,7 @@ public class IntegratedFluidNetwork {
             pEnthalpyQ = toEnthalpyQFromSpecific(newSpecificEnthalpy, pAmountQ);
         }
 
-        float finalP = computePressureForState(fluid, pAmountQ, pEnthalpyQ, pressure);
+        float finalP = computePressureForState(fluid, pAmountQ, pEnthalpyQ, rawP);
 
         amountQ = savedAmountQ;
         enthalpyQ = savedEnthalpyQ;
@@ -536,6 +536,7 @@ public class IntegratedFluidNetwork {
 
                         double newSpecificEnthalpy = FluidThermalProperties.getSpecificEnthalpyFromPT(fluid, pressure, newTemp);
                         enthalpyQ = toEnthalpyQFromSpecific(newSpecificEnthalpy, amountQ);
+                        updatePressure();
                     }
                 }
             }
@@ -590,6 +591,7 @@ public class IntegratedFluidNetwork {
 
                         double newSpecificEnthalpy = FluidThermalProperties.getSpecificEnthalpyFromPT(fluid, pressure, newTemp);
                         enthalpyQ = toEnthalpyQFromSpecific(newSpecificEnthalpy, amountQ);
+                        updatePressure();
                     }
                 }
             }
