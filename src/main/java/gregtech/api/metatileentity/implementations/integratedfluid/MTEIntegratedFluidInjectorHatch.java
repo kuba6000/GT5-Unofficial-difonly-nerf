@@ -38,6 +38,9 @@ import mcp.mobius.waila.api.IWailaDataAccessor;
  */
 public class MTEIntegratedFluidInjectorHatch extends MTEHatch implements IIntegratedFluidMember, IFluidHandler {
 
+    static final float MAX_INJECTOR_NETWORK_PRESSURE_BAR = 0.99f;
+    private static final float INJECTOR_PRESSURE_EPSILON_BAR = 0.01f;
+
     public enum InjectMode {
         INJECT_CONSERVED_AMOUNT,
         INJECT_REAL_PIPE_VOLUME
@@ -300,7 +303,7 @@ public class MTEIntegratedFluidInjectorHatch extends MTEHatch implements IIntegr
             manager.onMemberAdded(this);
         }
         if (network != null && resource != null) {
-            if (network.getPressure() > 1.01f) {
+            if (network.getPressure() > MAX_INJECTOR_NETWORK_PRESSURE_BAR + INJECTOR_PRESSURE_EPSILON_BAR) {
                 return 0;
             }
             if (resource.amount <= 0 || resource.getFluid() == null) {
@@ -336,6 +339,7 @@ public class MTEIntegratedFluidInjectorHatch extends MTEHatch implements IIntegr
 
             long maxCandidateAmountQ = toAmountQ(addAmountMb);
             long acceptedAmountQ = network.getMaxAddableAmountQ(resource.getFluid(), hSpecIn, maxCandidateAmountQ);
+            acceptedAmountQ = clampAcceptedPhysicalAddToInjectorPressure(network, resource.getFluid(), hSpecIn, acceptedAmountQ);
             long acceptedAmountMb = acceptedAmountQ / IntegratedFluidNetwork.AMOUNT_SCALE;
             if (acceptedAmountMb <= 0L) {
                 if (doFill) {
@@ -366,6 +370,40 @@ public class MTEIntegratedFluidInjectorHatch extends MTEHatch implements IIntegr
             return (int) Math.min(resource.amount, acceptedAmountMb);
         }
         return 0;
+    }
+
+    static long clampAcceptedPhysicalAddToInjectorPressure(IntegratedFluidNetwork network, net.minecraftforge.fluids.Fluid fluid,
+        double incomingSpecificEnthalpy, long maxAcceptedAmountQ) {
+        if (network == null || fluid == null || maxAcceptedAmountQ < IntegratedFluidNetwork.AMOUNT_SCALE) {
+            return 0L;
+        }
+
+        long low = 0L;
+        long high = maxAcceptedAmountQ;
+        long best = 0L;
+
+        for (int i = 0; i < 35; i++) {
+            if (low > high) {
+                break;
+            }
+
+            long mid = (low + high) / 2L;
+            if (mid < IntegratedFluidNetwork.AMOUNT_SCALE) {
+                low = mid + 1L;
+                continue;
+            }
+
+            long midEnthalpyQ = IntegratedFluidNetwork.toEnthalpyQFromSpecific(incomingSpecificEnthalpy, mid);
+            float predictedPressure = network.predictPressureAfterAdd(fluid, mid, midEnthalpyQ);
+            if (predictedPressure <= MAX_INJECTOR_NETWORK_PRESSURE_BAR + INJECTOR_PRESSURE_EPSILON_BAR) {
+                best = mid;
+                low = mid + 1L;
+            } else {
+                high = mid - 1L;
+            }
+        }
+
+        return best;
     }
 
     public void setInjectMode(InjectMode mode) {

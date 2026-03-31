@@ -365,7 +365,7 @@ public class IntegratedFluidNetwork {
         enthalpyQ = pEnthalpyQ;
         if (amountQ > 0 && fluidName == null) fluidName = fluid.getName();
 
-        float rawP = computePressureForState(fluid, amountQ, enthalpyQ, pressure);
+        float rawP = computePressureForState(fluid, amountQ, enthalpyQ, pressure, false);
         FluidThermalProperties.PhaseResult newPhase =
             FluidThermalProperties.getPhaseFromPH(fluid, Math.max(1e-4d, rawP), toSpecificEnthalpy(enthalpyQ, amountQ));
 
@@ -388,7 +388,7 @@ public class IntegratedFluidNetwork {
             pEnthalpyQ = toEnthalpyQFromSpecific(newSpecificEnthalpy, amountQ);
         }
 
-        float finalP = computePressureForState(fluid, pAmountQ, pEnthalpyQ, rawP);
+        float finalP = computePressureForState(fluid, pAmountQ, pEnthalpyQ, rawP, false);
 
         amountQ = savedAmountQ;
         enthalpyQ = savedEnthalpyQ;
@@ -426,7 +426,7 @@ public class IntegratedFluidNetwork {
         amountQ = pAmountQ;
         enthalpyQ = pEnthalpyQ;
 
-        float rawP = computePressureForState(fluid, pAmountQ, pEnthalpyQ, pressure);
+        float rawP = computePressureForState(fluid, pAmountQ, pEnthalpyQ, pressure, false);
         FluidThermalProperties.PhaseResult currentPhase = FluidThermalProperties.getPhaseFromPH(fluid, Math.max(1e-4d, pressure), toSpecificEnthalpy(savedEnthalpyQ, savedAmountQ));
 
         if (currentPhase.phase == FluidThermalProperties.Phase.VAPOR || currentPhase.phase == FluidThermalProperties.Phase.SUPERCRITICAL) {
@@ -437,7 +437,7 @@ public class IntegratedFluidNetwork {
             pEnthalpyQ = toEnthalpyQFromSpecific(newSpecificEnthalpy, pAmountQ);
         }
 
-        float finalP = computePressureForState(fluid, pAmountQ, pEnthalpyQ, rawP);
+        float finalP = computePressureForState(fluid, pAmountQ, pEnthalpyQ, rawP, false);
 
         amountQ = savedAmountQ;
         enthalpyQ = savedEnthalpyQ;
@@ -943,7 +943,7 @@ public class IntegratedFluidNetwork {
      */
     private void updatePressure() {
         Fluid fluid = getFluid();
-        pressure = computePressureForState(fluid, amountQ, enthalpyQ, pressure);
+        pressure = computePressureForState(fluid, amountQ, enthalpyQ, pressure, true);
     }
 
     private boolean isIncompleteNetwork() {
@@ -1089,6 +1089,11 @@ public class IntegratedFluidNetwork {
     }
 
     private float computePressureForState(Fluid fluid, long nextAmountQ, long nextEnthalpyQ, float currentPressure) {
+        return computePressureForState(fluid, nextAmountQ, nextEnthalpyQ, currentPressure, true);
+    }
+
+    private float computePressureForState(Fluid fluid, long nextAmountQ, long nextEnthalpyQ, float currentPressure,
+        boolean allowRupture) {
         if (fluid == null || nextAmountQ <= 0L) {
             return IntegratedFluidThermoModel.BASE_PRESSURE;
         }
@@ -1116,7 +1121,7 @@ public class IntegratedFluidNetwork {
             if (incomplete) {
                 return (float) Math.max(1e-4d, Math.min(pGas, (double) maxPressure));
             }
-            if (pGas > (double) maxPressure * 1.10d) {
+            if (allowRupture && pGas > (double) maxPressure * 1.10d) {
                 ruptureNetwork();
                 return IntegratedFluidThermoModel.BASE_PRESSURE;
             }
@@ -1150,7 +1155,7 @@ public class IntegratedFluidNetwork {
         }
 
         boolean incomplete = isIncompleteNetwork();
-        if (!incomplete && p > maxPressure * 1.10d) {
+        if (allowRupture && !incomplete && p > maxPressure * 1.10d) {
              ruptureNetwork();
              return IntegratedFluidThermoModel.BASE_PRESSURE;
         }
