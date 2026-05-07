@@ -1319,7 +1319,7 @@ public class CraftingRecipeLoader implements Runnable {
             new Object[] { OrePrefixes.dust.get(Materials.Tetrahedrite), OrePrefixes.dust.get(Materials.Tetrahedrite),
                 OrePrefixes.dust.get(Materials.Tetrahedrite), OrePrefixes.dust.get(Materials.Zinc) });
         GTModHandler.addShapelessCraftingRecipe(
-            GTOreDictUnificator.get(OrePrefixes.dust, Materials.Bronze, 3L),
+            GTOreDictUnificator.get(OrePrefixes.dust, Materials.Bronze, 1L),
             bits_no_remove_buffered,
             new Object[] { OrePrefixes.dust.get(Materials.AnyCopper), OrePrefixes.dust.get(Materials.AnyCopper),
                 OrePrefixes.dust.get(Materials.AnyCopper), OrePrefixes.dust.get(Materials.Tin) });
