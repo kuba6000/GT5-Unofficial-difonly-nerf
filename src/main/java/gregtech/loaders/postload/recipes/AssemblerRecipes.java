@@ -2595,7 +2595,7 @@ public class AssemblerRecipes implements Runnable {
             .addTo(assemblerRecipes);
 
         GTValues.RA.stdBuilder()
-            .itemInputs(GTOreDictUnificator.get(OrePrefixes.plate, Materials.WroughtIron, 8))
+            .itemInputs(GTOreDictUnificator.get(OrePrefixes.plateDouble, Materials.WroughtIron, 8))
             .circuit(8)
             .itemOutputs(ItemList.Casing_ULV.get(1))
             .duration(1 * SECONDS + 5 * TICKS)
@@ -2603,7 +2603,7 @@ public class AssemblerRecipes implements Runnable {
             .addTo(assemblerRecipes);
 
         GTValues.RA.stdBuilder()
-            .itemInputs(GTOreDictUnificator.get(OrePrefixes.plate, Materials.Steel, 8))
+            .itemInputs(GTOreDictUnificator.get(OrePrefixes.plateDouble, Materials.Steel, 8))
             .circuit(8)
             .itemOutputs(ItemList.Casing_LV.get(1))
             .duration(2 * SECONDS + 10 * TICKS)
@@ -2611,7 +2611,7 @@ public class AssemblerRecipes implements Runnable {
             .addTo(assemblerRecipes);
 
         GTValues.RA.stdBuilder()
-            .itemInputs(GTOreDictUnificator.get(OrePrefixes.plate, Materials.Aluminium, 8))
+            .itemInputs(GTOreDictUnificator.get(OrePrefixes.plateDouble, Materials.Aluminium, 8))
             .circuit(8)
             .itemOutputs(ItemList.Casing_MV.get(1))
             .duration(2 * SECONDS + 10 * TICKS)
@@ -2619,7 +2619,7 @@ public class AssemblerRecipes implements Runnable {
             .addTo(assemblerRecipes);
 
         GTValues.RA.stdBuilder()
-            .itemInputs(GTOreDictUnificator.get(OrePrefixes.plate, Materials.StainlessSteel, 8))
+            .itemInputs(GTOreDictUnificator.get(OrePrefixes.plateDouble, Materials.StainlessSteel, 8))
             .circuit(8)
             .itemOutputs(ItemList.Casing_HV.get(1))
             .duration(2 * SECONDS + 10 * TICKS)
@@ -2627,7 +2627,7 @@ public class AssemblerRecipes implements Runnable {
             .addTo(assemblerRecipes);
 
         GTValues.RA.stdBuilder()
-            .itemInputs(GTOreDictUnificator.get(OrePrefixes.plate, Materials.Titanium, 8))
+            .itemInputs(GTOreDictUnificator.get(OrePrefixes.plateDouble, Materials.Titanium, 8))
             .circuit(8)
             .itemOutputs(ItemList.Casing_EV.get(1))
             .duration(2 * SECONDS + 10 * TICKS)
@@ -2635,7 +2635,7 @@ public class AssemblerRecipes implements Runnable {
             .addTo(assemblerRecipes);
 
         GTValues.RA.stdBuilder()
-            .itemInputs(GTOreDictUnificator.get(OrePrefixes.plate, Materials.TungstenSteel, 8))
+            .itemInputs(GTOreDictUnificator.get(OrePrefixes.plateDouble, Materials.TungstenSteel, 8))
             .circuit(8)
             .itemOutputs(ItemList.Casing_IV.get(1))
             .duration(2 * SECONDS + 10 * TICKS)
@@ -2643,7 +2643,7 @@ public class AssemblerRecipes implements Runnable {
             .addTo(assemblerRecipes);
 
         GTValues.RA.stdBuilder()
-            .itemInputs(GTOreDictUnificator.get(OrePrefixes.plate, ExternalMaterials.getRhodiumPlatedPalladium(), 8))
+            .itemInputs(GTOreDictUnificator.get(OrePrefixes.plateDouble, ExternalMaterials.getRhodiumPlatedPalladium(), 8))
             .circuit(8)
             .itemOutputs(ItemList.Casing_LuV.get(1))
             .duration(2 * SECONDS + 10 * TICKS)
@@ -2651,7 +2651,7 @@ public class AssemblerRecipes implements Runnable {
             .addTo(assemblerRecipes);
 
         GTValues.RA.stdBuilder()
-            .itemInputs(GTOreDictUnificator.get(OrePrefixes.plate, Materials.Iridium, 8))
+            .itemInputs(GTOreDictUnificator.get(OrePrefixes.plateDouble, Materials.Iridium, 8))
             .circuit(8)
             .itemOutputs(ItemList.Casing_ZPM.get(1))
             .duration(2 * SECONDS + 10 * TICKS)
@@ -2659,7 +2659,7 @@ public class AssemblerRecipes implements Runnable {
             .addTo(assemblerRecipes);
 
         GTValues.RA.stdBuilder()
-            .itemInputs(GTOreDictUnificator.get(OrePrefixes.plate, Materials.Osmium, 8))
+            .itemInputs(GTOreDictUnificator.get(OrePrefixes.plateDouble, Materials.Osmium, 8))
             .circuit(8)
             .itemOutputs(ItemList.Casing_UV.get(1))
             .duration(2 * SECONDS + 10 * TICKS)
@@ -2667,7 +2667,7 @@ public class AssemblerRecipes implements Runnable {
             .addTo(assemblerRecipes);
 
         GTValues.RA.stdBuilder()
-            .itemInputs(GTOreDictUnificator.get(OrePrefixes.plate, Materials.Neutronium, 8))
+            .itemInputs(GTOreDictUnificator.get(OrePrefixes.plateDouble, Materials.Neutronium, 8))
             .circuit(8)
             .itemOutputs(ItemList.Casing_MAX.get(1))
             .duration(2 * SECONDS + 10 * TICKS)
@@ -3029,7 +3029,7 @@ public class AssemblerRecipes implements Runnable {
 
         GTValues.RA.stdBuilder()
             .itemInputs(
-                GTOreDictUnificator.get(OrePrefixes.gear, Materials.CobaltBrass, 1),
+                GTOreDictUnificator.get(OrePrefixes.gear, MaterialsAlloy.BLOODSTEEL, 1),
                 GTOreDictUnificator.get(OrePrefixes.dust, Materials.Diamond, 1))
             .itemOutputs(ItemList.Component_Sawblade_Diamond.get(1))
             .duration(16 * SECONDS)
