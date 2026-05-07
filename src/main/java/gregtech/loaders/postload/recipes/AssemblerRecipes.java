@@ -1023,6 +1023,7 @@ public class AssemblerRecipes implements Runnable {
                 ItemList.Hull_HV.get(1L),
                 GTOreDictUnificator.get(OrePrefixes.cableGt01, Materials.Gold, 1L),
                 ItemList.Circuit_Chip_LPIC.get(2L),
+                OrePrefixes.circuit.get(Materials.EV),
                 ItemList.HV_Coil.get(2L),
                 ItemList.Reactor_Coolant_He_1.get(1L),
                 ItemList.Electric_Pump_HV.get(1L))
@@ -1062,6 +1063,7 @@ public class AssemblerRecipes implements Runnable {
                 ItemList.Hull_HV.get(1L),
                 GTOreDictUnificator.get(OrePrefixes.cableGt01, Materials.Gold, 1L),
                 ItemList.Circuit_Chip_LPIC.get(2L),
+                OrePrefixes.circuit.get(Materials.EV),
                 ItemList.HV_Coil.get(2L),
                 ItemList.Reactor_Coolant_NaK_1.get(1L),
                 ItemList.Electric_Pump_HV.get(1L))
