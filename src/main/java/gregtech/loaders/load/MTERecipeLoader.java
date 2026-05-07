@@ -3714,7 +3714,7 @@ public class MTERecipeLoader implements Runnable {
         GTModHandler.addCraftingRecipe(
             ItemList.Machine_Multi_LargeChemicalReactor.get(1L),
             GTModHandler.RecipeBits.BITS,
-            new Object[] { "CRC", "PMP", "CBC", 'C', OrePrefixes.circuit.get(Materials.HV), 'R',
+            new Object[] { "CRC", "PMP", "CBC", 'C', OrePrefixes.circuit.get(Materials.EV), 'R',
                 OrePrefixes.rotor.get(Materials.StainlessSteel), 'P',
                 OrePrefixes.pipeLarge.get(Materials.Polytetrafluoroethylene), 'M', ItemList.Electric_Motor_HV, 'B',
                 ItemList.Hull_HV });
