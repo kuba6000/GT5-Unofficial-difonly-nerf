@@ -320,7 +320,7 @@ public class ChemicalBathRecipes implements Runnable {
         GTValues.RA.stdBuilder()
             .itemInputs(GTOreDictUnificator.get(OrePrefixes.gem, Materials.NetherStar, 1))
             .itemOutputs(ItemList.QuantumStar.get(1))
-            .fluidInputs(Materials.Radon.getGas(1250))
+            .fluidInputs(Materials.Radon.getGas(5000))
             .duration(1 * MINUTES + 36 * SECONDS)
             .eut(384)
             .addTo(chemicalBathRecipes);
