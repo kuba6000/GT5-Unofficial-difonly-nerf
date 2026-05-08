@@ -537,8 +537,8 @@ public class CentrifugeRecipes implements Runnable {
                 GTOreDictUnificator.get(OrePrefixes.dust, Materials.Tungstate, 3),
                 GTOreDictUnificator.get(OrePrefixes.dust, Materials.Platinum, 1),
                 new ItemStack(Blocks.sand, 36))
-            .outputChances(3750, 2500, 9000)
-            .fluidOutputs(Materials.Helium.getGas(4_320))
+            .outputChances(1000, 2500, 9000)
+            .fluidOutputs(Materials.Helium.getGas(1_500))
             .duration(9 * MINUTES + 36 * SECONDS)
             .eut(20)
             .addTo(centrifugeRecipes);
