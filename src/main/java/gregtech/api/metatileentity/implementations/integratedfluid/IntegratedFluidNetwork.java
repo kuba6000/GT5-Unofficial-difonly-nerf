@@ -326,13 +326,16 @@ public class IntegratedFluidNetwork {
 
         if (phase.phase == FluidThermalProperties.Phase.VAPOR
             || phase.phase == FluidThermalProperties.Phase.SUPERCRITICAL) {
-            double pGas = computeGasPressureBar(fluid, toAmount(nextAmountQ), specificEnthalpy, totalCapacity, pGuess);
-            return pGas <= getAccumulatorMaxPressureBar();
+            IFNPressureModel.PressureResult result = IFNPressureModel.compute(
+                fluid,
+                new IFNFluidState(fluid.getName(), nextAmountQ, nextEnthalpyQ, (float) pGuess),
+                currentPressureLimits());
+            return !result.isPressureLimitExceeded();
         }
 
-        double specificVolume = getLiquidSpecificVolumeAtBasePressure(fluid, specificEnthalpy);
+        double specificVolume = IFNPressureModel.getLiquidSpecificVolumeAtBasePressure(fluid, specificEnthalpy);
         double occupied = toAmount(nextAmountQ) * specificVolume;
-        double maxOccupied = computeMaxSafeLiquidOccupiedVolume(
+        double maxOccupied = IFNPressureModel.computeMaxSafeLiquidOccupiedVolume(
             baseCapacity,
             accumulatorCapacity,
             totalCapacity,
@@ -353,23 +356,17 @@ public class IntegratedFluidNetwork {
         boolean applyGasFlowWork) {
         if (fluid == null || addAmountQ <= 0L) return pressure;
 
-        long pAmountQ = amountQ + addAmountQ;
-        long pEnthalpyQ = enthalpyQ + addEnthalpyQ;
+        IFNFluidState currentState = snapshotState();
+        IFNFluidState predictedState = currentState.withAddedState(fluid, addAmountQ, addEnthalpyQ, pressure);
+        long pAmountQ = predictedState.getAmountQ();
+        long pEnthalpyQ = predictedState.getEnthalpyQ();
 
-        float oldTemp = amountQ > 0 ? getDerivedTemperature() : 0;
-        long savedAmountQ = amountQ;
-        long savedEnthalpyQ = enthalpyQ;
-        String savedFluidName = fluidName;
-
-        amountQ = pAmountQ;
-        enthalpyQ = pEnthalpyQ;
-        if (amountQ > 0 && fluidName == null) fluidName = fluid.getName();
-
-        float rawP = computePressureForState(fluid, amountQ, enthalpyQ, pressure, false);
+        float oldTemp = currentState.isEmpty() ? 0.0f : getDerivedTemperature();
+        float rawP = computePressureForState(fluid, pAmountQ, pEnthalpyQ, currentState.getPressureBar(), false);
         FluidThermalProperties.PhaseResult newPhase = FluidThermalProperties.getPhaseFromPH(
             fluid,
             IFNPressurePolicy.clampMinimum((double) rawP),
-            toSpecificEnthalpy(enthalpyQ, amountQ));
+            predictedState.getSpecificEnthalpy());
 
         if (applyGasFlowWork
             && (newPhase.phase == FluidThermalProperties.Phase.VAPOR
@@ -379,7 +376,7 @@ public class IntegratedFluidNetwork {
 
             double gamma = 1.3;
             double tFinal;
-            double mOld = (double)(savedAmountQ) / AMOUNT_SCALE;
+            double mOld = (double)currentState.getAmountQ() / AMOUNT_SCALE;
             double mIn = (double)addAmountQ / AMOUNT_SCALE;
             double mFinal = (double)pAmountQ / AMOUNT_SCALE;
 
@@ -387,16 +384,10 @@ public class IntegratedFluidNetwork {
             else tFinal = (mOld * oldTemp + gamma * mIn * tIn) / mFinal;
 
             double newSpecificEnthalpy = FluidThermalProperties.getSpecificEnthalpyFromPT(fluid, rawP, tFinal);
-            pEnthalpyQ = toEnthalpyQFromSpecific(newSpecificEnthalpy, amountQ);
+            pEnthalpyQ = toEnthalpyQFromSpecific(newSpecificEnthalpy, pAmountQ);
         }
 
-        float finalP = computePressureForState(fluid, pAmountQ, pEnthalpyQ, rawP, false);
-
-        amountQ = savedAmountQ;
-        enthalpyQ = savedEnthalpyQ;
-        fluidName = savedFluidName;
-
-        return finalP;
+        return computePressureForState(fluid, pAmountQ, pEnthalpyQ, rawP, false);
     }
 
     public float predictPressureAfterExtract(long requestAmountQ) {
@@ -422,17 +413,11 @@ public class IntegratedFluidNetwork {
         Fluid fluid = getFluid();
         if (fluid == null) return DEFAULT_PRESSURE;
 
-        long savedAmountQ = amountQ;
-        long savedEnthalpyQ = enthalpyQ;
-
-        amountQ = pAmountQ;
-        enthalpyQ = pEnthalpyQ;
-
         float rawP = computePressureForState(fluid, pAmountQ, pEnthalpyQ, pressure, false);
         FluidThermalProperties.PhaseResult currentPhase = FluidThermalProperties.getPhaseFromPH(
             fluid,
             IFNPressurePolicy.clampMinimum((double) pressure),
-            toSpecificEnthalpy(savedEnthalpyQ, savedAmountQ));
+            toSpecificEnthalpy(enthalpyQ, amountQ));
 
         if (currentPhase.phase == FluidThermalProperties.Phase.VAPOR || currentPhase.phase == FluidThermalProperties.Phase.SUPERCRITICAL) {
             double massRatio = (double) pAmountQ / (double) (pAmountQ + gotAmountQ);
@@ -442,12 +427,7 @@ public class IntegratedFluidNetwork {
             pEnthalpyQ = toEnthalpyQFromSpecific(newSpecificEnthalpy, pAmountQ);
         }
 
-        float finalP = computePressureForState(fluid, pAmountQ, pEnthalpyQ, rawP, false);
-
-        amountQ = savedAmountQ;
-        enthalpyQ = savedEnthalpyQ;
-
-        return finalP;
+        return computePressureForState(fluid, pAmountQ, pEnthalpyQ, rawP, false);
     }
 
     public void add(Fluid fluid, long addAmountQ, long addEnthalpyQ) {
@@ -619,6 +599,10 @@ public class IntegratedFluidNetwork {
 
     public String getFluidName() {
         return fluidName;
+    }
+
+    public IFNFluidState snapshotState() {
+        return new IFNFluidState(fluidName, amountQ, enthalpyQ, pressure);
     }
 
     public long getAmountQ() {
@@ -955,42 +939,13 @@ public class IntegratedFluidNetwork {
         return pending || (expectedMemberCount > 0 && members.size() < expectedMemberCount);
     }
 
-    private double getLiquidSpecificVolumeAtBasePressure(Fluid fluid, double specificEnthalpy) {
-        double specificVolume = IntegratedFluidThermoModel.specificVolumeFromPressureAndSpecificEnthalpy(
-            fluid,
-            IntegratedFluidThermoModel.BASE_PRESSURE,
-            specificEnthalpy
-        );
-        if (specificVolume <= 0.0d || Double.isNaN(specificVolume) || Double.isInfinite(specificVolume)) {
-            return 1.0d;
-        }
-        return specificVolume;
-    }
-
-    private double computeMaxSafeLiquidOccupiedVolume(int baseCapacity, int accumulatorCapacity, int totalCapacity,
-        double maxPressure) {
-        if (totalCapacity <= 0) {
-            return 0.0d;
-        }
-        if (accumulatorCapacity <= 0) {
-            return totalCapacity;
-        }
-
-        double pBase = IntegratedFluidThermoModel.BASE_PRESSURE;
-        double pLimit = Math.max(maxPressure, pBase);
-        if (pLimit <= pBase) {
-            return Math.max(0.0d, Math.min((double) totalCapacity, (double) baseCapacity));
-        }
-
-        double pMaxAcc = pBase * (accumulatorCapacity / 0.001d);
-        if (pLimit < pMaxAcc) {
-            double accumulatorFill = accumulatorCapacity * (1.0d - pBase / pLimit);
-            return Math.max(0.0d, Math.min((double) totalCapacity, baseCapacity + accumulatorFill));
-        }
-
-        double bulkModulus = 22000.0d;
-        double overfill = (pLimit - pMaxAcc) * totalCapacity / bulkModulus;
-        return Math.max(0.0d, Math.min((double) totalCapacity, baseCapacity + accumulatorCapacity + overfill));
+    private IFNPressureModel.NetworkLimits currentPressureLimits() {
+        return IFNPressureModel.NetworkLimits.of(
+            getBaseCapacity(),
+            getAccumulatorCapacity(),
+            getTotalCapacity(),
+            getAccumulatorMaxPressureBar(),
+            isIncompleteNetwork());
     }
 
     private long computeMaxRetainableAmountQ(Fluid fluid, long currentAmountQ, long currentEnthalpyQ) {
@@ -1027,8 +982,8 @@ public class IntegratedFluidNetwork {
             return toAmountQ(maxAmount);
         }
 
-        double specificVolume = getLiquidSpecificVolumeAtBasePressure(fluid, specificEnthalpy);
-        double maxOccupied = computeMaxSafeLiquidOccupiedVolume(
+        double specificVolume = IFNPressureModel.getLiquidSpecificVolumeAtBasePressure(fluid, specificEnthalpy);
+        double maxOccupied = IFNPressureModel.computeMaxSafeLiquidOccupiedVolume(
             baseCapacity,
             accumulatorCapacity,
             totalCapacity,
@@ -1099,100 +1054,15 @@ public class IntegratedFluidNetwork {
 
     private float computePressureForState(Fluid fluid, long nextAmountQ, long nextEnthalpyQ, float currentPressure,
         boolean allowRupture) {
-        if (fluid == null || nextAmountQ <= 0L) {
-            return IntegratedFluidThermoModel.BASE_PRESSURE;
-        }
-
-        int baseCapacity = getBaseCapacity();
-        int accumulatorCapacity = getAccumulatorCapacity();
-        int totalCapacity = getTotalCapacity();
-        float maxPressure = getAccumulatorMaxPressureBar();
-        if (totalCapacity <= 0) {
-            return IntegratedFluidThermoModel.BASE_PRESSURE;
-        }
-
-        double amount = toAmount(nextAmountQ);
-        double specificEnthalpy = toSpecificEnthalpy(nextEnthalpyQ, nextAmountQ);
-
-        double pGuess = IFNPressurePolicy.clampMinimum((double) currentPressure);
-        FluidThermalProperties.PhaseResult phase =
-            FluidThermalProperties.getPhaseFromPH(fluid, pGuess, specificEnthalpy);
-
-        // OPTIMIZATION: Analytical Gas Pressure
-        if (phase.phase == FluidThermalProperties.Phase.VAPOR
-            || phase.phase == FluidThermalProperties.Phase.SUPERCRITICAL) {
-            double pGas = computeGasPressureBar(fluid, amount, specificEnthalpy, totalCapacity, pGuess);
-            boolean incomplete = pending || (expectedMemberCount > 0 && members.size() < expectedMemberCount);
-            if (incomplete) {
-                return (float) IFNPressurePolicy.clampMinimum(Math.min(pGas, (double) maxPressure));
-            }
-            if (allowRupture && IFNPressurePolicy.exceedsRuptureLimit(pGas, (double) maxPressure)) {
-                ruptureNetwork();
-                return IntegratedFluidThermoModel.BASE_PRESSURE;
-            }
-            return (float) IFNPressurePolicy.clampMinimum(Math.min(pGas, (double) maxPressure));
-        }
-
-        if (accumulatorCapacity <= 0) {
-            return IntegratedFluidThermoModel.BASE_PRESSURE;
-        }
-
-        // OPTIMIZATION: Analytical Liquid & Hydrophore Model (No iterations)
-        double specificVolume = getLiquidSpecificVolumeAtBasePressure(fluid, specificEnthalpy);
-
-        double vLiq = amount * specificVolume;
-        double vExcess = vLiq - baseCapacity;
-        double p;
-
-        if (vExcess <= 0.0d) {
-            // Phase 1: Free flow, pipes not full
-            p = IntegratedFluidThermoModel.BASE_PRESSURE;
-        } else if (vExcess < accumulatorCapacity) {
-            // Phase 2: Boyle's Law in Accumulator (P0 * V0 = P * V)
-            double vGas = accumulatorCapacity - vExcess;
-            p = IntegratedFluidThermoModel.BASE_PRESSURE * (accumulatorCapacity / vGas);
-        } else {
-            // Phase 3: Fully flooded, liquid compression
-            double vOver = vExcess - accumulatorCapacity;
-            double pMaxAcc = IntegratedFluidThermoModel.BASE_PRESSURE * (accumulatorCapacity / 0.001d); // safe division
-            double bulkModulus = 22000.0d; // Typical water bulk modulus in bar
-            p = pMaxAcc + bulkModulus * (vOver / totalCapacity);
-        }
-
-        boolean incomplete = isIncompleteNetwork();
-        if (allowRupture && !incomplete && IFNPressurePolicy.exceedsRuptureLimit(p, maxPressure)) {
+        IFNPressureModel.PressureResult result = IFNPressureModel.compute(
+            fluid,
+            new IFNFluidState(fluid == null ? null : fluid.getName(), nextAmountQ, nextEnthalpyQ, currentPressure),
+            currentPressureLimits());
+        if (allowRupture && result.isRuptureRequired()) {
              ruptureNetwork();
              return IntegratedFluidThermoModel.BASE_PRESSURE;
         }
-
-        return (float) Math.max(1.0d, Math.min(p, (double) maxPressure));
-    }
-
-    private double computeGasPressureBar(Fluid fluid, double amountStd, double specificEnthalpy, int totalCapacity,
-        double pInit) {
-        if (totalCapacity <= 0) {
-            return IntegratedFluidThermoModel.BASE_PRESSURE;
-        }
-
-        // For gas, temperature is largely dependent on enthalpy, weakly on pressure.
-        // We evaluate T once at the initial pressure (or BASE_PRESSURE) to avoid iterations.
-        double p = IFNPressurePolicy.clampMinimum(pInit);
-        for (int it = 0; it < 20; it++) {
-            double temperature = FluidThermalProperties.getTemperatureFromPH(fluid, p, specificEnthalpy);
-            double pNew = IntegratedFluidThermoModel.BASE_PRESSURE
-                * (amountStd / (double) totalCapacity)
-                * (temperature / IntegratedFluidThermoModel.BASE_TEMPERATURE);
-
-            if (Double.isNaN(pNew) || Double.isInfinite(pNew)) {
-                return p;
-            }
-            if (Math.abs(pNew - p) < IFNPressurePolicy.MIN_PRESSURE_BAR) {
-                return pNew;
-            }
-            p = 0.5d * p + 0.5d * pNew;
-        }
-
-        return p;
+        return result.getPressureBar();
     }
 
     private void ruptureNetwork() {
