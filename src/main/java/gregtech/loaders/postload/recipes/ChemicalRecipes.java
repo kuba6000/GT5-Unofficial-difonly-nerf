@@ -568,9 +568,21 @@ public class ChemicalRecipes implements Runnable {
             .itemInputs(
                 GTOreDictUnificator.get(OrePrefixes.ingot, Materials.Plutonium, 8),
                 GTOreDictUnificator.get(OrePrefixes.dustTiny, Materials.Uranium, 1))
-            .itemOutputs(GTOreDictUnificator.get(OrePrefixes.dust, Materials.Plutonium, 8))
+            .itemOutputs(GTOreDictUnificator.get(OrePrefixes.dust, Materials.Plutonium, 7))
             .fluidInputs(Materials.Air.getGas(1_000))
             .fluidOutputs(Materials.Radon.getGas(100))
+            .duration(10 * MINUTES)
+            .eut(8)
+            .addTo(UniversalChemical);
+
+        GTValues.RA.stdBuilder()
+            .itemInputs(
+                GTOreDictUnificator.get(OrePrefixes.ingot, Materials.Plutonium, 8),
+                GTOreDictUnificator.get(OrePrefixes.dustTiny, Materials.Uranium, 1))
+            .circuit(9)
+            .itemOutputs(GTOreDictUnificator.get(OrePrefixes.dust, Materials.Plutonium, 7))
+            .fluidInputs(Materials.Air.getGas(1_000), Materials.Helium.getGas(100))
+            .fluidOutputs(Materials.Radon.getGas(120))
             .duration(10 * MINUTES)
             .eut(8)
             .addTo(UniversalChemical);
@@ -4747,9 +4759,21 @@ public class ChemicalRecipes implements Runnable {
                 GTOreDictUnificator.get(OrePrefixes.ingot, Materials.Plutonium, 64),
                 GTOreDictUnificator.get(OrePrefixes.dust, Materials.Uranium, 1))
             .circuit(8)
-            .itemOutputs(GTOreDictUnificator.get(OrePrefixes.dust, Materials.Plutonium, 64))
+            .itemOutputs(GTOreDictUnificator.get(OrePrefixes.dust, Materials.Plutonium, 63))
             .fluidInputs(Materials.Air.getGas(8_000))
             .fluidOutputs(Materials.Radon.getGas(800))
+            .duration(1 * MINUTES + 15 * SECONDS)
+            .eut(TierEU.RECIPE_HV)
+            .addTo(multiblockChemicalReactorRecipes);
+
+        GTValues.RA.stdBuilder()
+            .itemInputs(
+                GTOreDictUnificator.get(OrePrefixes.ingot, Materials.Plutonium, 64),
+                GTOreDictUnificator.get(OrePrefixes.dust, Materials.Uranium, 1))
+            .circuit(10)
+            .itemOutputs(GTOreDictUnificator.get(OrePrefixes.dust, Materials.Plutonium, 63))
+            .fluidInputs(Materials.Air.getGas(8_000), Materials.Helium.getGas(800))
+            .fluidOutputs(Materials.Radon.getGas(960))
             .duration(1 * MINUTES + 15 * SECONDS)
             .eut(TierEU.RECIPE_HV)
             .addTo(multiblockChemicalReactorRecipes);
