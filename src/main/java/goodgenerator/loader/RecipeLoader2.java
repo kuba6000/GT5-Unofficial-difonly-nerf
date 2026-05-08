@@ -1019,8 +1019,8 @@ public class RecipeLoader2 {
             ItemRefer.Extreme_Heat_Exchanger.get(1),
             GTModHandler.RecipeBits.REVERSIBLE,
             new Object[] { "EPE", "PHP", "SPS", 'P',
-                GTOreDictUnificator.get(OrePrefixes.pipeMedium, Materials.TungstenSteel, 1), 'H',
-                ItemList.Hull_IV.get(1), 'S', GGMaterial.marCeM200.get(OrePrefixes.plate, 1), 'E',
+                GTOreDictUnificator.get(OrePrefixes.plate, Materials.Tritanium, 1), 'H',
+                ItemList.Hull_ZPM.get(1), 'S', GGMaterial.marCeM200.get(OrePrefixes.plate, 1), 'E',
                 GTModHandler.getIC2Item("reactorHeatSwitchDiamond", 1L, 1) });
 
         if (NewHorizonsCoreMod.isModLoaded()) {
