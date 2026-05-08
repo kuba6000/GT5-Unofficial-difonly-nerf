@@ -38,9 +38,7 @@ import mcp.mobius.waila.api.IWailaDataAccessor;
  */
 public class MTEIntegratedFluidInjectorHatch extends MTEHatch implements IIntegratedFluidMember, IFluidHandler {
 
-    static final float MAX_INJECTOR_NETWORK_PRESSURE_BAR = 0.99f;
-    private static final float INJECTOR_PRESSURE_EPSILON_BAR = 0.01f;
-
+    static final float MAX_INJECTOR_NETWORK_PRESSURE_BAR = IFNPressurePolicy.INJECTOR_TARGET_PRESSURE_BAR;
     public enum InjectMode {
         INJECT_CONSERVED_AMOUNT,
         INJECT_REAL_PIPE_VOLUME
@@ -303,7 +301,7 @@ public class MTEIntegratedFluidInjectorHatch extends MTEHatch implements IIntegr
             manager.onMemberAdded(this);
         }
         if (network != null && resource != null) {
-            if (network.getPressure() > MAX_INJECTOR_NETWORK_PRESSURE_BAR + INJECTOR_PRESSURE_EPSILON_BAR) {
+            if (network.getPressure() > IFNPressurePolicy.injectorCutoffPressureBar()) {
                 return 0;
             }
             if (resource.amount <= 0 || resource.getFluid() == null) {
@@ -382,7 +380,7 @@ public class MTEIntegratedFluidInjectorHatch extends MTEHatch implements IIntegr
         long high = maxAcceptedAmountQ;
         long best = 0L;
 
-        for (int i = 0; i < 35; i++) {
+        for (int i = 0; i < IFNPressurePolicy.TRANSFER_SEARCH_ITERATIONS; i++) {
             if (low > high) {
                 break;
             }
@@ -395,7 +393,7 @@ public class MTEIntegratedFluidInjectorHatch extends MTEHatch implements IIntegr
 
             long midEnthalpyQ = IntegratedFluidNetwork.toEnthalpyQFromSpecific(incomingSpecificEnthalpy, mid);
             float predictedPressure = network.predictPressureAfterAdd(fluid, mid, midEnthalpyQ);
-            if (predictedPressure <= MAX_INJECTOR_NETWORK_PRESSURE_BAR + INJECTOR_PRESSURE_EPSILON_BAR) {
+            if (predictedPressure <= IFNPressurePolicy.injectorCutoffPressureBar()) {
                 best = mid;
                 low = mid + 1L;
             } else {

@@ -50,6 +50,6 @@ public interface IIntegratedFluidMember {
      * Returns the maximum pressure supported by this member's accumulator.
      */
     default float getAccumulatorMaxPressureBar() {
-        return 10.0f;
+        return IFNPressurePolicy.DEFAULT_MAX_PRESSURE_BAR;
     }
 }

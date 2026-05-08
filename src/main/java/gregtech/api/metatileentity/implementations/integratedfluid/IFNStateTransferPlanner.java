@@ -54,7 +54,7 @@ public final class IFNStateTransferPlanner {
         float bestInputPressure = inputNetwork.getPressure();
         float bestOutputPressure = outputNetwork.getPressure();
 
-        for (int i = 0; i < 35; i++) {
+        for (int i = 0; i < IFNPressurePolicy.TRANSFER_SEARCH_ITERATIONS; i++) {
             if (low > high) {
                 break;
             }
@@ -66,10 +66,7 @@ public final class IFNStateTransferPlanner {
             }
 
             long testEnthalpyQ = IntegratedFluidNetwork.toEnthalpyQFromSpecific(outputSpecificEnthalpy, mid);
-            float pIn = Math.max(
-                1.0e-4f,
-                inputNetwork.predictPressureAfterExtract(mid) - sourcePressureDropBar
-            );
+            float pIn = IFNPressurePolicy.clampMinimum(inputNetwork.predictPressureAfterExtract(mid) - sourcePressureDropBar);
             float pOut = outputNetwork.predictPressureAfterStateAdd(fluid, mid, testEnthalpyQ);
 
             if (pOut <= pIn * maxOutputToInputPressureRatio) {
@@ -123,7 +120,7 @@ public final class IFNStateTransferPlanner {
         long bestRedQ = 0L;
         long bestBlueQ = 0L;
 
-        for (int i = 0; i < 35; i++) {
+        for (int i = 0; i < IFNPressurePolicy.TRANSFER_SEARCH_ITERATIONS; i++) {
             if (low > high) {
                 break;
             }
@@ -207,7 +204,7 @@ public final class IFNStateTransferPlanner {
         long bestRedQ = 0L;
         long bestBlueQ = 0L;
 
-        for (int i = 0; i < 35; i++) {
+        for (int i = 0; i < IFNPressurePolicy.TRANSFER_SEARCH_ITERATIONS; i++) {
             double mid = (low + high) / 2.0d;
 
             long testRedQ = (long) (requestedRedQ * mid);

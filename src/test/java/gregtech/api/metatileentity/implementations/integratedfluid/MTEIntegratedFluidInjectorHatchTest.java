@@ -33,13 +33,13 @@ class MTEIntegratedFluidInjectorHatchTest {
         );
         float predictedPressure = network.predictPressureAfterAdd(vapor, injectorLimitedAmountQ, injectorEnthalpyQ);
         assertTrue(
-            predictedPressure <= MTEIntegratedFluidInjectorHatch.MAX_INJECTOR_NETWORK_PRESSURE_BAR + 0.01f,
+            predictedPressure <= IFNPressurePolicy.injectorCutoffPressureBar(),
             "predicted injector fill pressure was " + predictedPressure + " bar"
         );
 
         network.add(vapor, injectorLimitedAmountQ, injectorEnthalpyQ);
         assertTrue(
-            network.getPressure() <= MTEIntegratedFluidInjectorHatch.MAX_INJECTOR_NETWORK_PRESSURE_BAR + 0.01f,
+            network.getPressure() <= IFNPressurePolicy.injectorCutoffPressureBar(),
             "actual injector fill pressure was " + network.getPressure() + " bar"
         );
     }

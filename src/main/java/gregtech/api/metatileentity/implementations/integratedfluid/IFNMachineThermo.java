@@ -19,14 +19,14 @@ public final class IFNMachineThermo {
         }
 
         if (addAmountQ < IntegratedFluidNetwork.AMOUNT_SCALE) {
-            float initialPressure = Math.max(1.0e-4f, network.getPressure());
+            float initialPressure = IFNPressurePolicy.clampMinimum(network.getPressure());
             return FluidThermalProperties.getSpecificEnthalpyFromPT(fluid, initialPressure, targetTemperature);
         }
 
-        float pressureGuess = Math.max(1.0e-4f, network.getPressure());
+        float pressureGuess = IFNPressurePolicy.clampMinimum(network.getPressure());
         double specificEnthalpy = FluidThermalProperties.getSpecificEnthalpyFromPT(fluid, pressureGuess, targetTemperature);
 
-        for (int pass = 0; pass < 4; pass++) {
+        for (int pass = 0; pass < IFNPressurePolicy.TARGET_ENTHALPY_CORRECTION_PASSES; pass++) {
             long enthalpyQ = toEnthalpyQ(specificEnthalpy, addAmountQ);
             float predictedPressure = network.predictPressureAfterStateAdd(fluid, addAmountQ, enthalpyQ);
             if (Float.isNaN(predictedPressure) || Float.isInfinite(predictedPressure) || predictedPressure <= 0.0f) {

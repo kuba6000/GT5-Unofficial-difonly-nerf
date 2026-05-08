@@ -4,7 +4,7 @@ import net.minecraftforge.fluids.Fluid;
 
 final class HeatPumpScenarioHarness {
 
-    static final float PRESSURE_RATIO_LIMIT = 1.00f;
+    static final float PRESSURE_RATIO_LIMIT = IFNPressurePolicy.MACHINE_OUTPUT_TO_INPUT_PRESSURE_RATIO;
 
     private HeatPumpScenarioHarness() {}
 

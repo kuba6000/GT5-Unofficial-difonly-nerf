@@ -295,7 +295,7 @@ public class MTEIntegratedFluidInputHatch extends MTEHatch implements IIntegrate
 
     @Override
     public float getAccumulatorMaxPressureBar() {
-        return 10.0f;
+        return IFNPressurePolicy.DEFAULT_MAX_PRESSURE_BAR;
     }
 
     /**

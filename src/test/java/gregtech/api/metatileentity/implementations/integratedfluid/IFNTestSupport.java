@@ -69,7 +69,7 @@ public final class IFNTestSupport {
             return new SeededState(0L, IntegratedFluidNetwork.DEFAULT_PRESSURE, IntegratedFluidNetwork.DEFAULT_TEMPERATURE);
         }
 
-        double clampedTargetPressure = Math.max(1.0e-4d, targetPressureBar);
+        double clampedTargetPressure = IFNPressurePolicy.clampMinimum(targetPressureBar);
         double specificEnthalpy = FluidThermalProperties.getSpecificEnthalpyFromPT(fluid, clampedTargetPressure, temperatureK);
         long amountQ = findAmountForPressure(network, fluid, specificEnthalpy, clampedTargetPressure);
 
@@ -87,7 +87,7 @@ public final class IFNTestSupport {
 
             specificEnthalpy = FluidThermalProperties.getSpecificEnthalpyFromPT(
                 fluid,
-                Math.max(1.0e-4d, actualPressure),
+                IFNPressurePolicy.clampMinimum(actualPressure),
                 temperatureK
             );
             long refinedAmountQ = findAmountForPressure(network, fluid, specificEnthalpy, clampedTargetPressure);
