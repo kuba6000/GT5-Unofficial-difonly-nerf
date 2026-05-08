@@ -1773,7 +1773,7 @@ public class RecipeLoader {
         GTValues.RA.stdBuilder()
             .itemInputs(WerkstoffMaterialPool.DephosphatedSamariumConcentrate.get(OrePrefixes.dust, 6))
             .itemOutputs(Materials.Samarium.getDust(1), WerkstoffLoader.Thorianit.get(OrePrefixes.dust, 2))
-            .outputChances(90_00, 80_00)
+            .outputChances(5_00, 80_00)
             .eut(TierEU.RECIPE_EV)
             .duration(10 * SECONDS)
             .addTo(centrifugeRecipes);
@@ -3179,6 +3179,7 @@ public class RecipeLoader {
                 Materials.Samarium.getDust(1),
                 Materials.Sodium.getDust(1),
                 RarestEarthResidue.get(OrePrefixes.dustTiny, 2))
+            .outputChances(1000, 10000, 10000)
             .fluidOutputs(Materials.Chlorine.getGas(4_000))
             .eut(TierEU.RECIPE_IV)
             .duration(1 * SECONDS)
@@ -3190,6 +3191,7 @@ public class RecipeLoader {
                 Materials.Samarium.getDust(9),
                 Materials.Sodium.getDust(9),
                 RarestEarthResidue.get(OrePrefixes.dust, 2))
+            .outputChances(1000, 10000, 10000)
             .fluidOutputs(Materials.Chlorine.getGas(36_000))
             .eut(TierEU.RECIPE_LuV)
             .duration(2 * SECONDS)
