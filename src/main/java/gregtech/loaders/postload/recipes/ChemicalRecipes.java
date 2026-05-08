@@ -80,7 +80,7 @@ public class ChemicalRecipes implements Runnable {
             .addTo(UniversalChemical);
 
         GTValues.RA.stdBuilder()
-            .itemInputs(GTOreDictUnificator.get(OrePrefixes.dust, Materials.Aluminium, 4))
+            .itemInputs(GTOreDictUnificator.get(OrePrefixes.dust, Materials.Aluminium, 8))
             .circuit(1)
             .itemOutputs(GTOreDictUnificator.get(OrePrefixes.dustTiny, Materials.Indium, 1))
             .fluidInputs(new FluidStack(ItemList.sIndiumConcentrate, 8_000))
