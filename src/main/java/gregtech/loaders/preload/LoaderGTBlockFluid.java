@@ -251,7 +251,7 @@ public class LoaderGTBlockFluid implements Runnable {
                 "Source of sunnarium",
                 3_000,
                 1,
-                10_000,
+                1_000,
                 () -> ItemList.DepletedRodGlowstone.get(1)));
 
         // Thorium
@@ -352,7 +352,7 @@ public class LoaderGTBlockFluid implements Runnable {
                 "rodMOX",
                 "Fuel Rod (Mox)",
                 1,
-                10_000,
+                1_000,
                 2F,
                 1,
                 4F,
@@ -364,7 +364,7 @@ public class LoaderGTBlockFluid implements Runnable {
                 "rodMOX2",
                 "Dual Fuel Rod (Mox)",
                 2,
-                10_000,
+                1_000,
                 2F,
                 1,
                 4F,
@@ -376,7 +376,7 @@ public class LoaderGTBlockFluid implements Runnable {
                 "rodMOX4",
                 "Quad Fuel Rod (Mox)",
                 4,
-                10_000,
+                1_000,
                 2F,
                 1,
                 4F,
