@@ -386,6 +386,7 @@ public class AdditionalRecipes {
             .itemInputs(GTOreDictUnificator.get(crushed, Materials.Lead, 1L))
             .circuit(17)
             .itemOutputs(Materials.Lead.getIngots(1), Materials.Tellurium.getNuggets(2))
+            .outputChances(10000, 10)
             .duration(4 * SECONDS)
             .eut(TierEU.RECIPE_MV)
             .metadata(COIL_HEAT, 722)
