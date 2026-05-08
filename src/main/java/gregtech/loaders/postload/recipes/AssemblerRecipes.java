@@ -1050,6 +1050,7 @@ public class AssemblerRecipes implements Runnable {
                 ItemList.Hull_IV.get(1L),
                 GTOreDictUnificator.get(OrePrefixes.wireGt01, Materials.SuperconductorIV, 1L),
                 ItemList.Circuit_Chip_HPIC.get(2L),
+                ItemList.Circuit_Elitenanocomputer.get(2L),
                 ItemList.IV_Coil.get(2L),
                 ItemList.Reactor_Coolant_He_3.get(1L),
                 ItemList.Electric_Pump_IV.get(1L))
@@ -1090,6 +1091,7 @@ public class AssemblerRecipes implements Runnable {
                 ItemList.Hull_IV.get(1L),
                 GTOreDictUnificator.get(OrePrefixes.wireGt01, Materials.SuperconductorIV, 1L),
                 ItemList.Circuit_Chip_HPIC.get(2L),
+                ItemList.Circuit_Elitenanocomputer.get(2L),
                 ItemList.IV_Coil.get(2L),
                 ItemList.Reactor_Coolant_NaK_3.get(1L),
                 ItemList.Electric_Pump_IV.get(1L))
