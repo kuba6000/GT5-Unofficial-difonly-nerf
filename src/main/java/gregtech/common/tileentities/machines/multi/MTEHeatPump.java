@@ -1034,11 +1034,8 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
                 : requestedOutputSpecificEnthalpy,
             IFNPressurePolicy.MACHINE_OUTPUT_TO_INPUT_PRESSURE_RATIO));
 
-        if (processResult.getStatus() == IFNSingleOutputProcess.Status.OUTPUT_BLOCKED) {
-            return CheckRecipeResultRegistry.ITEM_OUTPUT_FULL;
-        }
         if (processResult.getStatus() != IFNSingleOutputProcess.Status.SUCCESS) {
-            return CheckRecipeResultRegistry.NO_RECIPE;
+            return IFNMachineResultMapper.toRecipeResult(processResult.getStatus());
         }
 
         amountToProcessQ = processResult.getAmountQ();

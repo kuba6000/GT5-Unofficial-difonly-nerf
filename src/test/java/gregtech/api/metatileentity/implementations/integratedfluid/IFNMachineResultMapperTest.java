@@ -21,4 +21,18 @@ class IFNMachineResultMapperTest {
             CheckRecipeResultRegistry.ITEM_OUTPUT_FULL,
             IFNMachineResultMapper.toRecipeResult(IFNStateTransferPlanner.Status.OUTPUT_BLOCKED));
     }
+
+    @Test
+    void processInputBlockedMapsToNoRecipe() {
+        assertSame(
+            CheckRecipeResultRegistry.NO_RECIPE,
+            IFNMachineResultMapper.toRecipeResult(IFNSingleOutputProcess.Status.INPUT_BLOCKED));
+    }
+
+    @Test
+    void processOutputBlockedMapsToOutputFull() {
+        assertSame(
+            CheckRecipeResultRegistry.ITEM_OUTPUT_FULL,
+            IFNMachineResultMapper.toRecipeResult(IFNSingleOutputProcess.Status.OUTPUT_BLOCKED));
+    }
 }

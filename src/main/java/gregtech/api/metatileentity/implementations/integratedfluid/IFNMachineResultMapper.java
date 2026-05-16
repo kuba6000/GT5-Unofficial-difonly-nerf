@@ -16,4 +16,14 @@ public final class IFNMachineResultMapper {
         }
         return CheckRecipeResultRegistry.NO_RECIPE;
     }
+
+    public static CheckRecipeResult toRecipeResult(IFNSingleOutputProcess.Status status) {
+        if (status == IFNSingleOutputProcess.Status.OUTPUT_BLOCKED) {
+            return CheckRecipeResultRegistry.ITEM_OUTPUT_FULL;
+        }
+        if (status == IFNSingleOutputProcess.Status.SUCCESS) {
+            return CheckRecipeResultRegistry.SUCCESSFUL;
+        }
+        return CheckRecipeResultRegistry.NO_RECIPE;
+    }
 }
