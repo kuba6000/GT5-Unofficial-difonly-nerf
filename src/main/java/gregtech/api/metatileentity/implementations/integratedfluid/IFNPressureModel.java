@@ -2,6 +2,9 @@ package gregtech.api.metatileentity.implementations.integratedfluid;
 
 import net.minecraftforge.fluids.Fluid;
 
+import gregtech.api.metatileentity.implementations.integratedfluid.safety.IFNOperationalLimits;
+import gregtech.api.metatileentity.implementations.integratedfluid.safety.IFNPressureLimitEvaluation;
+
 /**
  * Central pressure solver for Integrated Fluid Network state transitions.
  *
@@ -31,10 +34,8 @@ public final class IFNPressureModel {
             double pGas = computeGasPressureBar(fluid, amount, specificEnthalpy, limits.totalCapacity, pGuess);
             float clampedPressure = (float) IFNPressurePolicy.clampMinimum(
                 Math.min(pGas, (double) limits.maxPressureBar));
-            boolean pressureLimitExceeded = pGas > (double) limits.maxPressureBar;
-            boolean ruptureRequired = !limits.incompleteNetwork
-                && IFNPressurePolicy.exceedsRuptureLimit(pGas, (double) limits.maxPressureBar);
-            return new PressureResult(clampedPressure, pressureLimitExceeded, ruptureRequired);
+            IFNPressureLimitEvaluation limitEvaluation = evaluatePressureLimit(pGas, limits);
+            return new PressureResult(clampedPressure, limitEvaluation.isOverLimit(), limitEvaluation.isRuptureRequired());
         }
 
         if (limits.accumulatorCapacity <= 0) {
@@ -58,10 +59,15 @@ public final class IFNPressureModel {
         }
 
         float clampedPressure = (float) Math.max(1.0d, Math.min(pressure, (double) limits.maxPressureBar));
-        boolean pressureLimitExceeded = pressure > (double) limits.maxPressureBar;
-        boolean ruptureRequired = !limits.incompleteNetwork
-            && IFNPressurePolicy.exceedsRuptureLimit(pressure, limits.maxPressureBar);
-        return new PressureResult(clampedPressure, pressureLimitExceeded, ruptureRequired);
+        IFNPressureLimitEvaluation limitEvaluation = evaluatePressureLimit(pressure, limits);
+        return new PressureResult(clampedPressure, limitEvaluation.isOverLimit(), limitEvaluation.isRuptureRequired());
+    }
+
+    private static IFNPressureLimitEvaluation evaluatePressureLimit(double pressureBar, NetworkLimits limits) {
+        return IFNPressureLimitEvaluation.evaluate(
+            pressureBar,
+            IFNOperationalLimits.ofAccumulatorMaxPressureBar(limits.maxPressureBar),
+            limits.incompleteNetwork);
     }
 
     public static double getLiquidSpecificVolumeAtBasePressure(Fluid fluid, double specificEnthalpy) {
