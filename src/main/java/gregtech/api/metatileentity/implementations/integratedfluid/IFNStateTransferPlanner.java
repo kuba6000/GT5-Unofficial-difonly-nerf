@@ -2,6 +2,8 @@ package gregtech.api.metatileentity.implementations.integratedfluid;
 
 import net.minecraftforge.fluids.Fluid;
 
+import gregtech.api.metatileentity.implementations.integratedfluid.state.IFNNetworkStatus;
+
 /**
  * Shared planning helpers for common IFN state transfers.
  *
@@ -32,6 +34,9 @@ public final class IFNStateTransferPlanner {
         float maxOutputToInputPressureRatio, float sourcePressureDropBar) {
         if (inputNetwork == null || outputNetwork == null || fluid == null
             || requestedAmountQ < IntegratedFluidNetwork.AMOUNT_SCALE) {
+            return PlannedStateTransfer.empty();
+        }
+        if (!canPlanTransfers(inputNetwork, outputNetwork)) {
             return PlannedStateTransfer.empty();
         }
 
@@ -93,6 +98,9 @@ public final class IFNStateTransferPlanner {
         if (inputNetwork == null || redOutputNetwork == null || blueOutputNetwork == null
             || redFluid == null || blueFluid == null
             || requestedAmountQ < IntegratedFluidNetwork.AMOUNT_SCALE) {
+            return PlannedSplitTransfer.empty();
+        }
+        if (!canPlanTransfers(inputNetwork, redOutputNetwork, blueOutputNetwork)) {
             return PlannedSplitTransfer.empty();
         }
 
@@ -185,6 +193,9 @@ public final class IFNStateTransferPlanner {
             || requestedBlueQ < IntegratedFluidNetwork.AMOUNT_SCALE) {
             return PlannedDualTransfer.empty();
         }
+        if (!canPlanTransfers(redInputNetwork, redOutputNetwork, blueInputNetwork, blueOutputNetwork)) {
+            return PlannedDualTransfer.empty();
+        }
 
         long maxRedAddableQ = redOutputNetwork != redInputNetwork
             ? redOutputNetwork.getMaxAddableAmountQ(redFluid, redSpecificEnthalpy, requestedRedQ)
@@ -251,6 +262,15 @@ public final class IFNStateTransferPlanner {
         }
 
         return PlannedDualTransfer.accepted(bestRatio, bestRedQ, bestBlueQ);
+    }
+
+    private static boolean canPlanTransfers(IntegratedFluidNetwork... networks) {
+        for (IntegratedFluidNetwork network : networks) {
+            if (network == null || network.getNetworkStatus() != IFNNetworkStatus.NORMAL) {
+                return false;
+            }
+        }
+        return true;
     }
 
     public static final class PlannedStateTransfer {

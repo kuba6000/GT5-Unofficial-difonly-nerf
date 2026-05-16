@@ -1,40 +1,78 @@
 package gregtech.api.metatileentity.implementations.integratedfluid;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
-import net.minecraftforge.fluids.Fluid;
 
 import org.junit.jupiter.api.Test;
+
+import net.minecraftforge.fluids.Fluid;
 
 class IFNStateTransferPlannerTest {
 
     @Test
-    void singleOutputPlanningIsBoundedByOutputAcceptance() {
-        Fluid liquid = IFNTestSupport.liquidFluid();
-        IntegratedFluidNetwork input = IFNTestSupport.newNetwork(liquid, 1_000, 100, 10.0f);
-        IntegratedFluidNetwork output = IFNTestSupport.newNetwork(liquid, 100, 100, 1.5f);
+    void blockedSameNetworkTransferIsEmpty() {
+        Fluid fluid = IFNTestSupport.liquidFluid();
+        IntegratedFluidNetwork network = IFNTestSupport.newNetwork(fluid, 10_000, 0, 100.0f);
 
-        long inputAmountQ = 500L * IntegratedFluidNetwork.AMOUNT_SCALE;
-        input.addState(
-            liquid,
-            inputAmountQ,
-            IntegratedFluidNetwork.toEnthalpyQFromSpecific(300.0d, inputAmountQ)
-        );
-
-        long requestedAmountQ = 200L * IntegratedFluidNetwork.AMOUNT_SCALE;
-        long maxAddableQ = output.getMaxAddableAmountQ(liquid, 300.0d, requestedAmountQ);
+        network.freeze("test freeze");
 
         IFNStateTransferPlanner.PlannedStateTransfer plan = IFNStateTransferPlanner.planSingleOutputStateAdd(
-            input,
-            output,
-            liquid,
+            network,
+            network,
+            fluid,
             300.0d,
-            requestedAmountQ,
-            10.0f
-        );
+            IntegratedFluidNetwork.AMOUNT_SCALE,
+            1.0f);
 
-        assertEquals(maxAddableQ, plan.acceptedAmountQ);
-        assertTrue(plan.acceptedAmountQ < requestedAmountQ);
+        assertEquals(0L, plan.acceptedAmountQ);
+    }
+
+    @Test
+    void blockedSplitOutputTransferIsEmpty() {
+        Fluid fluid = IFNTestSupport.liquidFluid();
+        IntegratedFluidNetwork input = IFNTestSupport.newNetwork(fluid, 10_000, 0, 100.0f);
+        IntegratedFluidNetwork redOutput = IFNTestSupport.newNetwork(fluid, 10_000, 0, 100.0f);
+        IntegratedFluidNetwork blueOutput = IFNTestSupport.newNetwork(fluid, 10_000, 0, 100.0f);
+
+        redOutput.freeze("test freeze");
+
+        IFNStateTransferPlanner.PlannedSplitTransfer plan = IFNStateTransferPlanner.planSplitStateAdd(
+            input,
+            redOutput,
+            fluid,
+            300.0d,
+            blueOutput,
+            fluid,
+            300.0d,
+            2L * IntegratedFluidNetwork.AMOUNT_SCALE,
+            0.5d,
+            1.0f);
+
+        assertEquals(0L, plan.acceptedTotalAmountQ);
+    }
+
+    @Test
+    void blockedDualInputTransferIsEmpty() {
+        Fluid fluid = IFNTestSupport.liquidFluid();
+        IntegratedFluidNetwork redInput = IFNTestSupport.newNetwork(fluid, 10_000, 0, 100.0f);
+        IntegratedFluidNetwork redOutput = IFNTestSupport.newNetwork(fluid, 10_000, 0, 100.0f);
+        IntegratedFluidNetwork blueInput = IFNTestSupport.newNetwork(fluid, 10_000, 0, 100.0f);
+        IntegratedFluidNetwork blueOutput = IFNTestSupport.newNetwork(fluid, 10_000, 0, 100.0f);
+
+        blueInput.setPending(true);
+
+        IFNStateTransferPlanner.PlannedDualTransfer plan = IFNStateTransferPlanner.planDualStateAddWithSharedRatio(
+            redInput,
+            redOutput,
+            fluid,
+            300.0d,
+            IntegratedFluidNetwork.AMOUNT_SCALE,
+            blueInput,
+            blueOutput,
+            fluid,
+            300.0d,
+            IntegratedFluidNetwork.AMOUNT_SCALE,
+            1.0f);
+
+        assertEquals(0.0d, plan.acceptedRatio);
     }
 }
