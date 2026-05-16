@@ -109,7 +109,7 @@ public class MTELargeChemicalReactor extends MTEEnhancedMultiBlockBase<MTELargeC
         tt.addMachineType("Chemical Reactor, LCR")
             .addInfo("Accepts fluids instead of fluid cells")
             .addInfo("Can perform several direct recipes that skip intermediate compounds")
-            .addPerfectOCInfo()
+            .addInfo("Now with amazing 3/4 OC!")
             .beginStructureBlock(3, 3, 3, false)
             .addController("Front center, 2nd layer")
             .addCasing("8-22", "Chemically Inert Machine Casing", false)
@@ -152,7 +152,7 @@ public class MTELargeChemicalReactor extends MTEEnhancedMultiBlockBase<MTELargeC
 
     @Override
     protected ProcessingLogic createProcessingLogic() {
-        return new ProcessingLogic().enablePerfectOverclock();
+        return new ProcessingLogic().setOverclock(3.0, 4.0);
     }
 
     @Override

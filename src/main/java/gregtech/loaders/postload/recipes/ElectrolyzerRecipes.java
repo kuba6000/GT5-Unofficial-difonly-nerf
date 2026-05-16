@@ -109,7 +109,7 @@ public class ElectrolyzerRecipes implements Runnable {
                 GTOreDictUnificator.get(OrePrefixes.dust, Materials.Zinc, 1),
                 GTOreDictUnificator.get(OrePrefixes.dust, Materials.Sulfur, 1),
                 GTOreDictUnificator.get(OrePrefixes.dust, Materials.Gallium, 1))
-            .outputChances(10000, 10000, 917)
+            .outputChances(10000, 10000, 1000)
             .duration(10 * SECONDS)
             .eut(TierEU.RECIPE_LV)
             .addTo(electrolyzerRecipes);

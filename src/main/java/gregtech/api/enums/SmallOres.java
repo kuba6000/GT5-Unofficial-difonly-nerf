@@ -428,7 +428,7 @@ public enum SmallOres {
 
     Naquadah(new SmallOreBuilder().name("ore.small.naquadah")
         .heightRange(5, 25)
-        .amount(8)
+        .amount(1)
         .ore(Materials.Naquadah)
         .enableInDim(BarnardE, BarnardF, Ceres, Enceladus, Io, KuiperBelt, Mercury, Pluto, Proteus, Venus)),
 

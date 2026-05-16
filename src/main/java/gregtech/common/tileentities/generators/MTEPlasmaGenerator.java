@@ -112,7 +112,7 @@ public class MTEPlasmaGenerator extends MTEBasicGenerator {
 
     @Override
     public int getEfficiency() {
-        return Math.max(10, 10 + Math.min(90, this.mTier * 10));
+        return 10 + this.mTier * 5;
     }
 
     @Override

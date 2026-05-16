@@ -571,12 +571,12 @@ public abstract class MetaTileEntity extends CommonMetaTileEntity implements ICr
             int tSteam = (int) Math.min(
                 Integer.MAX_VALUE,
                 Math.min(
-                    aFluid.amount / 2,
+                    aFluid.amount / 5,
                     getBaseMetaTileEntity().getSteamCapacity() - getBaseMetaTileEntity().getStoredSteam()));
             if (tSteam > 0) {
                 markDirty();
                 if (doFill) getBaseMetaTileEntity().increaseStoredSteam(tSteam, true);
-                return tSteam * 2;
+                return tSteam * 5;
             }
         } else {
             return fill_default(side, aFluid, doFill);

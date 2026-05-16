@@ -58,7 +58,7 @@ public class SteamOverclockDescriber extends OverclockDescriber {
     }
 
     private static long convertEUToSteam(long eu) {
-        // 2L normal steam == 1EU
-        return 2 * eu;
+        // 5L normal steam == 1EU
+        return 5 * eu;
     }
 }

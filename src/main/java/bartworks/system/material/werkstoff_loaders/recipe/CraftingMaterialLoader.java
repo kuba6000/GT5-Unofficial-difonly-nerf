@@ -23,6 +23,7 @@ import static gregtech.api.enums.OrePrefixes.ring;
 import static gregtech.api.enums.OrePrefixes.rotor;
 import static gregtech.api.enums.OrePrefixes.screw;
 import static gregtech.api.enums.OrePrefixes.stick;
+import static gregtech.api.enums.OrePrefixes.stickLong;
 import static gregtech.api.enums.OrePrefixes.wireFine;
 import static gregtech.api.recipe.RecipeMaps.assemblerRecipes;
 import static gregtech.api.recipe.RecipeMaps.cutterRecipes;
@@ -115,7 +116,7 @@ public class CraftingMaterialLoader implements IWerkstoffRunnable {
                 GTModHandler.addCraftingRecipe(
                     werkstoff.get(ring),
                     GTModHandler.RecipeBits.BITS_STD,
-                    new Object[] { "h ", "fX", 'X', werkstoff.get(stick) });
+                    new Object[] { "h ", "fX", 'X', werkstoff.get(stickLong) });
 
                 // Gear
                 GTModHandler.addCraftingRecipe(

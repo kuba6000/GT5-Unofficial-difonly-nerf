@@ -450,7 +450,6 @@ public class PlatinumSludgeOverHaul {
             .itemInputs(PTSaltRefined.get(dust))
             .circuit(1)
             .itemOutputs(PTMetallicPowder.get(dust))
-            .fluidOutputs(Materials.Chlorine.getGas(87))
             .duration(10 * SECONDS)
             .eut(TierEU.RECIPE_MV)
             .metadata(COIL_HEAT, 900)
@@ -459,7 +458,7 @@ public class PlatinumSludgeOverHaul {
         // 2PtCl + Ca = 2Pt + CaCl2
         GTValues.RA.stdBuilder()
             .itemInputs(PTRawPowder.get(dust, 4), Materials.Calcium.getDust(1))
-            .itemOutputs(Materials.Platinum.getDust(2), CalciumChloride.get(dust, 3))
+            .itemOutputs(Materials.Platinum.getDust(2), CalciumChloride.get(dust, 2))
             .duration(1 * SECONDS + 10 * TICKS)
             .eut(TierEU.RECIPE_LV)
             .addTo(UniversalChemical);

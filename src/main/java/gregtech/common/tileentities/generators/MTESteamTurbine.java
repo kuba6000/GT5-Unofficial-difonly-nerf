@@ -78,7 +78,7 @@ public class MTESteamTurbine extends MTEBasicGenerator {
 
     @Override
     public int getEfficiency() {
-        return 6 + this.mTier;
+        return 10 + 5 * this.mTier;
     }
 
     @Override
