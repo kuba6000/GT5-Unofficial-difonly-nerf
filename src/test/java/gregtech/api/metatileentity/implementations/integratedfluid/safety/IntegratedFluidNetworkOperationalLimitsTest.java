@@ -21,6 +21,16 @@ class IntegratedFluidNetworkOperationalLimitsTest {
     }
 
     @Test
+    void networkExposesWeakestTemperatureLimit() {
+        IntegratedFluidNetwork network = new IntegratedFluidNetwork();
+
+        network.addMember(member(1000, 9.0f, 1100.0f));
+        network.addMember(member(1000, 9.0f, 750.0f));
+
+        assertEquals(750.0f, network.getOperationalLimits().maxTemperatureKelvin());
+    }
+
+    @Test
     void networkEvaluatesCurrentPressureAgainstOperationalLimits() {
         IntegratedFluidNetwork network = new IntegratedFluidNetwork();
 
@@ -62,6 +72,11 @@ class IntegratedFluidNetworkOperationalLimitsTest {
     }
 
     private static IIntegratedFluidMember member(int accumulatorContribution, float accumulatorMaxPressureBar) {
+        return member(accumulatorContribution, accumulatorMaxPressureBar, Float.POSITIVE_INFINITY);
+    }
+
+    private static IIntegratedFluidMember member(int accumulatorContribution, float accumulatorMaxPressureBar,
+        float maxTemperatureKelvin) {
         return new IIntegratedFluidMember() {
 
             private IntegratedFluidNetwork network;
@@ -100,6 +115,11 @@ class IntegratedFluidNetworkOperationalLimitsTest {
             @Override
             public float getAccumulatorMaxPressureBar() {
                 return accumulatorMaxPressureBar;
+            }
+
+            @Override
+            public float getMaxTemperatureKelvin() {
+                return maxTemperatureKelvin;
             }
         };
     }

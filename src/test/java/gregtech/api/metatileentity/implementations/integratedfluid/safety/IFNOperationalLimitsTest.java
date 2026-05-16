@@ -27,7 +27,22 @@ class IFNOperationalLimitsTest {
         assertEquals(4.5f, limits.accumulatorMaxPressureBar());
     }
 
+    @Test
+    void weakestTemperatureLimitWins() {
+        IFNOperationalLimits limits = IFNOperationalLimits.fromMembers(java.util.Arrays.asList(
+                member(0, 8.0f, 1200.0f),
+                member(0, 8.0f, 800.0f),
+                member(0, 8.0f, Float.POSITIVE_INFINITY)));
+
+        assertEquals(800.0f, limits.maxTemperatureKelvin());
+    }
+
     private static IIntegratedFluidMember member(int accumulatorContribution, float accumulatorMaxPressureBar) {
+        return member(accumulatorContribution, accumulatorMaxPressureBar, Float.POSITIVE_INFINITY);
+    }
+
+    private static IIntegratedFluidMember member(int accumulatorContribution, float accumulatorMaxPressureBar,
+        float maxTemperatureKelvin) {
         return new IIntegratedFluidMember() {
 
             private IntegratedFluidNetwork network;
@@ -66,6 +81,11 @@ class IFNOperationalLimitsTest {
             @Override
             public float getAccumulatorMaxPressureBar() {
                 return accumulatorMaxPressureBar;
+            }
+
+            @Override
+            public float getMaxTemperatureKelvin() {
+                return maxTemperatureKelvin;
             }
         };
     }

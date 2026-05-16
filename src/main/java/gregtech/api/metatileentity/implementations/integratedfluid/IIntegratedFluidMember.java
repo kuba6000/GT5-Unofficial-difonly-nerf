@@ -52,4 +52,12 @@ public interface IIntegratedFluidMember {
     default float getAccumulatorMaxPressureBar() {
         return IFNPressurePolicy.DEFAULT_MAX_PRESSURE_BAR;
     }
+
+    /**
+     * Returns the maximum temperature supported by this member.
+     * Members without a temperature limit should keep the default.
+     */
+    default float getMaxTemperatureKelvin() {
+        return Float.POSITIVE_INFINITY;
+    }
 }
