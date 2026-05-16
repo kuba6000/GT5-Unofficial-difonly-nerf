@@ -6,22 +6,17 @@ public final class IFNPressureWarningTracker {
     public static final int FAILURE_ROLL_INTERVAL_TICKS = 20;
     public static final double FAILURE_ROLL_CHANCE = 0.01d;
 
-    private int warningTicks;
+    private final IFNLimitWarningTracker delegate = new IFNLimitWarningTracker();
 
     public void update(IFNPressureLimitEvaluation evaluation) {
-        if (evaluation.status() == IFNPressureLimitStatus.WARNING) {
-            warningTicks++;
-            return;
-        }
-        warningTicks = 0;
+        delegate.update(evaluation.status() == IFNPressureLimitStatus.WARNING);
     }
 
     public int warningTicks() {
-        return warningTicks;
+        return delegate.warningTicks();
     }
 
     public boolean shouldRollFailureThisTick() {
-        return warningTicks >= WARNING_TICKS_BEFORE_FAILURE_ROLL
-            && warningTicks % FAILURE_ROLL_INTERVAL_TICKS == 0;
+        return delegate.shouldRollFailureThisTick();
     }
 }
