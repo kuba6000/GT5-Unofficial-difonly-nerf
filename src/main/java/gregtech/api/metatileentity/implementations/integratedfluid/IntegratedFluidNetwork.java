@@ -16,6 +16,7 @@ import gregtech.api.metatileentity.implementations.integratedfluid.IFNFluidTherm
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNFluidThermalRegistration;
 import gregtech.api.metatileentity.implementations.integratedfluid.amount.EnergyAmount;
 import gregtech.api.metatileentity.implementations.integratedfluid.amount.SubstanceAmount;
+import gregtech.api.metatileentity.implementations.integratedfluid.amount.VolumeAmount;
 import gregtech.api.metatileentity.implementations.integratedfluid.state.IFNCanonicalState;
 import gregtech.api.metatileentity.implementations.integratedfluid.state.IFNNetworkStatus;
 import gregtech.api.metatileentity.implementations.integratedfluid.topology.IFNTopologySnapshot;
@@ -158,19 +159,11 @@ public class IntegratedFluidNetwork {
      * - Injector hatches add 0 volume units
      */
     public int getMaxCapacity() {
-        int totalCapacity = 0;
-        for (IIntegratedFluidMember member : members) {
-            totalCapacity += member.getCapacityContribution();
-        }
-        return totalCapacity;
+        return toCapacityInt(getTopologySnapshot().baseVolume());
     }
 
     public int getAccumulatorCapacity() {
-        int total = 0;
-        for (IIntegratedFluidMember member : members) {
-            total += member.getAccumulatorContribution();
-        }
-        return total;
+        return toCapacityInt(getTopologySnapshot().accumulatorVolume());
     }
 
     public float getAccumulatorMaxPressureBar() {
@@ -191,7 +184,12 @@ public class IntegratedFluidNetwork {
     }
 
     public int getTotalCapacity() {
-        return getBaseCapacity() + getAccumulatorCapacity();
+        return toCapacityInt(getTopologySnapshot().totalVolume());
+    }
+
+    private static int toCapacityInt(VolumeAmount volume) {
+        long liters = volume.toWholeLiters();
+        return liters > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) liters;
     }
 
     /**

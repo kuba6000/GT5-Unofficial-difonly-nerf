@@ -22,6 +22,10 @@ class IntegratedFluidNetworkTopologySnapshotTest {
         assertEquals(10100, snapshot.baseVolume().toWholeLiters());
         assertEquals(5000, snapshot.accumulatorVolume().toWholeLiters());
         assertEquals(15100, snapshot.totalVolume().toWholeLiters());
+        assertEquals(snapshot.baseVolume().toWholeLiters(), network.getMaxCapacity());
+        assertEquals(snapshot.baseVolume().toWholeLiters(), network.getBaseCapacity());
+        assertEquals(snapshot.accumulatorVolume().toWholeLiters(), network.getAccumulatorCapacity());
+        assertEquals(snapshot.totalVolume().toWholeLiters(), network.getTotalCapacity());
     }
 
     @Test
