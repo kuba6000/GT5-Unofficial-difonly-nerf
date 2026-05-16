@@ -19,6 +19,7 @@ public final class IFNWailaFormatter {
         if (frozenReason != null && !frozenReason.isEmpty()) {
             tag.setString("frozenReason", frozenReason);
         }
+        tag.setLong("substanceAmountQ", network.getAmountQ());
         tag.setString("pressureLimitStatus", network.getPressureLimitEvaluation().status().name());
         tag.setString("temperatureLimitStatus", network.getTemperatureLimitEvaluation().status().name());
     }
@@ -45,8 +46,19 @@ public final class IFNWailaFormatter {
             currenttip.add("Status: " + EnumChatFormatting.GREEN + "Normal" + EnumChatFormatting.RESET);
         }
 
+        addSubstanceAmount(tag, currenttip);
         addLimitStatus(tag.getString("pressureLimitStatus"), "Pressure", currenttip);
         addLimitStatus(tag.getString("temperatureLimitStatus"), "Temperature", currenttip);
+    }
+
+    private static void addSubstanceAmount(NBTTagCompound tag, List<String> currenttip) {
+        long substanceAmountQ = tag.getLong("substanceAmountQ");
+        if (substanceAmountQ <= 0L) {
+            return;
+        }
+
+        long wholeRefLiters = substanceAmountQ / IntegratedFluidNetwork.AMOUNT_SCALE;
+        currenttip.add("Substance: " + EnumChatFormatting.GRAY + wholeRefLiters + " refL" + EnumChatFormatting.RESET);
     }
 
     private static void addLimitStatus(String status, String label, List<String> currenttip) {

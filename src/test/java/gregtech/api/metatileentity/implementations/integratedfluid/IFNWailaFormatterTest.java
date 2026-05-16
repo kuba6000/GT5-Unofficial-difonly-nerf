@@ -54,4 +54,18 @@ class IFNWailaFormatterTest {
         assertTrue(tooltip.stream().anyMatch(line -> line.contains("Pressure") && line.contains("Over Limit")));
         assertTrue(tooltip.stream().anyMatch(line -> line.contains("Temperature") && line.contains("Rupture Risk")));
     }
+
+    @Test
+    void substanceAmountUsesReferenceLiters() {
+        NBTTagCompound tag = new NBTTagCompound();
+        List<String> tooltip = new ArrayList<>();
+
+        tag.setBoolean("hasNetwork", true);
+        tag.setString("networkStatus", "NORMAL");
+        tag.setLong("substanceAmountQ", 12L * IntegratedFluidNetwork.AMOUNT_SCALE);
+
+        IFNWailaFormatter.addNetworkStatus(tag, tooltip);
+
+        assertTrue(tooltip.stream().anyMatch(line -> line.contains("Substance:") && line.contains("12 refL")));
+    }
 }
