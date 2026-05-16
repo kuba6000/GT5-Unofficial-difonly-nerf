@@ -177,6 +177,7 @@ public class MTEIntegratedFluidOutputHatch extends MTEHatch implements IIntegrat
         // Send network data to client for WAILA display
         if (network != null) {
             tag.setBoolean("hasNetwork", true);
+            IFNWailaFormatter.writeNetworkStatus(network, tag);
             tag.setInteger("memberCount", network.getMemberCount());
             tag.setInteger("maxCapacity", network.getMaxCapacity());
             tag.setInteger("accumulatorCapacity", network.getAccumulatorCapacity());
@@ -198,6 +199,7 @@ public class MTEIntegratedFluidOutputHatch extends MTEHatch implements IIntegrat
         super.getWailaBody(itemStack, currenttip, accessor, config);
         NBTTagCompound tag = accessor.getNBTData();
         if (tag.getBoolean("hasNetwork")) {
+            IFNWailaFormatter.addNetworkStatus(tag, currenttip);
             int maxCapacity = tag.getInteger("maxCapacity");
             int accumulatorCapacity = tag.getInteger("accumulatorCapacity");
             int totalCapacity = tag.hasKey("totalCapacity")
