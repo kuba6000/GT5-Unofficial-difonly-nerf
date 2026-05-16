@@ -3,6 +3,7 @@ package gregtech.api.metatileentity.implementations.integratedfluid;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
@@ -17,6 +18,7 @@ import gregtech.api.metatileentity.implementations.integratedfluid.IFNFluidTherm
 import gregtech.api.metatileentity.implementations.integratedfluid.amount.EnergyAmount;
 import gregtech.api.metatileentity.implementations.integratedfluid.amount.SubstanceAmount;
 import gregtech.api.metatileentity.implementations.integratedfluid.amount.VolumeAmount;
+import gregtech.api.metatileentity.implementations.integratedfluid.safety.IFNFailureCandidateSelector;
 import gregtech.api.metatileentity.implementations.integratedfluid.safety.IFNLimitWarningTracker;
 import gregtech.api.metatileentity.implementations.integratedfluid.safety.IFNOperationalLimits;
 import gregtech.api.metatileentity.implementations.integratedfluid.safety.IFNOperationalSafetyEvaluation;
@@ -230,6 +232,20 @@ public class IntegratedFluidNetwork {
             temperatureEvaluation,
             shouldRollPressureFailureThisTick(),
             shouldRollTemperatureFailureThisTick());
+    }
+
+    public Optional<IIntegratedFluidMember> selectFailureCandidate(IFNOperationalSafetyEvaluation evaluation) {
+        if (evaluation.pressure().isOverLimit()) {
+            Optional<IIntegratedFluidMember> pressureCandidate =
+                IFNFailureCandidateSelector.selectWeakestPressureCandidate(members);
+            if (pressureCandidate.isPresent()) {
+                return pressureCandidate;
+            }
+        }
+        if (evaluation.temperature().isOverLimit()) {
+            return IFNFailureCandidateSelector.selectWeakestTemperatureCandidate(members);
+        }
+        return Optional.empty();
     }
 
     public int getBaseCapacity() {
