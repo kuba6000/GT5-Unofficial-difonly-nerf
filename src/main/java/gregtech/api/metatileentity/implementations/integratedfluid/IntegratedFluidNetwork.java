@@ -617,6 +617,19 @@ public class IntegratedFluidNetwork {
         );
     }
 
+    public void replaceCanonicalState(IFNCanonicalState state) {
+        IFNCanonicalState next = state == null ? IFNCanonicalState.empty() : state;
+        if (next.isEmpty()) {
+            clearFluid();
+            return;
+        }
+
+        this.fluidName = next.fluidId().get();
+        this.amountQ = next.substanceAmount().rawUnits();
+        this.enthalpyQ = next.internalEnergy().rawUnits();
+        updatePressure();
+    }
+
     public IFNTopologySnapshot getTopologySnapshot() {
         return IFNTopologySnapshot.fromMembers(members, expectedMemberCount);
     }
