@@ -1072,7 +1072,7 @@ public class IntegratedFluidNetwork {
      */
     private void updatePressure() {
         Fluid fluid = getFluid();
-        pressure = computePressureForState(fluid, amountQ, enthalpyQ, pressure, true);
+        pressure = computePressureForState(fluid, amountQ, enthalpyQ, pressure, false);
     }
 
     private boolean isIncompleteNetwork() {

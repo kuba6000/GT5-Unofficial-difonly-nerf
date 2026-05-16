@@ -45,4 +45,17 @@ class IFNPressureModelTest {
 
         assertTrue(result.isRuptureRequired());
     }
+
+    @Test
+    void networkPressureUpdateDoesNotRuptureImmediately() {
+        Fluid liquid = IFNTestSupport.liquidFluid();
+        IntegratedFluidNetwork network = IFNTestSupport.newNetwork(liquid, 100, 100, 1.5f);
+        long amountQ = 250L * IntegratedFluidNetwork.AMOUNT_SCALE;
+        long enthalpyQ = IntegratedFluidNetwork.toEnthalpyQFromSpecific(300.0d, amountQ);
+
+        network.addState(liquid, amountQ, enthalpyQ);
+
+        assertTrue(!network.getCanonicalState().isEmpty());
+        assertTrue(network.getPressureLimitEvaluation().isRuptureRequired());
+    }
 }

@@ -32,8 +32,7 @@ public final class IFNPressureModel {
         if (phase.phase == FluidThermalProperties.Phase.VAPOR
             || phase.phase == FluidThermalProperties.Phase.SUPERCRITICAL) {
             double pGas = computeGasPressureBar(fluid, amount, specificEnthalpy, limits.totalCapacity, pGuess);
-            float clampedPressure = (float) IFNPressurePolicy.clampMinimum(
-                Math.min(pGas, (double) limits.maxPressureBar));
+            float clampedPressure = (float) IFNPressurePolicy.clampMinimum(pGas);
             IFNPressureLimitEvaluation limitEvaluation = evaluatePressureLimit(pGas, limits);
             return new PressureResult(clampedPressure, limitEvaluation.isOverLimit(), limitEvaluation.isRuptureRequired());
         }
@@ -58,7 +57,7 @@ public final class IFNPressureModel {
             pressure = pMaxAcc + LIQUID_BULK_MODULUS_BAR * (vOver / limits.totalCapacity);
         }
 
-        float clampedPressure = (float) Math.max(1.0d, Math.min(pressure, (double) limits.maxPressureBar));
+        float clampedPressure = (float) IFNPressurePolicy.clampMinimum(pressure);
         IFNPressureLimitEvaluation limitEvaluation = evaluatePressureLimit(pressure, limits);
         return new PressureResult(clampedPressure, limitEvaluation.isOverLimit(), limitEvaluation.isRuptureRequired());
     }
