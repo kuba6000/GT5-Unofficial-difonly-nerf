@@ -49,4 +49,21 @@ class IntegratedFluidNetworkStatusTest {
         assertEquals(0L, network.getAmountQ());
         assertNull(network.drainFluid(1, false));
     }
+
+    @Test
+    void pendingNetworkRejectsInputAndOutput() {
+        Fluid fluid = IFNTestSupport.liquidFluid();
+        IntegratedFluidNetwork network = IFNTestSupport.newNetwork(fluid, 1000, 0, 100.0f);
+        long amountQ = IntegratedFluidNetwork.AMOUNT_SCALE;
+        long energyQ = IntegratedFluidNetwork.toEnthalpyQFromSpecific(
+            FluidThermalProperties.getSpecificEnthalpyFromPT(fluid, 1.0d, 300.0d),
+            amountQ
+        );
+
+        network.setPending(true);
+        network.addState(fluid, amountQ, energyQ);
+
+        assertEquals(0L, network.getAmountQ());
+        assertNull(network.drainFluid(1, false));
+    }
 }
