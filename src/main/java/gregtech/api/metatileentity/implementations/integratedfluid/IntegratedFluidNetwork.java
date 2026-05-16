@@ -8,7 +8,6 @@ import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
 
-import net.minecraft.world.World;
 import net.minecraftforge.fluids.Fluid;
 import net.minecraftforge.fluids.FluidRegistry;
 import net.minecraftforge.fluids.FluidStack;
@@ -30,8 +29,6 @@ import gregtech.api.metatileentity.implementations.integratedfluid.safety.IFNTem
 import gregtech.api.metatileentity.implementations.integratedfluid.state.IFNCanonicalState;
 import gregtech.api.metatileentity.implementations.integratedfluid.state.IFNNetworkStatus;
 import gregtech.api.metatileentity.implementations.integratedfluid.topology.IFNTopologySnapshot;
-import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
-import gregtech.api.metatileentity.MetaPipeEntity;
 
 /**
  * Manages a network of connected integrated fluid hatches and pipes.
@@ -448,7 +445,7 @@ public class IntegratedFluidNetwork {
         long pEnthalpyQ = predictedState.getEnthalpyQ();
 
         float oldTemp = currentState.isEmpty() ? 0.0f : getDerivedTemperature();
-        float rawP = computePressureForState(fluid, pAmountQ, pEnthalpyQ, currentState.getPressureBar(), false);
+        float rawP = computePressureForState(fluid, pAmountQ, pEnthalpyQ, currentState.getPressureBar());
         FluidThermalProperties.PhaseResult newPhase = FluidThermalProperties.getPhaseFromPH(
             fluid,
             IFNPressurePolicy.clampMinimum((double) rawP),
@@ -473,7 +470,7 @@ public class IntegratedFluidNetwork {
             pEnthalpyQ = toEnthalpyQFromSpecific(newSpecificEnthalpy, pAmountQ);
         }
 
-        return computePressureForState(fluid, pAmountQ, pEnthalpyQ, rawP, false);
+        return computePressureForState(fluid, pAmountQ, pEnthalpyQ, rawP);
     }
 
     public float predictPressureAfterExtract(long requestAmountQ) {
@@ -499,7 +496,7 @@ public class IntegratedFluidNetwork {
         Fluid fluid = getFluid();
         if (fluid == null) return DEFAULT_PRESSURE;
 
-        float rawP = computePressureForState(fluid, pAmountQ, pEnthalpyQ, pressure, false);
+        float rawP = computePressureForState(fluid, pAmountQ, pEnthalpyQ, pressure);
         FluidThermalProperties.PhaseResult currentPhase = FluidThermalProperties.getPhaseFromPH(
             fluid,
             IFNPressurePolicy.clampMinimum((double) pressure),
@@ -513,7 +510,7 @@ public class IntegratedFluidNetwork {
             pEnthalpyQ = toEnthalpyQFromSpecific(newSpecificEnthalpy, pAmountQ);
         }
 
-        return computePressureForState(fluid, pAmountQ, pEnthalpyQ, rawP, false);
+        return computePressureForState(fluid, pAmountQ, pEnthalpyQ, rawP);
     }
 
     public void add(Fluid fluid, long addAmountQ, long addEnthalpyQ) {
@@ -1072,7 +1069,7 @@ public class IntegratedFluidNetwork {
      */
     private void updatePressure() {
         Fluid fluid = getFluid();
-        pressure = computePressureForState(fluid, amountQ, enthalpyQ, pressure, false);
+        pressure = computePressureForState(fluid, amountQ, enthalpyQ, pressure);
     }
 
     private boolean isIncompleteNetwork() {
@@ -1189,56 +1186,11 @@ public class IntegratedFluidNetwork {
     }
 
     private float computePressureForState(Fluid fluid, long nextAmountQ, long nextEnthalpyQ, float currentPressure) {
-        return computePressureForState(fluid, nextAmountQ, nextEnthalpyQ, currentPressure, true);
-    }
-
-    private float computePressureForState(Fluid fluid, long nextAmountQ, long nextEnthalpyQ, float currentPressure,
-        boolean allowRupture) {
         IFNPressureModel.PressureResult result = IFNPressureModel.compute(
             fluid,
             new IFNFluidState(fluid == null ? null : fluid.getName(), nextAmountQ, nextEnthalpyQ, currentPressure),
             currentPressureLimits());
-        if (allowRupture && result.isRuptureRequired()) {
-             ruptureNetwork();
-             return IntegratedFluidThermoModel.BASE_PRESSURE;
-        }
         return result.getPressureBar();
-    }
-
-    private void ruptureNetwork() {
-        clearFluid();
-        MetaPipeEntity pipe = pickRandomPipe();
-        if (pipe == null) {
-            return;
-        }
-        IGregTechTileEntity baseTile = pipe.getBaseMetaTileEntity();
-        if (baseTile == null) {
-            return;
-        }
-        World world = baseTile.getWorld();
-        if (world == null || world.isRemote) {
-            return;
-        }
-        NetworkManager manager = NetworkManager.getInstance(world);
-        if (pipe instanceof IIntegratedFluidMember member) {
-            manager.onMemberRemoved(member);
-        }
-        world.setBlockToAir(baseTile.getXCoord(), baseTile.getYCoord(), baseTile.getZCoord());
-    }
-
-    private MetaPipeEntity pickRandomPipe() {
-        List<MetaPipeEntity> pipes = new ArrayList<>();
-        for (IIntegratedFluidMember member : members) {
-            if (member instanceof MetaPipeEntity pipe) {
-                pipes.add(pipe);
-            }
-        }
-        if (pipes.isEmpty()) {
-            return null;
-        }
-        IGregTechTileEntity base = pipes.get(0).getBaseMetaTileEntity();
-        Random rng = base != null ? base.getWorld().rand : new Random();
-        return pipes.get(rng.nextInt(pipes.size()));
     }
 
     /**
