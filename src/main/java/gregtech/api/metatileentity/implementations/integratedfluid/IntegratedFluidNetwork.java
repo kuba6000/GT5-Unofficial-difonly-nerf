@@ -28,6 +28,7 @@ import gregtech.api.metatileentity.implementations.integratedfluid.safety.IFNTem
 import gregtech.api.metatileentity.implementations.integratedfluid.safety.IFNTemperatureLimitStatus;
 import gregtech.api.metatileentity.implementations.integratedfluid.state.IFNCanonicalState;
 import gregtech.api.metatileentity.implementations.integratedfluid.state.IFNNetworkStatus;
+import gregtech.api.metatileentity.implementations.integratedfluid.topology.IFNMergePolicy;
 import gregtech.api.metatileentity.implementations.integratedfluid.topology.IFNTopologySnapshot;
 
 /**
@@ -1037,6 +1038,12 @@ public class IntegratedFluidNetwork {
         long otherAmountQ = other.amountQ;
         long otherEnthalpyQ = other.enthalpyQ;
         String otherFluidName = other.fluidName;
+
+        if (!IFNMergePolicy.canMerge(getCanonicalState(), other.getCanonicalState())) {
+            freeze("fluid conflict");
+            other.freeze("fluid conflict");
+            return;
+        }
 
         // Transfer all members to this network FIRST (this increases capacity)
         for (IIntegratedFluidMember member : new HashSet<>(other.members)) {
