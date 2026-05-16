@@ -466,6 +466,11 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
         return 100;
     }
 
+    @Override
+    public boolean isOperationalFailureCandidate() {
+        return true;
+    }
+
 
     @Override
     public void onRemoval() {

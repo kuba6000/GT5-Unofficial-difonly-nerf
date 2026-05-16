@@ -60,4 +60,18 @@ public interface IIntegratedFluidMember {
     default float getMaxTemperatureKelvin() {
         return Float.POSITIVE_INFINITY;
     }
+
+    /**
+     * Returns whether this member can be selected as the physical failure point for network rupture.
+     */
+    default boolean isOperationalFailureCandidate() {
+        return false;
+    }
+
+    /**
+     * Returns the maximum pressure differential supported by this member.
+     */
+    default float getMaxPressureDifferentialBar() {
+        return IFNPressurePolicy.DEFAULT_MAX_PRESSURE_BAR;
+    }
 }
