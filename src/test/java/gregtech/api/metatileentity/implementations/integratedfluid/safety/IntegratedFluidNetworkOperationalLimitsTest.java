@@ -31,6 +31,15 @@ class IntegratedFluidNetworkOperationalLimitsTest {
     }
 
     @Test
+    void networkEvaluatesCurrentTemperatureAgainstOperationalLimits() {
+        IntegratedFluidNetwork network = new IntegratedFluidNetwork();
+
+        network.addMember(member(1000, 9.0f, 250.0f));
+
+        assertEquals(IFNTemperatureLimitStatus.RUPTURE, network.getTemperatureLimitEvaluation().status());
+    }
+
+    @Test
     void networkEvaluatesCurrentPressureAgainstOperationalLimits() {
         IntegratedFluidNetwork network = new IntegratedFluidNetwork();
 

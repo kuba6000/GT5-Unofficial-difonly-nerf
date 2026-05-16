@@ -20,6 +20,7 @@ import gregtech.api.metatileentity.implementations.integratedfluid.amount.Volume
 import gregtech.api.metatileentity.implementations.integratedfluid.safety.IFNOperationalLimits;
 import gregtech.api.metatileentity.implementations.integratedfluid.safety.IFNPressureLimitEvaluation;
 import gregtech.api.metatileentity.implementations.integratedfluid.safety.IFNPressureWarningTracker;
+import gregtech.api.metatileentity.implementations.integratedfluid.safety.IFNTemperatureLimitEvaluation;
 import gregtech.api.metatileentity.implementations.integratedfluid.state.IFNCanonicalState;
 import gregtech.api.metatileentity.implementations.integratedfluid.state.IFNNetworkStatus;
 import gregtech.api.metatileentity.implementations.integratedfluid.topology.IFNTopologySnapshot;
@@ -180,6 +181,13 @@ public class IntegratedFluidNetwork {
 
     public IFNPressureLimitEvaluation getPressureLimitEvaluation() {
         return IFNPressureLimitEvaluation.evaluate(pressure, getOperationalLimits(), isIncompleteNetwork());
+    }
+
+    public IFNTemperatureLimitEvaluation getTemperatureLimitEvaluation() {
+        return IFNTemperatureLimitEvaluation.evaluate(
+            getTemperature(),
+            getOperationalLimits().maxTemperatureKelvin(),
+            isIncompleteNetwork());
     }
 
     public IFNPressureLimitEvaluation tickPressureSafety() {
