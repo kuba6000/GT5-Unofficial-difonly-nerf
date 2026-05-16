@@ -1,61 +1,64 @@
 package gregtech.api.metatileentity.implementations.integratedfluid;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
-import net.minecraftforge.fluids.Fluid;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.junit.jupiter.api.Test;
+
+import net.minecraftforge.fluids.Fluid;
 
 class IFNSingleOutputProcessTest {
 
     @Test
-    void singleOutputProcessTransfersTargetStateAndReportsResult() {
-        Fluid vapor = IFNTestSupport.vaporFluid();
-        IntegratedFluidNetwork input = IFNTestSupport.newNetwork(vapor, 4_000, 100, 10.0f);
-        IntegratedFluidNetwork output = IFNTestSupport.newNetwork(vapor, 4_000, 100, 10.0f);
-        long initialInputAmountQ = 200L * IntegratedFluidNetwork.AMOUNT_SCALE;
-        input.addState(vapor, initialInputAmountQ, IntegratedFluidNetwork.toEnthalpyQFromSpecific(350.0d, initialInputAmountQ));
+    void frozenInputNetworkStopsProcessBeforeThermoWork() {
+        Fluid fluid = IFNTestSupport.liquidFluid();
+        IntegratedFluidNetwork input = IFNTestSupport.newNetwork(fluid, 10_000, 0, 100.0f);
+        IntegratedFluidNetwork output = IFNTestSupport.newNetwork(fluid, 10_000, 0, 100.0f);
+        long amountQ = 5L * IntegratedFluidNetwork.AMOUNT_SCALE;
+        input.addState(fluid, amountQ, IntegratedFluidNetwork.toEnthalpyQFromSpecific(300.0d, amountQ));
+        AtomicBoolean providerCalled = new AtomicBoolean(false);
 
-        long requestedAmountQ = 50L * IntegratedFluidNetwork.AMOUNT_SCALE;
-        double targetTemperature = 450.0d;
+        input.freeze("test freeze");
 
         IFNSingleOutputProcess.Result result = IFNSingleOutputProcess.execute(IFNSingleOutputProcess.Request.of(
             input,
             output,
-            vapor,
-            requestedAmountQ,
-            amountQ -> IFNMachineThermo.computeTargetSpecificEnthalpyForStateAdd(output, vapor, targetTemperature, amountQ),
-            IFNPressurePolicy.MACHINE_OUTPUT_TO_INPUT_PRESSURE_RATIO));
+            fluid,
+            IntegratedFluidNetwork.AMOUNT_SCALE,
+            ignored -> {
+                providerCalled.set(true);
+                return 350.0d;
+            },
+            1.0f));
 
-        assertEquals(IFNSingleOutputProcess.Status.SUCCESS, result.getStatus());
-        assertTrue(result.getAmountQ() >= IntegratedFluidNetwork.AMOUNT_SCALE);
-        assertEquals(initialInputAmountQ - result.getAmountQ(), input.getAmountQ());
-        assertEquals(result.getAmountQ(), output.getAmountQ());
-        assertEquals(result.getOutputSpecificEnthalpy(), output.getSpecificEnthalpy(), 0.0001d);
-        assertTrue(result.getPredictedOutputPressureBar()
-            <= result.getPredictedInputPressureBar() * IFNPressurePolicy.MACHINE_OUTPUT_TO_INPUT_PRESSURE_RATIO
-                + IFNPressurePolicy.MIN_PRESSURE_BAR);
+        assertEquals(IFNSingleOutputProcess.Status.INPUT_BLOCKED, result.getStatus());
+        assertFalse(providerCalled.get());
+        assertEquals(amountQ, input.getAmountQ());
+        assertEquals(0L, output.getAmountQ());
     }
 
     @Test
-    void singleOutputProcessDoesNotMutateNetworksWhenOutputCannotAccept() {
-        Fluid vapor = IFNTestSupport.vaporFluid();
-        IntegratedFluidNetwork input = IFNTestSupport.newNetwork(vapor, 1_000, 0, 10.0f);
-        IntegratedFluidNetwork output = IFNTestSupport.newNetwork(vapor, 1, 0, 1.0f);
-        long initialInputAmountQ = 100L * IntegratedFluidNetwork.AMOUNT_SCALE;
-        input.addState(vapor, initialInputAmountQ, IntegratedFluidNetwork.toEnthalpyQFromSpecific(350.0d, initialInputAmountQ));
+    void frozenOutputNetworkStopsProcessBeforeInputExtraction() {
+        Fluid fluid = IFNTestSupport.liquidFluid();
+        IntegratedFluidNetwork input = IFNTestSupport.newNetwork(fluid, 10_000, 0, 100.0f);
+        IntegratedFluidNetwork output = IFNTestSupport.newNetwork(fluid, 10_000, 0, 100.0f);
+        long amountQ = 5L * IntegratedFluidNetwork.AMOUNT_SCALE;
+        input.addState(fluid, amountQ, IntegratedFluidNetwork.toEnthalpyQFromSpecific(300.0d, amountQ));
+
+        output.freeze("test freeze");
 
         IFNSingleOutputProcess.Result result = IFNSingleOutputProcess.execute(IFNSingleOutputProcess.Request.of(
             input,
             output,
-            vapor,
-            50L * IntegratedFluidNetwork.AMOUNT_SCALE,
-            amountQ -> 450.0d,
-            IFNPressurePolicy.MACHINE_OUTPUT_TO_INPUT_PRESSURE_RATIO));
+            fluid,
+            IntegratedFluidNetwork.AMOUNT_SCALE,
+            ignored -> 350.0d,
+            1.0f));
 
         assertEquals(IFNSingleOutputProcess.Status.OUTPUT_BLOCKED, result.getStatus());
-        assertEquals(initialInputAmountQ, input.getAmountQ());
+        assertEquals(amountQ, input.getAmountQ());
         assertEquals(0L, output.getAmountQ());
     }
 }

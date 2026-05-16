@@ -2,6 +2,8 @@ package gregtech.api.metatileentity.implementations.integratedfluid;
 
 import net.minecraftforge.fluids.Fluid;
 
+import gregtech.api.metatileentity.implementations.integratedfluid.state.IFNNetworkStatus;
+
 /**
  * Shared process primitive for machines that move one IFN state from one input network to one output network.
  *
@@ -17,6 +19,12 @@ public final class IFNSingleOutputProcess {
     public static Result execute(Request request) {
         if (request == null || !request.isValid()) {
             return Result.failure(Status.INVALID_REQUEST);
+        }
+        if (request.inputNetwork.getNetworkStatus() != IFNNetworkStatus.NORMAL) {
+            return Result.failure(Status.INPUT_BLOCKED);
+        }
+        if (request.outputNetwork.getNetworkStatus() != IFNNetworkStatus.NORMAL) {
+            return Result.failure(Status.OUTPUT_BLOCKED);
         }
 
         long amountToProcessQ = request.requestedAmountQ;
@@ -73,6 +81,7 @@ public final class IFNSingleOutputProcess {
     public enum Status {
         SUCCESS,
         INVALID_REQUEST,
+        INPUT_BLOCKED,
         NO_INPUT,
         OUTPUT_BLOCKED
     }
