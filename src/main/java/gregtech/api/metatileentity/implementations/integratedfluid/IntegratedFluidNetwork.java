@@ -17,10 +17,12 @@ import gregtech.api.metatileentity.implementations.integratedfluid.IFNFluidTherm
 import gregtech.api.metatileentity.implementations.integratedfluid.amount.EnergyAmount;
 import gregtech.api.metatileentity.implementations.integratedfluid.amount.SubstanceAmount;
 import gregtech.api.metatileentity.implementations.integratedfluid.amount.VolumeAmount;
+import gregtech.api.metatileentity.implementations.integratedfluid.safety.IFNLimitWarningTracker;
 import gregtech.api.metatileentity.implementations.integratedfluid.safety.IFNOperationalLimits;
 import gregtech.api.metatileentity.implementations.integratedfluid.safety.IFNPressureLimitEvaluation;
 import gregtech.api.metatileentity.implementations.integratedfluid.safety.IFNPressureWarningTracker;
 import gregtech.api.metatileentity.implementations.integratedfluid.safety.IFNTemperatureLimitEvaluation;
+import gregtech.api.metatileentity.implementations.integratedfluid.safety.IFNTemperatureLimitStatus;
 import gregtech.api.metatileentity.implementations.integratedfluid.state.IFNCanonicalState;
 import gregtech.api.metatileentity.implementations.integratedfluid.state.IFNNetworkStatus;
 import gregtech.api.metatileentity.implementations.integratedfluid.topology.IFNTopologySnapshot;
@@ -95,6 +97,7 @@ public class IntegratedFluidNetwork {
     private int expectedMemberCount = 0;
     private String frozenReason;
     private final IFNPressureWarningTracker pressureWarningTracker = new IFNPressureWarningTracker();
+    private final IFNLimitWarningTracker temperatureWarningTracker = new IFNLimitWarningTracker();
 
     public IntegratedFluidNetwork(UUID networkId) {
         this.fluidName = null;
@@ -202,6 +205,20 @@ public class IntegratedFluidNetwork {
 
     public boolean shouldRollPressureFailureThisTick() {
         return pressureWarningTracker.shouldRollFailureThisTick();
+    }
+
+    public IFNTemperatureLimitEvaluation tickTemperatureSafety() {
+        IFNTemperatureLimitEvaluation evaluation = getTemperatureLimitEvaluation();
+        temperatureWarningTracker.update(evaluation.status() == IFNTemperatureLimitStatus.WARNING);
+        return evaluation;
+    }
+
+    public int getTemperatureWarningTicks() {
+        return temperatureWarningTracker.warningTicks();
+    }
+
+    public boolean shouldRollTemperatureFailureThisTick() {
+        return temperatureWarningTracker.shouldRollFailureThisTick();
     }
 
     public int getBaseCapacity() {

@@ -80,6 +80,23 @@ class IntegratedFluidNetworkOperationalLimitsTest {
         assertEquals(0, network.getPressureWarningTicks());
     }
 
+    @Test
+    void networkTracksPersistentTemperatureWarnings() {
+        IntegratedFluidNetwork network = new IntegratedFluidNetwork();
+
+        network.addMember(member(1000, 9.0f, 290.0f));
+
+        for (int tick = 0; tick < 199; tick++) {
+            network.tickTemperatureSafety();
+            assertEquals(tick + 1, network.getTemperatureWarningTicks());
+            assertEquals(false, network.shouldRollTemperatureFailureThisTick());
+        }
+
+        network.tickTemperatureSafety();
+        assertEquals(200, network.getTemperatureWarningTicks());
+        assertEquals(true, network.shouldRollTemperatureFailureThisTick());
+    }
+
     private static IIntegratedFluidMember member(int accumulatorContribution, float accumulatorMaxPressureBar) {
         return member(accumulatorContribution, accumulatorMaxPressureBar, Float.POSITIVE_INFINITY);
     }
