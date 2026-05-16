@@ -29,6 +29,7 @@ import gregtech.api.interfaces.metatileentity.IMetaTileEntity;
 import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
 import gregtech.api.metatileentity.implementations.MTEEnhancedMultiBlockBase;
 import gregtech.api.metatileentity.implementations.integratedfluid.FluidThermalProperties;
+import gregtech.api.metatileentity.implementations.integratedfluid.IFNMachineResultMapper;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNStateTransferPlanner;
 import gregtech.api.metatileentity.implementations.integratedfluid.IntegratedFluidNetwork;
 import gregtech.api.metatileentity.implementations.integratedfluid.MTEIntegratedFluidInputHatch;
@@ -279,7 +280,7 @@ public class MTERadiator extends MTEEnhancedMultiBlockBase<MTERadiator> implemen
                 lastLoopSnapshot.pressureDropBar
             );
             if (plan.acceptedAmountQ < IntegratedFluidNetwork.AMOUNT_SCALE) {
-                return CheckRecipeResultRegistry.ITEM_OUTPUT_FULL;
+                return IFNMachineResultMapper.toRecipeResult(plan.status);
             }
             fluidToProcess = toAmountMb(plan.acceptedAmountQ);
         }

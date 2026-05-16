@@ -27,6 +27,7 @@ import gregtech.api.interfaces.metatileentity.IMetaTileEntity;
 import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
 import gregtech.api.metatileentity.implementations.MTEEnhancedMultiBlockBase;
 import gregtech.api.metatileentity.implementations.integratedfluid.FluidThermalProperties;
+import gregtech.api.metatileentity.implementations.integratedfluid.IFNMachineResultMapper;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNMachineThermo;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNPressurePolicy;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNSingleOutputProcess;
@@ -422,7 +423,7 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
                 IFNPressurePolicy.MACHINE_OUTPUT_TO_INPUT_PRESSURE_RATIO
             );
             if (plan.acceptedTotalAmountQ < IntegratedFluidNetwork.AMOUNT_SCALE) {
-                return CheckRecipeResultRegistry.ITEM_OUTPUT_FULL;
+                return IFNMachineResultMapper.toRecipeResult(plan.status);
             }
             amountToProcessQ = plan.acceptedTotalAmountQ;
         }
@@ -746,7 +747,7 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
             if (plan.acceptedRatio <= 0.0d
                 || plan.acceptedRedAmountQ < IntegratedFluidNetwork.AMOUNT_SCALE
                 || plan.acceptedBlueAmountQ < IntegratedFluidNetwork.AMOUNT_SCALE) {
-                return CheckRecipeResultRegistry.ITEM_OUTPUT_FULL;
+                return IFNMachineResultMapper.toRecipeResult(plan.status);
             }
 
             redProcessQ = plan.acceptedRedAmountQ;
