@@ -38,4 +38,20 @@ class IFNWailaFormatterTest {
 
         assertTrue(tooltip.stream().anyMatch(line -> line.contains("Status:") && line.contains("Pending")));
     }
+
+    @Test
+    void overLimitStatusIsVisible() {
+        NBTTagCompound tag = new NBTTagCompound();
+        List<String> tooltip = new ArrayList<>();
+
+        tag.setBoolean("hasNetwork", true);
+        tag.setString("networkStatus", "NORMAL");
+        tag.setString("pressureLimitStatus", "WARNING");
+        tag.setString("temperatureLimitStatus", "RUPTURE");
+
+        IFNWailaFormatter.addNetworkStatus(tag, tooltip);
+
+        assertTrue(tooltip.stream().anyMatch(line -> line.contains("Pressure") && line.contains("Over Limit")));
+        assertTrue(tooltip.stream().anyMatch(line -> line.contains("Temperature") && line.contains("Rupture Risk")));
+    }
 }

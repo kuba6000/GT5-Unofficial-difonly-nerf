@@ -19,6 +19,8 @@ public final class IFNWailaFormatter {
         if (frozenReason != null && !frozenReason.isEmpty()) {
             tag.setString("frozenReason", frozenReason);
         }
+        tag.setString("pressureLimitStatus", network.getPressureLimitEvaluation().status().name());
+        tag.setString("temperatureLimitStatus", network.getTemperatureLimitEvaluation().status().name());
     }
 
     public static void addNetworkStatus(NBTTagCompound tag, List<String> currenttip) {
@@ -41,6 +43,17 @@ public final class IFNWailaFormatter {
             currenttip.add("Status: " + EnumChatFormatting.YELLOW + "Pending" + EnumChatFormatting.RESET);
         } else {
             currenttip.add("Status: " + EnumChatFormatting.GREEN + "Normal" + EnumChatFormatting.RESET);
+        }
+
+        addLimitStatus(tag.getString("pressureLimitStatus"), "Pressure", currenttip);
+        addLimitStatus(tag.getString("temperatureLimitStatus"), "Temperature", currenttip);
+    }
+
+    private static void addLimitStatus(String status, String label, List<String> currenttip) {
+        if ("RUPTURE".equals(status)) {
+            currenttip.add(label + ": " + EnumChatFormatting.RED + "Rupture Risk" + EnumChatFormatting.RESET);
+        } else if ("WARNING".equals(status)) {
+            currenttip.add(label + ": " + EnumChatFormatting.YELLOW + "Over Limit" + EnumChatFormatting.RESET);
         }
     }
 }
