@@ -20,6 +20,7 @@ import gregtech.api.metatileentity.implementations.integratedfluid.amount.Substa
 import gregtech.api.metatileentity.implementations.integratedfluid.amount.VolumeAmount;
 import gregtech.api.metatileentity.implementations.integratedfluid.safety.IFNFailureCandidateSelector;
 import gregtech.api.metatileentity.implementations.integratedfluid.safety.IFNLimitWarningTracker;
+import gregtech.api.metatileentity.implementations.integratedfluid.safety.IFNOperationalFailurePolicy;
 import gregtech.api.metatileentity.implementations.integratedfluid.safety.IFNOperationalLimits;
 import gregtech.api.metatileentity.implementations.integratedfluid.safety.IFNOperationalSafetyEvaluation;
 import gregtech.api.metatileentity.implementations.integratedfluid.safety.IFNPressureLimitEvaluation;
@@ -246,6 +247,18 @@ public class IntegratedFluidNetwork {
             return IFNFailureCandidateSelector.selectWeakestTemperatureCandidate(members);
         }
         return Optional.empty();
+    }
+
+    public Optional<IIntegratedFluidMember> applyOperationalFailure(Random random) {
+        IFNOperationalSafetyEvaluation evaluation = tickOperationalSafety();
+        if (!IFNOperationalFailurePolicy.shouldFailNow(evaluation, random)) {
+            return Optional.empty();
+        }
+        Optional<IIntegratedFluidMember> failureCandidate = selectFailureCandidate(evaluation);
+        if (failureCandidate.isPresent()) {
+            clearFluid();
+        }
+        return failureCandidate;
     }
 
     public int getBaseCapacity() {
