@@ -14,6 +14,9 @@ import net.minecraftforge.fluids.FluidStack;
 
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNFluidThermalRegistry;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNFluidThermalRegistration;
+import gregtech.api.metatileentity.implementations.integratedfluid.amount.EnergyAmount;
+import gregtech.api.metatileentity.implementations.integratedfluid.amount.SubstanceAmount;
+import gregtech.api.metatileentity.implementations.integratedfluid.state.IFNCanonicalState;
 import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
 import gregtech.api.metatileentity.MetaPipeEntity;
 
@@ -605,6 +608,14 @@ public class IntegratedFluidNetwork {
         return new IFNFluidState(fluidName, amountQ, enthalpyQ, pressure);
     }
 
+    public IFNCanonicalState getCanonicalState() {
+        return IFNCanonicalState.of(
+            fluidName,
+            SubstanceAmount.fromRawUnits(amountQ),
+            EnergyAmount.fromRawUnits(Math.max(0L, enthalpyQ))
+        );
+    }
+
     public long getAmountQ() {
         return amountQ;
     }
@@ -815,8 +826,8 @@ public class IntegratedFluidNetwork {
 
     public void loadState(String fluidName, long amountQ, long enthalpyQ, float pressure, int expectedMembers) {
         this.amountQ = Math.max(0L, amountQ);
-        this.enthalpyQ = enthalpyQ;
-        if (this.amountQ < AMOUNT_SCALE) {
+        this.enthalpyQ = Math.max(0L, enthalpyQ);
+        if (this.amountQ == 0L || fluidName == null || fluidName.trim().isEmpty()) {
             clearFluid();
         } else {
             this.fluidName = fluidName;
