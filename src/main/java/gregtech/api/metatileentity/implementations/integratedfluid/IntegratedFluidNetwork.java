@@ -17,6 +17,7 @@ import gregtech.api.metatileentity.implementations.integratedfluid.IFNFluidTherm
 import gregtech.api.metatileentity.implementations.integratedfluid.amount.EnergyAmount;
 import gregtech.api.metatileentity.implementations.integratedfluid.amount.SubstanceAmount;
 import gregtech.api.metatileentity.implementations.integratedfluid.amount.VolumeAmount;
+import gregtech.api.metatileentity.implementations.integratedfluid.safety.IFNOperationalLimits;
 import gregtech.api.metatileentity.implementations.integratedfluid.state.IFNCanonicalState;
 import gregtech.api.metatileentity.implementations.integratedfluid.state.IFNNetworkStatus;
 import gregtech.api.metatileentity.implementations.integratedfluid.topology.IFNTopologySnapshot;
@@ -166,17 +167,12 @@ public class IntegratedFluidNetwork {
         return toCapacityInt(getTopologySnapshot().accumulatorVolume());
     }
 
+    public IFNOperationalLimits getOperationalLimits() {
+        return IFNOperationalLimits.fromMembers(members);
+    }
+
     public float getAccumulatorMaxPressureBar() {
-        float pMax = IFNPressurePolicy.DEFAULT_MAX_PRESSURE_BAR;
-        boolean any = false;
-        for (IIntegratedFluidMember member : members) {
-            int volume = member.getAccumulatorContribution();
-            if (volume > 0) {
-                any = true;
-                pMax = Math.min(pMax, member.getAccumulatorMaxPressureBar());
-            }
-        }
-        return any ? pMax : IFNPressurePolicy.DEFAULT_MAX_PRESSURE_BAR;
+        return getOperationalLimits().accumulatorMaxPressureBar();
     }
 
     public int getBaseCapacity() {
