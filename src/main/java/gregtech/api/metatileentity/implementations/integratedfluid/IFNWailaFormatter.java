@@ -1,9 +1,12 @@
 package gregtech.api.metatileentity.implementations.integratedfluid;
 
+import static com.gtnewhorizon.gtnhlib.util.numberformatting.NumberFormatUtil.formatNumber;
+
 import java.util.List;
 
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.util.EnumChatFormatting;
+import net.minecraftforge.fluids.FluidStack;
 
 public final class IFNWailaFormatter {
 
@@ -20,6 +23,7 @@ public final class IFNWailaFormatter {
             tag.setString("frozenReason", frozenReason);
         }
         tag.setLong("substanceAmountQ", network.getAmountQ());
+        tag.setDouble("occupiedVolume", network.getOccupiedVolume());
         tag.setString("pressureLimitStatus", network.getPressureLimitEvaluation().status().name());
         tag.setString("temperatureLimitStatus", network.getTemperatureLimitEvaluation().status().name());
     }
@@ -59,6 +63,75 @@ public final class IFNWailaFormatter {
 
         long wholeRefLiters = substanceAmountQ / IntegratedFluidNetwork.AMOUNT_SCALE;
         currenttip.add("Substance: " + EnumChatFormatting.GRAY + wholeRefLiters + " refL" + EnumChatFormatting.RESET);
+    }
+
+    public static void addFluidStorageSummary(NBTTagCompound tag, List<String> currenttip, String fluidLabel,
+        boolean detailedCapacity) {
+        if (tag == null || currenttip == null) {
+            return;
+        }
+
+        int maxCapacity = tag.getInteger("maxCapacity");
+        int accumulatorCapacity = tag.getInteger("accumulatorCapacity");
+        int totalCapacity = tag.hasKey("totalCapacity") ? tag.getInteger("totalCapacity") : maxCapacity + accumulatorCapacity;
+
+        String fluidName = tag.getString("networkFluidName");
+        int fluidStackAmount = tag.getInteger("fluidStackAmount");
+        FluidStack fluid = null;
+        if (tag.hasKey("networkFluid")) {
+            fluid = FluidStack.loadFluidStackFromNBT(tag.getCompoundTag("networkFluid"));
+            if (fluid != null) {
+                fluidName = fluid.getLocalizedName();
+                fluidStackAmount = fluid.amount;
+            }
+        }
+
+        if (fluidName == null || fluidName.isEmpty()) {
+            if (detailedCapacity) {
+                currenttip.add("Empty (Capacity: " + formatNumber(totalCapacity) + " L)");
+                addCapacitySummary(currenttip, maxCapacity, accumulatorCapacity, totalCapacity, true);
+            } else {
+                currenttip.add("Network: Empty");
+            }
+            return;
+        }
+
+        currenttip.add(fluidLabel + ": " + EnumChatFormatting.AQUA + fluidName + EnumChatFormatting.RESET);
+        int occupiedVolume = tag.hasKey("occupiedVolume")
+            ? (int) Math.round(tag.getDouble("occupiedVolume"))
+            : fluidStackAmount;
+        currenttip.add(
+            "Occupied: " + EnumChatFormatting.GREEN
+                + formatNumber(occupiedVolume)
+                + "/"
+                + formatNumber(totalCapacity)
+                + " L"
+                + EnumChatFormatting.RESET);
+        addCapacitySummary(currenttip, maxCapacity, accumulatorCapacity, totalCapacity, detailedCapacity);
+    }
+
+    private static void addCapacitySummary(List<String> currenttip, int maxCapacity, int accumulatorCapacity,
+        int totalCapacity, boolean detailedCapacity) {
+        if (accumulatorCapacity <= 0) {
+            return;
+        }
+
+        if (detailedCapacity) {
+            currenttip.add(
+                EnumChatFormatting.GRAY + "Capacity: "
+                    + formatNumber(maxCapacity)
+                    + " + "
+                    + formatNumber(accumulatorCapacity)
+                    + " = "
+                    + formatNumber(totalCapacity)
+                    + " L" + EnumChatFormatting.RESET);
+            return;
+        }
+
+        currenttip.add(
+            EnumChatFormatting.GRAY + "(+"
+                + formatNumber(accumulatorCapacity)
+                + " Hydrophore capacity)" + EnumChatFormatting.RESET);
     }
 
     private static void addLimitStatus(String status, String label, List<String> currenttip) {

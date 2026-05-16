@@ -1,6 +1,5 @@
 package gregtech.api.metatileentity.implementations.integratedfluid;
 
-import static com.gtnewhorizon.gtnhlib.util.numberformatting.NumberFormatUtil.formatNumber;
 import static gregtech.api.enums.Textures.BlockIcons.OVERLAY_PIPE_IN;
 
 import java.util.List;
@@ -203,37 +202,7 @@ public class MTEIntegratedFluidInputHatch extends MTEHatch implements IIntegrate
         NBTTagCompound tag = accessor.getNBTData();
         if (tag.getBoolean("hasNetwork")) {
             IFNWailaFormatter.addNetworkStatus(tag, currenttip);
-            int maxCapacity = tag.getInteger("maxCapacity");
-            int accumulatorCapacity = tag.getInteger("accumulatorCapacity");
-            int totalCapacity = tag.hasKey("totalCapacity")
-                ? tag.getInteger("totalCapacity")
-                : maxCapacity + accumulatorCapacity;
-            if (tag.hasKey("networkFluid")) {
-                FluidStack fluid = FluidStack.loadFluidStackFromNBT(tag.getCompoundTag("networkFluid"));
-                if (fluid != null) {
-                    currenttip.add(
-                        "Network Fluid: " + EnumChatFormatting.AQUA
-                            + fluid.getLocalizedName()
-                            + EnumChatFormatting.RESET);
-                    currenttip.add(
-                        "Amount: " + EnumChatFormatting.GREEN
-                            + formatNumber(fluid.amount)
-                            + "/"
-                            + formatNumber(totalCapacity)
-                            + " L"
-                            + EnumChatFormatting.RESET);
-                    if (accumulatorCapacity > 0) {
-                        currenttip.add(
-                            EnumChatFormatting.GRAY + "(+"
-                                + formatNumber(accumulatorCapacity)
-                                + " Hydrophore capacity)" + EnumChatFormatting.RESET);
-                    }
-                } else {
-                    currenttip.add("Network: Empty");
-                }
-            } else {
-                currenttip.add("Network: Empty");
-            }
+            IFNWailaFormatter.addFluidStorageSummary(tag, currenttip, "Network Fluid", false);
             currenttip.add("Network Members: " + tag.getInteger("memberCount"));
             currenttip.add(
                 "Pressure: " + EnumChatFormatting.YELLOW

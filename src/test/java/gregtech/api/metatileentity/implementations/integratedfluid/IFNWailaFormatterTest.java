@@ -68,4 +68,22 @@ class IFNWailaFormatterTest {
 
         assertTrue(tooltip.stream().anyMatch(line -> line.contains("Substance:") && line.contains("12 refL")));
     }
+
+    @Test
+    void fluidStorageSummaryUsesOccupiedVolumeInsteadOfFluidStackAmount() {
+        NBTTagCompound tag = new NBTTagCompound();
+        List<String> tooltip = new ArrayList<>();
+
+        tag.setInteger("maxCapacity", 150);
+        tag.setInteger("totalCapacity", 150);
+        tag.setDouble("occupiedVolume", 100.0d);
+        tag.setString("networkFluidName", "Water");
+        tag.setInteger("fluidStackAmount", 200);
+
+        IFNWailaFormatter.addFluidStorageSummary(tag, tooltip, "Network Fluid", false);
+
+        assertTrue(tooltip.stream().anyMatch(line -> line.contains("Network Fluid:")));
+        assertTrue(tooltip.stream().anyMatch(line -> line.contains("Occupied:") && line.contains("100/150 L")));
+        assertTrue(tooltip.stream().noneMatch(line -> line.contains("Amount:") || line.contains("Std Amount")));
+    }
 }

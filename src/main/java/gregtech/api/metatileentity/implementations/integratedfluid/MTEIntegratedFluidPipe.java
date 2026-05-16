@@ -1,6 +1,5 @@
 package gregtech.api.metatileentity.implementations.integratedfluid;
 
-import static com.gtnewhorizon.gtnhlib.util.numberformatting.NumberFormatUtil.formatNumber;
 import static gregtech.api.enums.Textures.BlockIcons.MACHINE_CASINGS;
 
 import java.util.ArrayList;
@@ -307,66 +306,7 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
         NBTTagCompound tag = accessor.getNBTData();
         if (tag.getBoolean("hasNetwork")) {
             IFNWailaFormatter.addNetworkStatus(tag, currenttip);
-            int maxCapacity = tag.getInteger("maxCapacity");
-            int accumulatorCapacity = tag.getInteger("accumulatorCapacity");
-            int totalCapacity = tag.hasKey("totalCapacity")
-                ? tag.getInteger("totalCapacity")
-                : maxCapacity + accumulatorCapacity;
-            if (tag.hasKey("networkFluid")) {
-                FluidStack fluid = FluidStack.loadFluidStackFromNBT(tag.getCompoundTag("networkFluid"));
-                if (fluid != null) {
-                    currenttip
-                        .add("Fluid: " + EnumChatFormatting.AQUA + fluid.getLocalizedName() + EnumChatFormatting.RESET);
-                    double occupiedVolume = tag.getDouble("occupiedVolume");
-                    int occupiedRounded = (int) Math.round(occupiedVolume);
-                    currenttip.add(
-                        "Occupied: " + EnumChatFormatting.GREEN
-                            + formatNumber(occupiedRounded)
-                            + "/"
-                            + formatNumber(totalCapacity)
-                            + " L"
-                            + EnumChatFormatting.RESET);
-                    if (accumulatorCapacity > 0) {
-                        currenttip.add(
-                            EnumChatFormatting.GRAY + "Capacity: "
-                                + formatNumber(maxCapacity)
-                                + " + "
-                                + formatNumber(accumulatorCapacity)
-                                + " = "
-                                + formatNumber(totalCapacity)
-                                + " L" + EnumChatFormatting.RESET);
-                    }
-                    currenttip.add(
-                        "Std Amount: " + EnumChatFormatting.GRAY
-                            + formatNumber(fluid.amount)
-                            + " L"
-                            + EnumChatFormatting.RESET);
-                } else {
-                    currenttip.add("Empty (Capacity: " + formatNumber(totalCapacity) + " L)");
-                    if (accumulatorCapacity > 0) {
-                        currenttip.add(
-                            EnumChatFormatting.GRAY + "Capacity: "
-                                + formatNumber(maxCapacity)
-                                + " + "
-                                + formatNumber(accumulatorCapacity)
-                                + " = "
-                                + formatNumber(totalCapacity)
-                                + " L" + EnumChatFormatting.RESET);
-                    }
-                }
-            } else {
-                currenttip.add("Empty (Capacity: " + formatNumber(totalCapacity) + " L)");
-                if (accumulatorCapacity > 0) {
-                    currenttip.add(
-                        EnumChatFormatting.GRAY + "Capacity: "
-                            + formatNumber(maxCapacity)
-                            + " + "
-                            + formatNumber(accumulatorCapacity)
-                            + " = "
-                            + formatNumber(totalCapacity)
-                            + " L" + EnumChatFormatting.RESET);
-                }
-            }
+            IFNWailaFormatter.addFluidStorageSummary(tag, currenttip, "Fluid", true);
             currenttip.add("Network Members: " + tag.getInteger("memberCount"));
 
             // Display current heat loss based on actual temperature difference
