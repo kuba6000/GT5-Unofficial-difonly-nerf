@@ -1,11 +1,15 @@
 package gregtech.api.metatileentity.implementations.integratedfluid.state;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import org.junit.jupiter.api.Test;
 
 import net.minecraftforge.fluids.Fluid;
+import net.minecraftforge.fluids.FluidStack;
 
 import gregtech.api.metatileentity.implementations.integratedfluid.FluidThermalProperties;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNTestSupport;
@@ -48,6 +52,24 @@ class IntegratedFluidNetworkStatusTest {
 
         assertEquals(0L, network.getAmountQ());
         assertNull(network.drainFluid(1, false));
+    }
+
+    @Test
+    void frozenNetworkRejectsFluidStackInputContract() {
+        Fluid fluid = IFNTestSupport.liquidFluid();
+        IntegratedFluidNetwork network = IFNTestSupport.newNetwork(fluid, 1000, 0, 100.0f);
+        long amountQ = IntegratedFluidNetwork.AMOUNT_SCALE;
+        long energyQ = IntegratedFluidNetwork.toEnthalpyQFromSpecific(300.0d, amountQ);
+        FluidStack stack = mock(FluidStack.class);
+        stack.amount = 1;
+        when(stack.getFluid()).thenReturn(fluid);
+
+        network.freeze("test freeze");
+
+        assertFalse(network.canAccept(fluid, amountQ, energyQ));
+        assertEquals(0, network.addFluid(stack, true));
+        assertEquals(0, network.addFluid(stack, false));
+        assertEquals(0L, network.getAmountQ());
     }
 
     @Test

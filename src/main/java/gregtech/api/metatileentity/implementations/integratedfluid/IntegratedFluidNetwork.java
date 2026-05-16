@@ -308,7 +308,7 @@ public class IntegratedFluidNetwork {
      * @return The amount of fluid actually added
      */
     public int addFluid(FluidStack fluid, boolean simulate, float incomingTemp) {
-        if (pending) {
+        if (isTransferBlocked()) {
             return 0;
         }
         if (fluid == null || fluid.amount <= 0) {
@@ -336,7 +336,7 @@ public class IntegratedFluidNetwork {
      * @return The fluid that was drained
      */
     public FluidStack drainFluid(int maxDrain, boolean simulate) {
-        if (pending || isFrozen()) {
+        if (isTransferBlocked()) {
             return null;
         }
         if (amountQ <= 0 || maxDrain <= 0) {
@@ -368,7 +368,7 @@ public class IntegratedFluidNetwork {
      * @return The fluid that was drained
      */
     public FluidStack drainFluid(FluidStack fluid, boolean simulate) {
-        if (pending || isFrozen()) {
+        if (isTransferBlocked()) {
             return null;
         }
         if (fluid == null || amountQ <= 0) {
@@ -382,7 +382,7 @@ public class IntegratedFluidNetwork {
     }
 
     public boolean canAccept(Fluid fluid, long addAmountQ, long addEnthalpyQ) {
-        if (pending) {
+        if (isTransferBlocked()) {
             return false;
         }
         if (fluid == null || addAmountQ <= 0L) {
@@ -523,7 +523,7 @@ public class IntegratedFluidNetwork {
     }
 
     private void addInternal(Fluid fluid, long addAmountQ, long addEnthalpyQ, boolean applyGasFlowWork) {
-        if (pending || isFrozen()) {
+        if (isTransferBlocked()) {
             return;
         }
         if (fluid == null || addAmountQ <= 0L) {
@@ -570,7 +570,7 @@ public class IntegratedFluidNetwork {
     }
 
     public ExtractedPayload extractProportional(long requestAmountQ, boolean simulate) {
-        if (pending || amountQ <= 0L || requestAmountQ <= 0L) {
+        if (isTransferBlocked() || amountQ <= 0L || requestAmountQ <= 0L) {
             return ExtractedPayload.empty();
         }
         long gotAmountQ = Math.min(requestAmountQ, amountQ);
@@ -617,7 +617,7 @@ public class IntegratedFluidNetwork {
     }
 
     public ExtractedPayload extractPhase(long requestAmountQ, boolean wantVapor, boolean simulate) {
-        if (pending || amountQ <= 0L || requestAmountQ <= 0L) {
+        if (isTransferBlocked() || amountQ <= 0L || requestAmountQ <= 0L) {
             return ExtractedPayload.empty();
         }
         Fluid fluid = getFluid();
@@ -1083,6 +1083,10 @@ public class IntegratedFluidNetwork {
         return pending || (expectedMemberCount > 0 && members.size() < expectedMemberCount);
     }
 
+    private boolean isTransferBlocked() {
+        return pending || isFrozen();
+    }
+
     private IFNPressureModel.NetworkLimits currentPressureLimits() {
         return IFNPressureModel.NetworkLimits.of(
             getBaseCapacity(),
@@ -1151,7 +1155,7 @@ public class IntegratedFluidNetwork {
     }
 
     public long getMaxAddableAmountQ(Fluid fluid, double incomingSpecificEnthalpy, long maxCandidateAmountQ) {
-        if (pending || fluid == null || maxCandidateAmountQ < AMOUNT_SCALE) {
+        if (isTransferBlocked() || fluid == null || maxCandidateAmountQ < AMOUNT_SCALE) {
             return 0L;
         }
         if (!IFNFluidThermalRegistry.isRegistered(fluid)) {
