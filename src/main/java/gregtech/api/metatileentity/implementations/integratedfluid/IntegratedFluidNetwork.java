@@ -17,6 +17,7 @@ import gregtech.api.metatileentity.implementations.integratedfluid.IFNFluidTherm
 import gregtech.api.metatileentity.implementations.integratedfluid.amount.EnergyAmount;
 import gregtech.api.metatileentity.implementations.integratedfluid.amount.SubstanceAmount;
 import gregtech.api.metatileentity.implementations.integratedfluid.state.IFNCanonicalState;
+import gregtech.api.metatileentity.implementations.integratedfluid.state.IFNNetworkStatus;
 import gregtech.api.metatileentity.implementations.integratedfluid.topology.IFNTopologySnapshot;
 import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
 import gregtech.api.metatileentity.MetaPipeEntity;
@@ -87,6 +88,7 @@ public class IntegratedFluidNetwork {
     private final UUID networkId;
     private boolean pending = false;
     private int expectedMemberCount = 0;
+    private String frozenReason;
 
     public IntegratedFluidNetwork(UUID networkId) {
         this.fluidName = null;
@@ -256,7 +258,7 @@ public class IntegratedFluidNetwork {
      * @return The fluid that was drained
      */
     public FluidStack drainFluid(int maxDrain, boolean simulate) {
-        if (pending) {
+        if (pending || isFrozen()) {
             return null;
         }
         if (amountQ <= 0 || maxDrain <= 0) {
@@ -288,7 +290,7 @@ public class IntegratedFluidNetwork {
      * @return The fluid that was drained
      */
     public FluidStack drainFluid(FluidStack fluid, boolean simulate) {
-        if (pending) {
+        if (pending || isFrozen()) {
             return null;
         }
         if (fluid == null || amountQ <= 0) {
@@ -443,6 +445,9 @@ public class IntegratedFluidNetwork {
     }
 
     private void addInternal(Fluid fluid, long addAmountQ, long addEnthalpyQ, boolean applyGasFlowWork) {
+        if (pending || isFrozen()) {
+            return;
+        }
         if (fluid == null || addAmountQ <= 0L) {
             return;
         }
@@ -832,6 +837,32 @@ public class IntegratedFluidNetwork {
 
     public void setPending(boolean pending) {
         this.pending = pending;
+    }
+
+    public boolean isFrozen() {
+        return frozenReason != null;
+    }
+
+    public void freeze(String reason) {
+        this.frozenReason = reason == null || reason.trim().isEmpty() ? "frozen" : reason;
+    }
+
+    public void clearFrozen() {
+        this.frozenReason = null;
+    }
+
+    public String getFrozenReason() {
+        return frozenReason;
+    }
+
+    public IFNNetworkStatus getNetworkStatus() {
+        if (isFrozen()) {
+            return IFNNetworkStatus.FROZEN;
+        }
+        if (isIncompleteNetwork()) {
+            return IFNNetworkStatus.PENDING;
+        }
+        return IFNNetworkStatus.NORMAL;
     }
 
     public int getExpectedMemberCount() {
