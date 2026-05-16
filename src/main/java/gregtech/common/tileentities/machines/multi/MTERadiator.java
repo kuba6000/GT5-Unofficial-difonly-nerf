@@ -201,6 +201,12 @@ public class MTERadiator extends MTEEnhancedMultiBlockBase<MTERadiator> implemen
         if (inputNetwork == null || outputNetwork == null) {
             return CheckRecipeResultRegistry.NO_RECIPE;
         }
+        CheckRecipeResult networkStatus = IFNMachineResultMapper.requireOperationalNetworks(
+            new IntegratedFluidNetwork[] { inputNetwork },
+            new IntegratedFluidNetwork[] { outputNetwork });
+        if (networkStatus != CheckRecipeResultRegistry.SUCCESSFUL) {
+            return networkStatus;
+        }
 
         FluidStack inputFluid = inputNetwork.getStoredFluid();
         if (inputFluid == null || inputFluid.amount <= 0) {

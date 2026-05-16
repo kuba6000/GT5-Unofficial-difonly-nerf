@@ -35,4 +35,32 @@ class IFNMachineResultMapperTest {
             CheckRecipeResultRegistry.ITEM_OUTPUT_FULL,
             IFNMachineResultMapper.toRecipeResult(IFNSingleOutputProcess.Status.OUTPUT_BLOCKED));
     }
+
+    @Test
+    void blockedInputNetworkMapsToNoRecipeBeforeMachineWork() {
+        IntegratedFluidNetwork input = new IntegratedFluidNetwork();
+        IntegratedFluidNetwork output = new IntegratedFluidNetwork();
+
+        input.freeze("test freeze");
+
+        assertSame(
+            CheckRecipeResultRegistry.NO_RECIPE,
+            IFNMachineResultMapper.requireOperationalNetworks(
+                new IntegratedFluidNetwork[] { input },
+                new IntegratedFluidNetwork[] { output }));
+    }
+
+    @Test
+    void blockedOutputNetworkMapsToOutputFullBeforeMachineWork() {
+        IntegratedFluidNetwork input = new IntegratedFluidNetwork();
+        IntegratedFluidNetwork output = new IntegratedFluidNetwork();
+
+        output.setPending(true);
+
+        assertSame(
+            CheckRecipeResultRegistry.ITEM_OUTPUT_FULL,
+            IFNMachineResultMapper.requireOperationalNetworks(
+                new IntegratedFluidNetwork[] { input },
+                new IntegratedFluidNetwork[] { output }));
+    }
 }

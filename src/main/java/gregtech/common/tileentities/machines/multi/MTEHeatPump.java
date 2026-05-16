@@ -237,6 +237,12 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         if (inputNetwork == null || redNetwork == null || blueNetwork == null) {
             return CheckRecipeResultRegistry.NO_RECIPE;
         }
+        CheckRecipeResult networkStatus = IFNMachineResultMapper.requireOperationalNetworks(
+            new IntegratedFluidNetwork[] { inputNetwork },
+            new IntegratedFluidNetwork[] { redNetwork, blueNetwork });
+        if (networkStatus != CheckRecipeResultRegistry.SUCCESSFUL) {
+            return networkStatus;
+        }
 
         Fluid inputFluid = inputNetwork.getFluid();
         if (inputFluid == null) return CheckRecipeResultRegistry.NO_RECIPE;
@@ -493,6 +499,12 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
 
         if (redInNet == null || blueInNet == null || redOutNet == null || blueOutNet == null) {
             return CheckRecipeResultRegistry.NO_RECIPE;
+        }
+        CheckRecipeResult networkStatus = IFNMachineResultMapper.requireOperationalNetworks(
+            new IntegratedFluidNetwork[] { redInNet, blueInNet },
+            new IntegratedFluidNetwork[] { redOutNet, blueOutNet });
+        if (networkStatus != CheckRecipeResultRegistry.SUCCESSFUL) {
+            return networkStatus;
         }
 
         Fluid redFluid = redInNet.getFluid();
@@ -820,6 +832,12 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         var outputNetwork = outputHatch.getNetwork();
         if (outputNetwork == null) {
             return CheckRecipeResultRegistry.NO_RECIPE;
+        }
+        CheckRecipeResult networkStatus = IFNMachineResultMapper.requireOperationalNetworks(
+            new IntegratedFluidNetwork[] { inputNetwork },
+            new IntegratedFluidNetwork[] { outputNetwork });
+        if (networkStatus != CheckRecipeResultRegistry.SUCCESSFUL) {
+            return networkStatus;
         }
 
         Fluid inputFluid = inputNetwork.getFluid();
