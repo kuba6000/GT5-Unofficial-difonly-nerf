@@ -10,6 +10,7 @@ import gregtech.api.interfaces.metatileentity.IMetaTileEntity;
 import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
 import gregtech.api.metatileentity.MetaPipeEntity;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNAmbientTemperature;
+import gregtech.api.metatileentity.implementations.integratedfluid.safety.IFNNetworkSafetyTicker;
 
 /**
  * Centralized network manager for integrated fluid networks.
@@ -24,13 +25,21 @@ public class NetworkManager {
     private final Map<NetworkNode, Set<IntegratedFluidNetwork>> nodeToNetworks = new HashMap<>();
     private final Set<IntegratedFluidNetwork> allNetworks = new HashSet<>();
     private final IntegratedFluidNetworkSavedData savedData;
+    private final IFNNetworkSafetyTicker safetyTicker;
+    private final Random safetyRandom;
 
     // Track last tick time for heat loss application
     private long lastHeatLossTick = 0;
 
     private NetworkManager(World world) {
+        this(world, IntegratedFluidNetworkSavedData.get(world));
+    }
+
+    NetworkManager(World world, IntegratedFluidNetworkSavedData savedData) {
         this.world = world;
-        this.savedData = IntegratedFluidNetworkSavedData.get(world);
+        this.savedData = savedData;
+        this.safetyTicker = new IFNNetworkSafetyTicker();
+        this.safetyRandom = new Random();
     }
 
     /**
@@ -317,6 +326,8 @@ public class NetworkManager {
      * Applies heat loss every second (20 ticks).
      */
     public void onWorldTick(long worldTick) {
+        tickOperationalSafety();
+
         // Apply heat loss every 20 ticks (1 second)
         if (worldTick - lastHeatLossTick >= 20) {
             lastHeatLossTick = worldTick;
@@ -332,6 +343,30 @@ public class NetworkManager {
                 }
             }
         }
+    }
+
+    private void tickOperationalSafety() {
+        safetyTicker.tick(new HashSet<>(allNetworks), safetyRandom, this::ruptureFailureCandidate);
+    }
+
+    private void ruptureFailureCandidate(IIntegratedFluidMember member) {
+        if (member == null) {
+            return;
+        }
+
+        if (member instanceof MetaPipeEntity pipe) {
+            IGregTechTileEntity baseTile = pipe.getBaseMetaTileEntity();
+            if (baseTile != null) {
+                World pipeWorld = baseTile.getWorld();
+                if (pipeWorld != null && !pipeWorld.isRemote) {
+                    onMemberRemoved(member);
+                    pipeWorld.setBlockToAir(baseTile.getXCoord(), baseTile.getYCoord(), baseTile.getZCoord());
+                    return;
+                }
+            }
+        }
+
+        onMemberRemoved(member);
     }
 
     /**
