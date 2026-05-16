@@ -2,8 +2,10 @@ package gregtech.api.metatileentity.implementations.integratedfluid;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.UUID;
 
 import net.minecraftforge.fluids.Fluid;
@@ -35,6 +37,24 @@ class NetworkManagerMergeFreezeTest {
         assertEquals(IFNNetworkStatus.FROZEN, vaporNetwork.getNetworkStatus());
         assertSame(liquidNetwork, liquidMember.getNetwork());
         assertSame(vaporNetwork, vaporMember.getNetwork());
+        assertEquals(2L * IntegratedFluidNetwork.AMOUNT_SCALE, liquidNetwork.getAmountQ());
+        assertEquals(3L * IntegratedFluidNetwork.AMOUNT_SCALE, vaporNetwork.getAmountQ());
+    }
+
+    @Test
+    void incompatibleAffectedNetworksFreezeBeforeTopologyRebuild() {
+        NetworkManager manager = new NetworkManager(null, new IntegratedFluidNetworkSavedData());
+        IntegratedFluidNetwork liquidNetwork = seededNetwork(IFNTestSupport.liquidFluid(), 2L);
+        IntegratedFluidNetwork vaporNetwork = seededNetwork(IFNTestSupport.vaporFluid(), 3L);
+        HashSet<IntegratedFluidNetwork> affectedNetworks = new HashSet<>();
+        affectedNetworks.add(liquidNetwork);
+        affectedNetworks.add(vaporNetwork);
+
+        boolean frozen = manager.freezeIfIncompatibleNetworks(affectedNetworks);
+
+        assertTrue(frozen);
+        assertEquals(IFNNetworkStatus.FROZEN, liquidNetwork.getNetworkStatus());
+        assertEquals(IFNNetworkStatus.FROZEN, vaporNetwork.getNetworkStatus());
         assertEquals(2L * IntegratedFluidNetwork.AMOUNT_SCALE, liquidNetwork.getAmountQ());
         assertEquals(3L * IntegratedFluidNetwork.AMOUNT_SCALE, vaporNetwork.getAmountQ());
     }

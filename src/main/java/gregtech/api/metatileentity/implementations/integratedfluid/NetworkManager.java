@@ -11,6 +11,7 @@ import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
 import gregtech.api.metatileentity.MetaPipeEntity;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNAmbientTemperature;
 import gregtech.api.metatileentity.implementations.integratedfluid.safety.IFNNetworkSafetyTicker;
+import gregtech.api.metatileentity.implementations.integratedfluid.state.IFNCanonicalState;
 import gregtech.api.metatileentity.implementations.integratedfluid.topology.IFNMergePolicy;
 
 /**
@@ -219,6 +220,10 @@ public class NetworkManager {
             } else {
                 allAffectedMembers.add(neighbor);
             }
+        }
+
+        if (freezeIfIncompatibleNetworks(affectedNetworks)) {
+            return;
         }
 
         long combinedAmountQ = 0L;
@@ -603,6 +608,39 @@ public class NetworkManager {
         if (member.getNetwork() != network) {
             network.addMember(member);
             member.setNetwork(network);
+        }
+    }
+
+    boolean freezeIfIncompatibleNetworks(Set<IntegratedFluidNetwork> networks) {
+        if (networks == null || networks.size() <= 1) {
+            return false;
+        }
+
+        IFNCanonicalState mergedState = IFNCanonicalState.empty();
+        for (IntegratedFluidNetwork network : networks) {
+            if (network == null) {
+                continue;
+            }
+            IFNCanonicalState nextState = network.getCanonicalState();
+            if (!IFNMergePolicy.canMerge(mergedState, nextState)) {
+                freezeNetworks(networks, "fluid conflict");
+                return true;
+            }
+            mergedState = IFNMergePolicy.merge(mergedState, nextState);
+        }
+        return false;
+    }
+
+    private void freezeNetworks(Set<IntegratedFluidNetwork> networks, String reason) {
+        for (IntegratedFluidNetwork network : networks) {
+            if (network == null) {
+                continue;
+            }
+            network.freeze(reason);
+            persistNetwork(network);
+            for (IIntegratedFluidMember member : network.getMembers()) {
+                member.onNetworkUpdate();
+            }
         }
     }
 
