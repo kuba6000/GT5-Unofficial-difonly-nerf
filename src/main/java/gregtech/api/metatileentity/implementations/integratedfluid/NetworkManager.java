@@ -11,6 +11,7 @@ import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
 import gregtech.api.metatileentity.MetaPipeEntity;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNAmbientTemperature;
 import gregtech.api.metatileentity.implementations.integratedfluid.safety.IFNNetworkSafetyTicker;
+import gregtech.api.metatileentity.implementations.integratedfluid.topology.IFNMergePolicy;
 
 /**
  * Centralized network manager for integrated fluid networks.
@@ -608,11 +609,19 @@ public class NetworkManager {
     /**
      * Merges multiple networks into the target network.
      */
-    private void mergeIntoNetwork(IntegratedFluidNetwork mainNetwork, Set<IntegratedFluidNetwork> networks) {
+    void mergeIntoNetwork(IntegratedFluidNetwork mainNetwork, Set<IntegratedFluidNetwork> networks) {
         if (mainNetwork == null || networks.isEmpty()) return;
 
         for (IntegratedFluidNetwork network : networks) {
             if (network == null || network == mainNetwork) continue;
+            if (!IFNMergePolicy.canMerge(mainNetwork.getCanonicalState(), network.getCanonicalState())) {
+                mainNetwork.merge(network);
+                persistNetwork(network);
+                for (IIntegratedFluidMember member : network.getMembers()) {
+                    member.onNetworkUpdate();
+                }
+                continue;
+            }
             mainNetwork.merge(network);
             removeNetwork(network);
         }
