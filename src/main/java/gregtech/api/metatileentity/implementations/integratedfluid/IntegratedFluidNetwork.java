@@ -17,6 +17,7 @@ import gregtech.api.metatileentity.implementations.integratedfluid.IFNFluidTherm
 import gregtech.api.metatileentity.implementations.integratedfluid.amount.EnergyAmount;
 import gregtech.api.metatileentity.implementations.integratedfluid.amount.SubstanceAmount;
 import gregtech.api.metatileentity.implementations.integratedfluid.state.IFNCanonicalState;
+import gregtech.api.metatileentity.implementations.integratedfluid.topology.IFNTopologySnapshot;
 import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
 import gregtech.api.metatileentity.MetaPipeEntity;
 
@@ -614,6 +615,10 @@ public class IntegratedFluidNetwork {
             SubstanceAmount.fromRawUnits(amountQ),
             EnergyAmount.fromRawUnits(Math.max(0L, enthalpyQ))
         );
+    }
+
+    public IFNTopologySnapshot getTopologySnapshot() {
+        return IFNTopologySnapshot.fromMembers(members, expectedMemberCount);
     }
 
     public long getAmountQ() {
