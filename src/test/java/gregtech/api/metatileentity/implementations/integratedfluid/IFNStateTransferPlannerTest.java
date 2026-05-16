@@ -24,6 +24,7 @@ class IFNStateTransferPlannerTest {
             1.0f);
 
         assertEquals(0L, plan.acceptedAmountQ);
+        assertEquals(IFNStateTransferPlanner.Status.INPUT_BLOCKED, plan.status);
     }
 
     @Test
@@ -48,6 +49,7 @@ class IFNStateTransferPlannerTest {
             1.0f);
 
         assertEquals(0L, plan.acceptedTotalAmountQ);
+        assertEquals(IFNStateTransferPlanner.Status.OUTPUT_BLOCKED, plan.status);
     }
 
     @Test
@@ -74,5 +76,6 @@ class IFNStateTransferPlannerTest {
             1.0f);
 
         assertEquals(0.0d, plan.acceptedRatio);
+        assertEquals(IFNStateTransferPlanner.Status.INPUT_BLOCKED, plan.status);
     }
 }

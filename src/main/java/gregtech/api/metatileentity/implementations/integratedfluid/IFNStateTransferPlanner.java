@@ -36,8 +36,11 @@ public final class IFNStateTransferPlanner {
             || requestedAmountQ < IntegratedFluidNetwork.AMOUNT_SCALE) {
             return PlannedStateTransfer.empty();
         }
-        if (!canPlanTransfers(inputNetwork, outputNetwork)) {
-            return PlannedStateTransfer.empty();
+        Status blockedStatus = blockedStatus(
+            new IntegratedFluidNetwork[] { inputNetwork },
+            new IntegratedFluidNetwork[] { outputNetwork });
+        if (blockedStatus != Status.ACCEPTED) {
+            return PlannedStateTransfer.failure(blockedStatus);
         }
 
         if (outputNetwork == inputNetwork) {
@@ -50,7 +53,7 @@ public final class IFNStateTransferPlanner {
 
         long maxAddableQ = outputNetwork.getMaxAddableAmountQ(fluid, outputSpecificEnthalpy, requestedAmountQ);
         if (maxAddableQ < IntegratedFluidNetwork.AMOUNT_SCALE) {
-            return PlannedStateTransfer.empty();
+            return PlannedStateTransfer.failure(Status.OUTPUT_BLOCKED);
         }
 
         long low = 0L;
@@ -85,7 +88,7 @@ public final class IFNStateTransferPlanner {
         }
 
         if (bestAmountQ < IntegratedFluidNetwork.AMOUNT_SCALE) {
-            return PlannedStateTransfer.empty();
+            return PlannedStateTransfer.failure(Status.OUTPUT_BLOCKED);
         }
 
         return PlannedStateTransfer.accepted(bestAmountQ, bestInputPressure, bestOutputPressure);
@@ -100,14 +103,17 @@ public final class IFNStateTransferPlanner {
             || requestedAmountQ < IntegratedFluidNetwork.AMOUNT_SCALE) {
             return PlannedSplitTransfer.empty();
         }
-        if (!canPlanTransfers(inputNetwork, redOutputNetwork, blueOutputNetwork)) {
-            return PlannedSplitTransfer.empty();
+        Status blockedStatus = blockedStatus(
+            new IntegratedFluidNetwork[] { inputNetwork },
+            new IntegratedFluidNetwork[] { redOutputNetwork, blueOutputNetwork });
+        if (blockedStatus != Status.ACCEPTED) {
+            return PlannedSplitTransfer.failure(blockedStatus);
         }
 
         long requestedRedQ = (long) (requestedAmountQ * splitRatio);
         long requestedBlueQ = requestedAmountQ - requestedRedQ;
         if (requestedRedQ < IntegratedFluidNetwork.AMOUNT_SCALE || requestedBlueQ < IntegratedFluidNetwork.AMOUNT_SCALE) {
-            return PlannedSplitTransfer.empty();
+            return PlannedSplitTransfer.failure(Status.INVALID_REQUEST);
         }
 
         long maxRedAddableQ = redOutputNetwork != inputNetwork
@@ -119,7 +125,7 @@ public final class IFNStateTransferPlanner {
 
         if ((redOutputNetwork != inputNetwork && maxRedAddableQ < IntegratedFluidNetwork.AMOUNT_SCALE)
             || (blueOutputNetwork != inputNetwork && maxBlueAddableQ < IntegratedFluidNetwork.AMOUNT_SCALE)) {
-            return PlannedSplitTransfer.empty();
+            return PlannedSplitTransfer.failure(Status.OUTPUT_BLOCKED);
         }
 
         long low = 0L;
@@ -177,7 +183,7 @@ public final class IFNStateTransferPlanner {
         if (bestTotalQ < IntegratedFluidNetwork.AMOUNT_SCALE
             || bestRedQ < IntegratedFluidNetwork.AMOUNT_SCALE
             || bestBlueQ < IntegratedFluidNetwork.AMOUNT_SCALE) {
-            return PlannedSplitTransfer.empty();
+            return PlannedSplitTransfer.failure(Status.OUTPUT_BLOCKED);
         }
 
         return PlannedSplitTransfer.accepted(bestTotalQ, bestRedQ, bestBlueQ);
@@ -193,8 +199,11 @@ public final class IFNStateTransferPlanner {
             || requestedBlueQ < IntegratedFluidNetwork.AMOUNT_SCALE) {
             return PlannedDualTransfer.empty();
         }
-        if (!canPlanTransfers(redInputNetwork, redOutputNetwork, blueInputNetwork, blueOutputNetwork)) {
-            return PlannedDualTransfer.empty();
+        Status blockedStatus = blockedStatus(
+            new IntegratedFluidNetwork[] { redInputNetwork, blueInputNetwork },
+            new IntegratedFluidNetwork[] { redOutputNetwork, blueOutputNetwork });
+        if (blockedStatus != Status.ACCEPTED) {
+            return PlannedDualTransfer.failure(blockedStatus);
         }
 
         long maxRedAddableQ = redOutputNetwork != redInputNetwork
@@ -206,7 +215,7 @@ public final class IFNStateTransferPlanner {
 
         if ((redOutputNetwork != redInputNetwork && maxRedAddableQ < IntegratedFluidNetwork.AMOUNT_SCALE)
             || (blueOutputNetwork != blueInputNetwork && maxBlueAddableQ < IntegratedFluidNetwork.AMOUNT_SCALE)) {
-            return PlannedDualTransfer.empty();
+            return PlannedDualTransfer.failure(Status.OUTPUT_BLOCKED);
         }
 
         double low = 0.0d;
@@ -258,81 +267,118 @@ public final class IFNStateTransferPlanner {
         if (bestRatio <= 0.0d
             || bestRedQ < IntegratedFluidNetwork.AMOUNT_SCALE
             || bestBlueQ < IntegratedFluidNetwork.AMOUNT_SCALE) {
-            return PlannedDualTransfer.empty();
+            return PlannedDualTransfer.failure(Status.OUTPUT_BLOCKED);
         }
 
         return PlannedDualTransfer.accepted(bestRatio, bestRedQ, bestBlueQ);
     }
 
-    private static boolean canPlanTransfers(IntegratedFluidNetwork... networks) {
-        for (IntegratedFluidNetwork network : networks) {
+    private static Status blockedStatus(IntegratedFluidNetwork[] inputNetworks, IntegratedFluidNetwork[] outputNetworks) {
+        for (IntegratedFluidNetwork network : inputNetworks) {
             if (network == null || network.getNetworkStatus() != IFNNetworkStatus.NORMAL) {
-                return false;
+                return Status.INPUT_BLOCKED;
             }
         }
-        return true;
+        for (IntegratedFluidNetwork network : outputNetworks) {
+            if (network == null || network.getNetworkStatus() != IFNNetworkStatus.NORMAL) {
+                return Status.OUTPUT_BLOCKED;
+            }
+        }
+        return Status.ACCEPTED;
+    }
+
+    public enum Status {
+        ACCEPTED,
+        INVALID_REQUEST,
+        INPUT_BLOCKED,
+        OUTPUT_BLOCKED
     }
 
     public static final class PlannedStateTransfer {
+        public final Status status;
         public final long acceptedAmountQ;
         public final float predictedInputPressure;
         public final float predictedOutputPressure;
 
-        private PlannedStateTransfer(long acceptedAmountQ, float predictedInputPressure, float predictedOutputPressure) {
+        private PlannedStateTransfer(Status status, long acceptedAmountQ, float predictedInputPressure,
+            float predictedOutputPressure) {
+            this.status = status;
             this.acceptedAmountQ = acceptedAmountQ;
             this.predictedInputPressure = predictedInputPressure;
             this.predictedOutputPressure = predictedOutputPressure;
         }
 
         public static PlannedStateTransfer empty() {
-            return new PlannedStateTransfer(0L, IntegratedFluidNetwork.DEFAULT_PRESSURE, IntegratedFluidNetwork.DEFAULT_PRESSURE);
+            return failure(Status.INVALID_REQUEST);
+        }
+
+        public static PlannedStateTransfer failure(Status status) {
+            return new PlannedStateTransfer(
+                status,
+                0L,
+                IntegratedFluidNetwork.DEFAULT_PRESSURE,
+                IntegratedFluidNetwork.DEFAULT_PRESSURE);
         }
 
         public static PlannedStateTransfer accepted(long acceptedAmountQ, float predictedInputPressure,
             float predictedOutputPressure) {
-            return new PlannedStateTransfer(acceptedAmountQ, predictedInputPressure, predictedOutputPressure);
+            return new PlannedStateTransfer(Status.ACCEPTED, acceptedAmountQ, predictedInputPressure, predictedOutputPressure);
         }
     }
 
     public static final class PlannedSplitTransfer {
+        public final Status status;
         public final long acceptedTotalAmountQ;
         public final long acceptedRedAmountQ;
         public final long acceptedBlueAmountQ;
 
-        private PlannedSplitTransfer(long acceptedTotalAmountQ, long acceptedRedAmountQ, long acceptedBlueAmountQ) {
+        private PlannedSplitTransfer(Status status, long acceptedTotalAmountQ, long acceptedRedAmountQ,
+            long acceptedBlueAmountQ) {
+            this.status = status;
             this.acceptedTotalAmountQ = acceptedTotalAmountQ;
             this.acceptedRedAmountQ = acceptedRedAmountQ;
             this.acceptedBlueAmountQ = acceptedBlueAmountQ;
         }
 
         public static PlannedSplitTransfer empty() {
-            return new PlannedSplitTransfer(0L, 0L, 0L);
+            return failure(Status.INVALID_REQUEST);
+        }
+
+        public static PlannedSplitTransfer failure(Status status) {
+            return new PlannedSplitTransfer(status, 0L, 0L, 0L);
         }
 
         public static PlannedSplitTransfer accepted(long acceptedTotalAmountQ, long acceptedRedAmountQ,
             long acceptedBlueAmountQ) {
-            return new PlannedSplitTransfer(acceptedTotalAmountQ, acceptedRedAmountQ, acceptedBlueAmountQ);
+            return new PlannedSplitTransfer(Status.ACCEPTED, acceptedTotalAmountQ, acceptedRedAmountQ, acceptedBlueAmountQ);
         }
     }
 
     public static final class PlannedDualTransfer {
+        public final Status status;
         public final double acceptedRatio;
         public final long acceptedRedAmountQ;
         public final long acceptedBlueAmountQ;
 
-        private PlannedDualTransfer(double acceptedRatio, long acceptedRedAmountQ, long acceptedBlueAmountQ) {
+        private PlannedDualTransfer(Status status, double acceptedRatio, long acceptedRedAmountQ,
+            long acceptedBlueAmountQ) {
+            this.status = status;
             this.acceptedRatio = acceptedRatio;
             this.acceptedRedAmountQ = acceptedRedAmountQ;
             this.acceptedBlueAmountQ = acceptedBlueAmountQ;
         }
 
         public static PlannedDualTransfer empty() {
-            return new PlannedDualTransfer(0.0d, 0L, 0L);
+            return failure(Status.INVALID_REQUEST);
+        }
+
+        public static PlannedDualTransfer failure(Status status) {
+            return new PlannedDualTransfer(status, 0.0d, 0L, 0L);
         }
 
         public static PlannedDualTransfer accepted(double acceptedRatio, long acceptedRedAmountQ,
             long acceptedBlueAmountQ) {
-            return new PlannedDualTransfer(acceptedRatio, acceptedRedAmountQ, acceptedBlueAmountQ);
+            return new PlannedDualTransfer(Status.ACCEPTED, acceptedRatio, acceptedRedAmountQ, acceptedBlueAmountQ);
         }
     }
 }
