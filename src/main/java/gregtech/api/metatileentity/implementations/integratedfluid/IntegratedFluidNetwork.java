@@ -19,6 +19,7 @@ import gregtech.api.metatileentity.implementations.integratedfluid.amount.Substa
 import gregtech.api.metatileentity.implementations.integratedfluid.amount.VolumeAmount;
 import gregtech.api.metatileentity.implementations.integratedfluid.safety.IFNLimitWarningTracker;
 import gregtech.api.metatileentity.implementations.integratedfluid.safety.IFNOperationalLimits;
+import gregtech.api.metatileentity.implementations.integratedfluid.safety.IFNOperationalSafetyEvaluation;
 import gregtech.api.metatileentity.implementations.integratedfluid.safety.IFNPressureLimitEvaluation;
 import gregtech.api.metatileentity.implementations.integratedfluid.safety.IFNPressureWarningTracker;
 import gregtech.api.metatileentity.implementations.integratedfluid.safety.IFNTemperatureLimitEvaluation;
@@ -219,6 +220,16 @@ public class IntegratedFluidNetwork {
 
     public boolean shouldRollTemperatureFailureThisTick() {
         return temperatureWarningTracker.shouldRollFailureThisTick();
+    }
+
+    public IFNOperationalSafetyEvaluation tickOperationalSafety() {
+        IFNPressureLimitEvaluation pressureEvaluation = tickPressureSafety();
+        IFNTemperatureLimitEvaluation temperatureEvaluation = tickTemperatureSafety();
+        return new IFNOperationalSafetyEvaluation(
+            pressureEvaluation,
+            temperatureEvaluation,
+            shouldRollPressureFailureThisTick(),
+            shouldRollTemperatureFailureThisTick());
     }
 
     public int getBaseCapacity() {
