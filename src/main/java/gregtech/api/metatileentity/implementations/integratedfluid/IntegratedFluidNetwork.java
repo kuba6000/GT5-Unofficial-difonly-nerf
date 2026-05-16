@@ -19,6 +19,7 @@ import gregtech.api.metatileentity.implementations.integratedfluid.amount.Substa
 import gregtech.api.metatileentity.implementations.integratedfluid.amount.VolumeAmount;
 import gregtech.api.metatileentity.implementations.integratedfluid.safety.IFNOperationalLimits;
 import gregtech.api.metatileentity.implementations.integratedfluid.safety.IFNPressureLimitEvaluation;
+import gregtech.api.metatileentity.implementations.integratedfluid.safety.IFNPressureWarningTracker;
 import gregtech.api.metatileentity.implementations.integratedfluid.state.IFNCanonicalState;
 import gregtech.api.metatileentity.implementations.integratedfluid.state.IFNNetworkStatus;
 import gregtech.api.metatileentity.implementations.integratedfluid.topology.IFNTopologySnapshot;
@@ -92,6 +93,7 @@ public class IntegratedFluidNetwork {
     private boolean pending = false;
     private int expectedMemberCount = 0;
     private String frozenReason;
+    private final IFNPressureWarningTracker pressureWarningTracker = new IFNPressureWarningTracker();
 
     public IntegratedFluidNetwork(UUID networkId) {
         this.fluidName = null;
@@ -178,6 +180,20 @@ public class IntegratedFluidNetwork {
 
     public IFNPressureLimitEvaluation getPressureLimitEvaluation() {
         return IFNPressureLimitEvaluation.evaluate(pressure, getOperationalLimits(), isIncompleteNetwork());
+    }
+
+    public IFNPressureLimitEvaluation tickPressureSafety() {
+        IFNPressureLimitEvaluation evaluation = getPressureLimitEvaluation();
+        pressureWarningTracker.update(evaluation);
+        return evaluation;
+    }
+
+    public int getPressureWarningTicks() {
+        return pressureWarningTracker.warningTicks();
+    }
+
+    public boolean shouldRollPressureFailureThisTick() {
+        return pressureWarningTracker.shouldRollFailureThisTick();
     }
 
     public int getBaseCapacity() {

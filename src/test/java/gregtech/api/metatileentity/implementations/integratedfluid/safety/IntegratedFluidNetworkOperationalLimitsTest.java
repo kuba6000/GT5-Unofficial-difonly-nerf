@@ -30,6 +30,37 @@ class IntegratedFluidNetworkOperationalLimitsTest {
         assertEquals(IFNPressureLimitStatus.RUPTURE, network.getPressureLimitEvaluation().status());
     }
 
+    @Test
+    void networkTracksPersistentPressureWarnings() {
+        IntegratedFluidNetwork network = new IntegratedFluidNetwork();
+
+        network.addMember(member(1000, 10.0f));
+        network.setPressure(10.5f);
+
+        for (int tick = 0; tick < 199; tick++) {
+            network.tickPressureSafety();
+            assertEquals(tick + 1, network.getPressureWarningTicks());
+            assertEquals(false, network.shouldRollPressureFailureThisTick());
+        }
+
+        network.tickPressureSafety();
+        assertEquals(200, network.getPressureWarningTicks());
+        assertEquals(true, network.shouldRollPressureFailureThisTick());
+    }
+
+    @Test
+    void networkResetsPressureWarningTicksWhenPressureReturnsToNormal() {
+        IntegratedFluidNetwork network = new IntegratedFluidNetwork();
+
+        network.addMember(member(1000, 10.0f));
+        network.setPressure(10.5f);
+        network.tickPressureSafety();
+        network.setPressure(10.0f);
+        network.tickPressureSafety();
+
+        assertEquals(0, network.getPressureWarningTicks());
+    }
+
     private static IIntegratedFluidMember member(int accumulatorContribution, float accumulatorMaxPressureBar) {
         return new IIntegratedFluidMember() {
 
