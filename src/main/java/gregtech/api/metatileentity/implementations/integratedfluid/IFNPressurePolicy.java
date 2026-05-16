@@ -31,7 +31,7 @@ public final class IFNPressurePolicy {
     }
 
     public static boolean exceedsRuptureLimit(double pressureBar, double maxPressureBar) {
-        return pressureBar > maxPressureBar * RUPTURE_PRESSURE_FACTOR;
+        return pressureBar >= maxPressureBar * RUPTURE_PRESSURE_FACTOR;
     }
 
     public static float injectorCutoffPressureBar() {

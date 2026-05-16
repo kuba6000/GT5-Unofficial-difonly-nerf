@@ -18,6 +18,7 @@ import gregtech.api.metatileentity.implementations.integratedfluid.amount.Energy
 import gregtech.api.metatileentity.implementations.integratedfluid.amount.SubstanceAmount;
 import gregtech.api.metatileentity.implementations.integratedfluid.amount.VolumeAmount;
 import gregtech.api.metatileentity.implementations.integratedfluid.safety.IFNOperationalLimits;
+import gregtech.api.metatileentity.implementations.integratedfluid.safety.IFNPressureLimitEvaluation;
 import gregtech.api.metatileentity.implementations.integratedfluid.state.IFNCanonicalState;
 import gregtech.api.metatileentity.implementations.integratedfluid.state.IFNNetworkStatus;
 import gregtech.api.metatileentity.implementations.integratedfluid.topology.IFNTopologySnapshot;
@@ -173,6 +174,10 @@ public class IntegratedFluidNetwork {
 
     public float getAccumulatorMaxPressureBar() {
         return getOperationalLimits().accumulatorMaxPressureBar();
+    }
+
+    public IFNPressureLimitEvaluation getPressureLimitEvaluation() {
+        return IFNPressureLimitEvaluation.evaluate(pressure, getOperationalLimits(), isIncompleteNetwork());
     }
 
     public int getBaseCapacity() {

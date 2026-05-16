@@ -13,6 +13,10 @@ public final class IFNOperationalLimits {
         this.accumulatorMaxPressureBar = accumulatorMaxPressureBar;
     }
 
+    public static IFNOperationalLimits ofAccumulatorMaxPressureBar(float accumulatorMaxPressureBar) {
+        return new IFNOperationalLimits(accumulatorMaxPressureBar);
+    }
+
     public static IFNOperationalLimits fromMembers(Collection<? extends IIntegratedFluidMember> members) {
         float accumulatorMaxPressureBar = IFNPressurePolicy.DEFAULT_MAX_PRESSURE_BAR;
         boolean hasAccumulator = false;

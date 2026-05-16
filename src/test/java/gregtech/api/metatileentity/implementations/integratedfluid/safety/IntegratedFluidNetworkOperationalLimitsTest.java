@@ -20,6 +20,16 @@ class IntegratedFluidNetworkOperationalLimitsTest {
         assertEquals(6.0f, network.getAccumulatorMaxPressureBar());
     }
 
+    @Test
+    void networkEvaluatesCurrentPressureAgainstOperationalLimits() {
+        IntegratedFluidNetwork network = new IntegratedFluidNetwork();
+
+        network.addMember(member(1000, 6.0f));
+        network.setPressure(7.0f);
+
+        assertEquals(IFNPressureLimitStatus.RUPTURE, network.getPressureLimitEvaluation().status());
+    }
+
     private static IIntegratedFluidMember member(int accumulatorContribution, float accumulatorMaxPressureBar) {
         return new IIntegratedFluidMember() {
 
