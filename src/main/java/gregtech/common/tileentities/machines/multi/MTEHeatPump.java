@@ -27,16 +27,14 @@ import gregtech.api.interfaces.metatileentity.IMetaTileEntity;
 import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
 import gregtech.api.metatileentity.implementations.MTEEnhancedMultiBlockBase;
 import gregtech.api.metatileentity.implementations.integratedfluid.FluidThermalProperties;
+import gregtech.api.metatileentity.implementations.integratedfluid.IFNDualOutputProcess;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNMachineBatchPlanner;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNMachineResultMapper;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNMachineThermo;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNPressurePolicy;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNSingleOutputProcess;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNSplitOutputProcess;
-import gregtech.api.metatileentity.implementations.integratedfluid.IFNStateExtractionApplier;
-import gregtech.api.metatileentity.implementations.integratedfluid.IFNStateMutationApplier;
 import gregtech.api.metatileentity.implementations.integratedfluid.IntegratedFluidNetwork;
-import gregtech.api.metatileentity.implementations.integratedfluid.IFNStateTransferPlanner;
 import gregtech.api.metatileentity.implementations.integratedfluid.MTEIntegratedFluidInputHatch;
 import gregtech.api.metatileentity.implementations.integratedfluid.MTEIntegratedFluidOutputHatch;
 import gregtech.api.recipe.check.CheckRecipeResult;
@@ -689,76 +687,45 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         long originalRedProcessQ = redBaseQ;
         long originalBlueProcessQ = blueBaseQ;
         long originalEnergyCost = energyCost;
-        long redProcessQ = redBaseQ;
-        long blueProcessQ = blueBaseQ;
-
-        if (redOutNet != redInNet || blueOutNet != blueInNet) {
-            var plan = IFNStateTransferPlanner.planDualStateAddWithSharedRatio(
-                redInNet,
-                redOutNet,
-                redFluid,
-                redOutH,
-                redBaseQ,
-                blueInNet,
-                blueOutNet,
-                blueFluid,
-                blueOutH,
-                blueBaseQ,
-                IFNPressurePolicy.MACHINE_OUTPUT_TO_INPUT_PRESSURE_RATIO
-            );
-            if (plan.acceptedRatio <= 0.0d
-                || plan.acceptedRedAmountQ < IntegratedFluidNetwork.AMOUNT_SCALE
-                || plan.acceptedBlueAmountQ < IntegratedFluidNetwork.AMOUNT_SCALE) {
-                return IFNMachineResultMapper.toRecipeResult(plan.status);
-            }
-
-            redProcessQ = plan.acceptedRedAmountQ;
-            blueProcessQ = plan.acceptedBlueAmountQ;
-        }
-
-        IFNStateExtractionApplier.TwoInputExtraction extraction = IFNStateExtractionApplier.extractTwoOrRestoreFirst(
+        final double requestedRedOutH = redOutH;
+        final double requestedBlueOutH = blueOutH;
+        IFNDualOutputProcess.Result processResult = IFNDualOutputProcess.execute(IFNDualOutputProcess.Request.of(
             redInNet,
+            redOutNet,
             redFluid,
-            redProcessQ,
+            redBaseQ,
             blueInNet,
+            blueOutNet,
             blueFluid,
-            blueProcessQ);
-        if (!extraction.isSuccess()) {
-            return CheckRecipeResultRegistry.NO_RECIPE;
+            blueBaseQ,
+            ignored -> requestedRedOutH,
+            ignored -> requestedBlueOutH,
+            IFNPressurePolicy.MACHINE_OUTPUT_TO_INPUT_PRESSURE_RATIO));
+        if (processResult.getStatus() != IFNDualOutputProcess.Status.SUCCESS) {
+            return IFNMachineResultMapper.toRecipeResult(processResult.getStatus());
         }
-        var extractedRed = extraction.getFirst();
-        var extractedBlue = extraction.getSecond();
 
         // Adjust if extraction was partial OR if we scaled down due to pressure
-        double ratioRed = extractedRed.amountQ / (double) originalRedProcessQ;
-        double ratioBlue = extractedBlue.amountQ / (double) originalBlueProcessQ;
+        double ratioRed = processResult.getFirstAmountQ() / (double) originalRedProcessQ;
+        double ratioBlue = processResult.getSecondAmountQ() / (double) originalBlueProcessQ;
         double finalRatio = Math.min(ratioRed, ratioBlue);
 
         if (finalRatio < 1.0 && originalEnergyCost > 0L) {
-            long scaledRedEnergy = IFNMachineThermo.scaleEnergyCost(originalEnergyCost, originalRedProcessQ, extractedRed.amountQ);
-            long scaledBlueEnergy = IFNMachineThermo.scaleEnergyCost(originalEnergyCost, originalBlueProcessQ, extractedBlue.amountQ);
+            long scaledRedEnergy = IFNMachineThermo.scaleEnergyCost(
+                originalEnergyCost,
+                originalRedProcessQ,
+                processResult.getFirstAmountQ()
+            );
+            long scaledBlueEnergy = IFNMachineThermo.scaleEnergyCost(
+                originalEnergyCost,
+                originalBlueProcessQ,
+                processResult.getSecondAmountQ()
+            );
             energyCost = Math.min(scaledRedEnergy, scaledBlueEnergy);
         }
 
         currentEnergyUsage = energyCost;
         this.totalEnergyCost = (int) ((energyCost + 19) / 20);
-
-        long outRedEnthalpyQ = toEnthalpyQ(redOutH, extractedRed.amountQ);
-        long outBlueEnthalpyQ = toEnthalpyQ(blueOutH, extractedBlue.amountQ);
-
-        if (!IFNStateMutationApplier.addTwoOutputsOrRestoreInputs(
-            redInNet,
-            redOutNet,
-            redFluid,
-            extractedRed,
-            outRedEnthalpyQ,
-            blueInNet,
-            blueOutNet,
-            blueFluid,
-            extractedBlue,
-            outBlueEnthalpyQ)) {
-            return CheckRecipeResultRegistry.ITEM_OUTPUT_FULL;
-        }
 
         currentOutputTemperature = (float) targetOutTemp;
 
@@ -1127,20 +1094,8 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         return (float) temperature;
     }
 
-    private static long toAmountQ(int amount) {
-        return (long) amount * IntegratedFluidNetwork.AMOUNT_SCALE;
-    }
-
     private static double toAmount(long amountQ) {
         return amountQ / (double) IntegratedFluidNetwork.AMOUNT_SCALE;
-    }
-
-    private static long toEnthalpyQ(double energyEu) {
-        return (long) Math.round(energyEu * IntegratedFluidNetwork.ENTHALPY_SCALE);
-    }
-
-    private static long toEnthalpyQ(double specificEnthalpy, long amountQ) {
-        return toEnthalpyQ(specificEnthalpy * toAmount(amountQ));
     }
 
     private void applyHeatPumpMetrics(IFNMachineThermo.HeatPumpMetrics metrics) {
