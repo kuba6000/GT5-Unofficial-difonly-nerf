@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 
 import gregtech.api.metatileentity.implementations.integratedfluid.amount.EnergyAmount;
 import gregtech.api.metatileentity.implementations.integratedfluid.amount.SubstanceAmount;
+import gregtech.api.metatileentity.implementations.integratedfluid.state.IFNCanonicalState;
 
 class IFNStateDistributorTest {
 
@@ -42,6 +43,19 @@ class IFNStateDistributorTest {
         assertArrayEquals(new long[] { 0, 10 }, rawSubstance(shares));
     }
 
+    @Test
+    void canonicalStateSplitKeepsFluidAndUsesSameLossyRounding() {
+        IFNCanonicalState[] shares = IFNStateDistributor.splitStateByWeights(
+            IFNCanonicalState.of("water", SubstanceAmount.fromRawUnits(10), EnergyAmount.fromRawUnits(100)),
+            new long[] { 1, 2 }
+        );
+
+        assertEquals("water", shares[0].fluidId().get());
+        assertEquals("water", shares[1].fluidId().get());
+        assertArrayEquals(new long[] { 3, 6 }, rawSubstance(shares));
+        assertArrayEquals(new long[] { 33, 66 }, rawEnergy(shares));
+    }
+
     private static long[] rawSubstance(SubstanceAmount[] shares) {
         long[] raw = new long[shares.length];
         for (int i = 0; i < shares.length; i++) {
@@ -54,6 +68,22 @@ class IFNStateDistributorTest {
         long[] raw = new long[shares.length];
         for (int i = 0; i < shares.length; i++) {
             raw[i] = shares[i].rawUnits();
+        }
+        return raw;
+    }
+
+    private static long[] rawSubstance(IFNCanonicalState[] shares) {
+        long[] raw = new long[shares.length];
+        for (int i = 0; i < shares.length; i++) {
+            raw[i] = shares[i].substanceAmount().rawUnits();
+        }
+        return raw;
+    }
+
+    private static long[] rawEnergy(IFNCanonicalState[] shares) {
+        long[] raw = new long[shares.length];
+        for (int i = 0; i < shares.length; i++) {
+            raw[i] = shares[i].internalEnergy().rawUnits();
         }
         return raw;
     }

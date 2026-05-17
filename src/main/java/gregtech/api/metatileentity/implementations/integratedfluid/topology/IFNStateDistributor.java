@@ -4,6 +4,7 @@ import java.math.BigInteger;
 
 import gregtech.api.metatileentity.implementations.integratedfluid.amount.EnergyAmount;
 import gregtech.api.metatileentity.implementations.integratedfluid.amount.SubstanceAmount;
+import gregtech.api.metatileentity.implementations.integratedfluid.state.IFNCanonicalState;
 
 public final class IFNStateDistributor {
 
@@ -23,6 +24,21 @@ public final class IFNStateDistributor {
         EnergyAmount[] shares = new EnergyAmount[rawShares.length];
         for (int i = 0; i < rawShares.length; i++) {
             shares[i] = EnergyAmount.fromRawUnits(rawShares[i]);
+        }
+        return shares;
+    }
+
+    public static IFNCanonicalState[] splitStateByWeights(IFNCanonicalState total, long[] weights) {
+        SubstanceAmount[] substanceShares = splitSubstanceByWeights(
+            total == null ? SubstanceAmount.ZERO : total.substanceAmount(),
+            weights);
+        EnergyAmount[] energyShares = splitEnergyByWeights(
+            total == null ? EnergyAmount.ZERO : total.internalEnergy(),
+            weights);
+        IFNCanonicalState[] shares = new IFNCanonicalState[substanceShares.length];
+        String fluidId = total == null ? null : total.fluidId().orElse(null);
+        for (int i = 0; i < shares.length; i++) {
+            shares[i] = IFNCanonicalState.of(fluidId, substanceShares[i], energyShares[i]);
         }
         return shares;
     }

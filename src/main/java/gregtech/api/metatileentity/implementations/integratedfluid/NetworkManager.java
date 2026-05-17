@@ -13,6 +13,7 @@ import gregtech.api.metatileentity.implementations.integratedfluid.IFNAmbientTem
 import gregtech.api.metatileentity.implementations.integratedfluid.safety.IFNNetworkSafetyTicker;
 import gregtech.api.metatileentity.implementations.integratedfluid.state.IFNCanonicalState;
 import gregtech.api.metatileentity.implementations.integratedfluid.topology.IFNMergePolicy;
+import gregtech.api.metatileentity.implementations.integratedfluid.topology.IFNStateDistributor;
 
 /**
  * Centralized network manager for integrated fluid networks.
@@ -138,11 +139,10 @@ public class NetworkManager {
             return;
         }
 
-        String oldFluidName = oldNetwork.getFluidName();
-        long oldAmountQ = oldNetwork.getAmountQ();
-        long oldEnthalpyQ = oldNetwork.getEnthalpyQ();
-        double oldSpecificEnthalpy = oldAmountQ > 0L ? oldEnthalpyQ / (double) oldAmountQ : 0.0d;
-        int oldCapacity = oldNetwork.getTotalCapacity();
+        IFNCanonicalState oldState = oldNetwork.getCanonicalState();
+        IFNCanonicalState[] splitStates = IFNStateDistributor.splitStateByWeights(
+            oldState,
+            componentCapacityWeights(components));
 
         for (IIntegratedFluidMember remainingMember : remainingMembers) {
             oldNetwork.removeMember(remainingMember);
@@ -156,7 +156,8 @@ public class NetworkManager {
             .max(Comparator.comparingInt(Set::size))
             .orElse(null);
 
-        for (Set<IIntegratedFluidMember> component : components) {
+        for (int componentIndex = 0; componentIndex < components.size(); componentIndex++) {
+            Set<IIntegratedFluidMember> component = components.get(componentIndex);
             UUID newId = component == primaryComponent ? oldId : UUID.randomUUID();
             IntegratedFluidNetwork newNetwork = createEmptyNetwork(newId);
 
@@ -165,18 +166,7 @@ public class NetworkManager {
                 componentMember.setNetwork(newNetwork);
             }
 
-            if (oldFluidName != null && oldAmountQ > 0L && oldCapacity > 0) {
-                int newCapacity = newNetwork.getTotalCapacity();
-                long proportionalAmountQ = (oldAmountQ * newCapacity) / oldCapacity;
-                if (proportionalAmountQ >= IntegratedFluidNetwork.AMOUNT_SCALE) {
-                    net.minecraftforge.fluids.Fluid fluid = net.minecraftforge.fluids.FluidRegistry.getFluid(oldFluidName);
-                    if (fluid != null) {
-                        long proportionalEnthalpyQ = IntegratedFluidNetwork
-                            .toEnthalpyQFromSpecific(oldSpecificEnthalpy, proportionalAmountQ);
-                        newNetwork.addState(fluid, proportionalAmountQ, proportionalEnthalpyQ);
-                    }
-                }
-            }
+            applyState(newNetwork, splitStates[componentIndex]);
 
             newNetwork.setExpectedMemberCount(newNetwork.getMemberCount());
             newNetwork.setPending(false);
@@ -226,12 +216,7 @@ public class NetworkManager {
             return;
         }
 
-        long combinedAmountQ = 0L;
-        long combinedEnthalpyQ = 0L;
-        String combinedFluidName = null;
-        int totalCapacity = 0;
-        int networkCount = 0;
-
+        IFNCanonicalState combinedState = IFNCanonicalState.empty();
         UUID splitPrimaryId = null;
         if (affectedNetworks.size() == 1) {
             IntegratedFluidNetwork only = affectedNetworks.iterator().next();
@@ -239,27 +224,8 @@ public class NetworkManager {
         }
 
         for (IntegratedFluidNetwork net : affectedNetworks) {
-            String fluidName = net.getFluidName();
-            long amountQ = net.getAmountQ();
-            long enthalpyQ = net.getEnthalpyQ();
-            if (fluidName != null && amountQ > 0L) {
-                if (combinedFluidName == null) {
-                    combinedFluidName = fluidName;
-                    combinedAmountQ = amountQ;
-                    combinedEnthalpyQ = enthalpyQ;
-                } else if (combinedFluidName.equals(fluidName)) {
-                    combinedAmountQ += amountQ;
-                    combinedEnthalpyQ += enthalpyQ;
-                } else if (amountQ > combinedAmountQ) {
-                    combinedFluidName = fluidName;
-                    combinedAmountQ = amountQ;
-                    combinedEnthalpyQ = enthalpyQ;
-                }
-            }
-            totalCapacity += net.getTotalCapacity();
-            networkCount++;
+            combinedState = IFNMergePolicy.merge(combinedState, net.getCanonicalState());
         }
-        double combinedSpecificEnthalpy = combinedAmountQ > 0L ? combinedEnthalpyQ / (double) combinedAmountQ : 0.0d;
 
         for (IntegratedFluidNetwork net : affectedNetworks) {
             for (IIntegratedFluidMember m : new ArrayList<>(net.getMembers())) {
@@ -278,7 +244,12 @@ public class NetworkManager {
                 .orElse(null);
         }
 
-        for (Set<IIntegratedFluidMember> component : components) {
+        IFNCanonicalState[] splitStates = IFNStateDistributor.splitStateByWeights(
+            combinedState,
+            componentCapacityWeights(components));
+
+        for (int componentIndex = 0; componentIndex < components.size(); componentIndex++) {
+            Set<IIntegratedFluidMember> component = components.get(componentIndex);
             if (component.isEmpty()) continue;
             IIntegratedFluidMember seed = component.iterator().next();
             UUID targetId;
@@ -298,23 +269,7 @@ public class NetworkManager {
                 componentMember.setNetwork(newNetwork);
             }
 
-            if (combinedFluidName != null && combinedAmountQ > 0L) {
-                net.minecraftforge.fluids.Fluid fluid =
-                    net.minecraftforge.fluids.FluidRegistry.getFluid(combinedFluidName);
-                if (isMerge) {
-                    if (fluid != null) {
-                        newNetwork.addState(fluid, combinedAmountQ, combinedEnthalpyQ);
-                    }
-                } else if (totalCapacity > 0) {
-                    int newCapacity = newNetwork.getTotalCapacity();
-                    long proportionalAmountQ = (combinedAmountQ * newCapacity) / totalCapacity;
-                    if (proportionalAmountQ >= IntegratedFluidNetwork.AMOUNT_SCALE && fluid != null) {
-                        long proportionalEnthalpyQ = IntegratedFluidNetwork
-                            .toEnthalpyQFromSpecific(combinedSpecificEnthalpy, proportionalAmountQ);
-                        newNetwork.addState(fluid, proportionalAmountQ, proportionalEnthalpyQ);
-                    }
-                }
-            }
+            applyState(newNetwork, isMerge ? combinedState : splitStates[componentIndex]);
 
             newNetwork.setExpectedMemberCount(newNetwork.getMemberCount());
             newNetwork.setPending(false);
@@ -451,6 +406,30 @@ public class NetworkManager {
         }
 
         return neighbors;
+    }
+
+    private long[] componentCapacityWeights(List<Set<IIntegratedFluidMember>> components) {
+        long[] weights = new long[components == null ? 0 : components.size()];
+        if (components == null) {
+            return weights;
+        }
+        for (int i = 0; i < components.size(); i++) {
+            long capacity = 0L;
+            for (IIntegratedFluidMember member : components.get(i)) {
+                if (member != null) {
+                    capacity += Math.max(0, member.getCapacityContribution());
+                    capacity += Math.max(0, member.getAccumulatorContribution());
+                }
+            }
+            weights[i] = capacity;
+        }
+        return weights;
+    }
+
+    private void applyState(IntegratedFluidNetwork network, IFNCanonicalState state) {
+        if (network != null && state != null && !state.isEmpty()) {
+            network.replaceCanonicalState(state);
+        }
     }
 
     /**
