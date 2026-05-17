@@ -278,7 +278,7 @@ public class MTEIntegratedFluidOutputHatch extends MTEHatch implements IIntegrat
             NetworkManager manager = NetworkManager.getInstance(getBaseMetaTileEntity().getWorld());
             manager.onMemberAdded(this);
         }
-        if (network != null) {
+        if (IFNNetworkTransferGate.canProvideToMachine(network)) {
             return network.drainFluid(maxDrain, simulate);
         }
         return null;
@@ -296,7 +296,7 @@ public class MTEIntegratedFluidOutputHatch extends MTEHatch implements IIntegrat
             NetworkManager manager = NetworkManager.getInstance(getBaseMetaTileEntity().getWorld());
             manager.onMemberAdded(this);
         }
-        if (network != null) {
+        if (IFNNetworkTransferGate.canProvideToMachine(network)) {
             return network.drainFluid(fluid, simulate);
         }
         return null;

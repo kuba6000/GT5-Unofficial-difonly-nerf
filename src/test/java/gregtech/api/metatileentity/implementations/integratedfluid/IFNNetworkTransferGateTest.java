@@ -38,4 +38,18 @@ class IFNNetworkTransferGateTest {
 
         assertFalse(IFNNetworkTransferGate.canInjectFromGtPipe(network));
     }
+
+    @Test
+    void machineHatchGatesUseOperationalNetworkPolicy() {
+        Fluid fluid = IFNTestSupport.liquidFluid();
+        IntegratedFluidNetwork network = IFNTestSupport.newNetwork(fluid, 1_000, 0, 1.0f);
+
+        assertTrue(IFNNetworkTransferGate.canReceiveFromMachine(network));
+        assertTrue(IFNNetworkTransferGate.canProvideToMachine(network));
+
+        network.setPending(true);
+
+        assertFalse(IFNNetworkTransferGate.canReceiveFromMachine(network));
+        assertFalse(IFNNetworkTransferGate.canProvideToMachine(network));
+    }
 }

@@ -281,7 +281,7 @@ public class MTEIntegratedFluidInputHatch extends MTEHatch implements IIntegrate
             NetworkManager manager = NetworkManager.getInstance(getBaseMetaTileEntity().getWorld());
             manager.onMemberAdded(this);
         }
-        if (network != null) {
+        if (IFNNetworkTransferGate.canReceiveFromMachine(network)) {
             return network.addFluid(fluid, simulate);
         }
         return 0;

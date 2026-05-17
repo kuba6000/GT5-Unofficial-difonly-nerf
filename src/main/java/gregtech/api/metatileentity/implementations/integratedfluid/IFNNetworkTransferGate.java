@@ -29,4 +29,12 @@ public final class IFNNetworkTransferGate {
     public static boolean canExtractToGtPipe(IntegratedFluidNetwork network) {
         return isOperational(network);
     }
+
+    public static boolean canReceiveFromMachine(IntegratedFluidNetwork network) {
+        return isOperational(network);
+    }
+
+    public static boolean canProvideToMachine(IntegratedFluidNetwork network) {
+        return isOperational(network);
+    }
 }
