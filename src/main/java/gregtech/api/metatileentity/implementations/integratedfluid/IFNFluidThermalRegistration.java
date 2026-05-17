@@ -3,6 +3,8 @@ package gregtech.api.metatileentity.implementations.integratedfluid;
 import net.minecraftforge.fluids.Fluid;
 import net.minecraftforge.fluids.FluidRegistry;
 
+import gregtech.api.metatileentity.implementations.integratedfluid.fluid.IFNFluidRegistry;
+
 public final class IFNFluidThermalRegistration {
 
     // IC2 Super Coolant (CO2-like placeholder model)
@@ -45,6 +47,7 @@ public final class IFNFluidThermalRegistration {
             return;
         }
         initialized = true;
+        IFNFluidRegistry.init();
         try {
             registerIc2SuperCoolant();
             registerIc2Coolant();

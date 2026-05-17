@@ -12,11 +12,11 @@ import net.minecraftforge.fluids.Fluid;
 import net.minecraftforge.fluids.FluidRegistry;
 import net.minecraftforge.fluids.FluidStack;
 
-import gregtech.api.metatileentity.implementations.integratedfluid.IFNFluidThermalRegistry;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNFluidThermalRegistration;
 import gregtech.api.metatileentity.implementations.integratedfluid.amount.EnergyAmount;
 import gregtech.api.metatileentity.implementations.integratedfluid.amount.SubstanceAmount;
 import gregtech.api.metatileentity.implementations.integratedfluid.amount.VolumeAmount;
+import gregtech.api.metatileentity.implementations.integratedfluid.fluid.IFNFluidRegistry;
 import gregtech.api.metatileentity.implementations.integratedfluid.safety.IFNFailureCandidateSelector;
 import gregtech.api.metatileentity.implementations.integratedfluid.safety.IFNLimitWarningTracker;
 import gregtech.api.metatileentity.implementations.integratedfluid.safety.IFNOperationalFailurePolicy;
@@ -388,7 +388,7 @@ public class IntegratedFluidNetwork {
         if (fluid == null || addAmountQ <= 0L) {
             return false;
         }
-        if (!IFNFluidThermalRegistry.isRegistered(fluid)) {
+        if (!IFNFluidRegistry.isSupported(fluid)) {
             return false;
         }
         if (amountQ > 0L && (fluidName == null || !fluid.getName().equals(fluidName))) {
@@ -678,7 +678,7 @@ public class IntegratedFluidNetwork {
         }
         IFNFluidThermalRegistration.init();
         Fluid fluid = FluidRegistry.getFluid(fluidName);
-        if (fluid == null || !IFNFluidThermalRegistry.isRegistered(fluid)) {
+        if (fluid == null || !IFNFluidRegistry.isSupported(fluid)) {
             clearFluid();
             return null;
         }
@@ -1178,7 +1178,7 @@ public class IntegratedFluidNetwork {
         if (isTransferBlocked() || fluid == null || maxCandidateAmountQ < AMOUNT_SCALE) {
             return 0L;
         }
-        if (!IFNFluidThermalRegistry.isRegistered(fluid)) {
+        if (!IFNFluidRegistry.isSupported(fluid)) {
             return 0L;
         }
         if (amountQ > 0L && (fluidName == null || !fluid.getName().equals(fluidName))) {
