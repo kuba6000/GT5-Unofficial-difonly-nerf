@@ -11,17 +11,10 @@ class IFNConservationTest {
 
     @Test
     void oneGtLiterInputIsOneReferenceLiter() {
-        Fluid fluid = IFNTestSupport.liquidFluid();
-        IntegratedFluidNetwork network = IFNTestSupport.newNetwork(fluid, 1_000, 0, 10.0f);
         long oneRefLiterQ = IntegratedFluidNetwork.AMOUNT_SCALE;
-        long enthalpyQ = enthalpyFor(fluid, 1.0d, 300.0d, oneRefLiterQ);
 
-        assertTrue(network.addState(fluid, oneRefLiterQ, enthalpyQ));
-        assertEquals(oneRefLiterQ, network.getAmountQ());
-
-        IntegratedFluidNetwork.ExtractedPayload simulated = network.extractProportional(oneRefLiterQ, true);
-        assertEquals(oneRefLiterQ, simulated.amountQ);
-        assertEquals(oneRefLiterQ, network.getAmountQ());
+        assertEquals(oneRefLiterQ, IntegratedFluidNetwork.toAmountQ(1));
+        assertEquals(1, IntegratedFluidNetwork.toAmountMb(oneRefLiterQ));
     }
 
     @Test

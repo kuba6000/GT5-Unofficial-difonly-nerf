@@ -812,7 +812,7 @@ public class IntegratedFluidNetwork {
         return toAmount(amountQ) * getSpecificVolume();
     }
 
-    private static long toAmountQ(int amount) {
+    static long toAmountQ(int amount) {
         return (long) amount * AMOUNT_SCALE;
     }
 
@@ -824,7 +824,7 @@ public class IntegratedFluidNetwork {
         return amountQ / (double) AMOUNT_SCALE;
     }
 
-    private static int toAmountMb(long amountQ) {
+    static int toAmountMb(long amountQ) {
         if (amountQ <= 0L) {
             return 0;
         }
