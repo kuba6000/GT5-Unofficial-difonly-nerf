@@ -47,6 +47,7 @@ import gregtech.common.gui.modularui.multiblock.MTERadiatorGui;
 import gregtech.common.gui.modularui.multiblock.base.MTEMultiBlockBaseGui;
 import gregtech.common.tileentities.machines.multi.radiator.RadiatorLoopAnalyzer;
 import gregtech.common.tileentities.machines.multi.radiator.RadiatorLoopSnapshot;
+import gregtech.common.tileentities.machines.multi.radiator.RadiatorPowerPolicy;
 import gregtech.common.tileentities.machines.multi.radiator.RadiatorThermo;
 
 public class MTERadiator extends MTEEnhancedMultiBlockBase<MTERadiator> implements ISurvivalConstructable {
@@ -321,15 +322,6 @@ public class MTERadiator extends MTEEnhancedMultiBlockBase<MTERadiator> implemen
             );
         }
 
-        float temperatureDelta = (float) Math.abs(inputTemperature - outputTemperature);
-        long totalEnergyCost = FluidThermalProperties.calculateIdealEnergyForTemperatureChange(
-            fluidForCalculation,
-            temperatureDelta
-        );
-        if (!drainEnergyInput(totalEnergyCost)) {
-            return SimpleCheckRecipeResult.ofFailure("no_energy");
-        }
-
         double rollbackSpecificEnthalpy = inputNetwork.getSpecificEnthalpy();
         FluidStack drainedFluid = inputNetwork.drainFluid(fluidToProcess, false);
         if (drainedFluid == null || drainedFluid.amount <= 0) {
@@ -352,7 +344,7 @@ public class MTERadiator extends MTEEnhancedMultiBlockBase<MTERadiator> implemen
         lastLoopOutletPressure = loopOutletPressure;
         this.mMaxProgresstime = Math.max(1, processTicks);
         this.mEfficiency = 10000;
-        this.mEUt = (int) -((totalEnergyCost + this.mMaxProgresstime - 1L) / this.mMaxProgresstime);
+        this.mEUt = RadiatorPowerPolicy.computeEUt(0L, this.mMaxProgresstime);
 
         return CheckRecipeResultRegistry.SUCCESSFUL;
     }
