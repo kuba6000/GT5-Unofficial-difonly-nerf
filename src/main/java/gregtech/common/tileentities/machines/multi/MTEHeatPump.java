@@ -51,7 +51,9 @@ import gregtech.api.util.MultiblockTooltipBuilder;
 import gregtech.common.blocks.BlockCasings2;
 import gregtech.common.gui.modularui.multiblock.MTEHeatPumpGui;
 import gregtech.common.gui.modularui.multiblock.base.MTEMultiBlockBaseGui;
+import gregtech.common.tileentities.machines.multi.heatpump.HeatPumpOutputBufferDrain;
 import gregtech.common.tileentities.machines.multi.heatpump.HeatPumpMachineProcessState;
+import gregtech.common.tileentities.machines.multi.heatpump.HeatPumpOutputPorts;
 
 public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implements ISurvivalConstructable {
 
@@ -213,6 +215,11 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
 
     @Override
     public @NotNull CheckRecipeResult checkProcessing() {
+        CheckRecipeResult pendingOutputResult = pushPendingOutputsForCurrentMode();
+        if (pendingOutputResult != CheckRecipeResultRegistry.SUCCESSFUL) {
+            return pendingOutputResult;
+        }
+
         if (splitFlowMode) {
             return processSplitFlow();
         } else if (heatExchangerMode) {
@@ -220,6 +227,50 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         } else {
             return processNormalMode();
         }
+    }
+
+    private CheckRecipeResult pushPendingOutputsForCurrentMode() {
+        if (!machineProcessState.outputBuffer().hasPendingOutput()) {
+            return CheckRecipeResultRegistry.SUCCESSFUL;
+        }
+
+        HeatPumpOutputBufferDrain.Result result;
+        long maxAmountQ = (long) fluidAmountPerOperation * IntegratedFluidNetwork.AMOUNT_SCALE;
+        if (splitFlowMode) {
+            SplitFlowContext context = selectSplitFlowContext();
+            if (context == null) {
+                return CheckRecipeResultRegistry.ITEM_OUTPUT_FULL;
+            }
+            result = HeatPumpOutputBufferDrain.push(
+                machineProcessState.outputBuffer(),
+                maxAmountQ,
+                HeatPumpOutputBufferDrain.target(HeatPumpOutputPorts.RED, context.redOutputNetwork),
+                HeatPumpOutputBufferDrain.target(HeatPumpOutputPorts.BLUE, context.blueOutputNetwork));
+        } else if (heatExchangerMode) {
+            HeatExchangerContext context = selectHeatExchangerContext();
+            if (context == null) {
+                return CheckRecipeResultRegistry.ITEM_OUTPUT_FULL;
+            }
+            result = HeatPumpOutputBufferDrain.push(
+                machineProcessState.outputBuffer(),
+                maxAmountQ,
+                HeatPumpOutputBufferDrain.target(HeatPumpOutputPorts.RED, context.redOutputNetwork),
+                HeatPumpOutputBufferDrain.target(HeatPumpOutputPorts.BLUE, context.blueOutputNetwork));
+        } else {
+            NormalModeContext context = selectNormalModeContext();
+            if (context == null) {
+                return CheckRecipeResultRegistry.ITEM_OUTPUT_FULL;
+            }
+            result = HeatPumpOutputBufferDrain.push(
+                machineProcessState.outputBuffer(),
+                maxAmountQ,
+                HeatPumpOutputBufferDrain.target(HeatPumpOutputPorts.NORMAL, context.outputNetwork));
+        }
+
+        if (result.outputStillPending()) {
+            return IFNMachineResultMapper.toRecipeResult(IFNMachineProcessStatus.OUTPUT_BLOCKED);
+        }
+        return CheckRecipeResultRegistry.SUCCESSFUL;
     }
 
     private @NotNull CheckRecipeResult processSplitFlow() {
