@@ -26,6 +26,22 @@ class IFNTopologySnapshotTest {
     }
 
     @Test
+    void separatesPipeHatchAndHydrophoreContributions() {
+        IFNTopologySnapshot snapshot = IFNTopologySnapshot.fromMembers(
+            Arrays.asList(
+                member(100, 0),
+                member(10000, 0),
+                member(0, 5000)),
+            0
+        );
+
+        assertEquals(3, snapshot.memberCount());
+        assertEquals(10100, snapshot.baseVolume().toWholeLiters());
+        assertEquals(5000, snapshot.accumulatorVolume().toWholeLiters());
+        assertEquals(15100, snapshot.totalVolume().toWholeLiters());
+    }
+
+    @Test
     void expectedMemberCountMarksIncompleteTopology() {
         IFNTopologySnapshot snapshot = IFNTopologySnapshot.fromMembers(
             Arrays.asList(member(100, 0), member(100, 0)),
