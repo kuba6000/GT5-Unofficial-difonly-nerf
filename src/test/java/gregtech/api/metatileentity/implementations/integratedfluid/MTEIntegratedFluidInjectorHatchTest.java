@@ -1,5 +1,6 @@
 package gregtech.api.metatileentity.implementations.integratedfluid;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import net.minecraftforge.fluids.Fluid;
@@ -7,6 +8,30 @@ import net.minecraftforge.fluids.Fluid;
 import org.junit.jupiter.api.Test;
 
 class MTEIntegratedFluidInjectorHatchTest {
+
+    @Test
+    void injectorOnlyAcceptsNormalNetworksBelowCutoffPressure() {
+        Fluid vapor = IFNTestSupport.vaporFluid();
+        IntegratedFluidNetwork network = IFNTestSupport.newNetwork(vapor, 1_000, 0, 1.0f);
+
+        assertTrue(MTEIntegratedFluidInjectorHatch.canInjectIntoNetwork(network));
+        assertFalse(MTEIntegratedFluidInjectorHatch.canInjectIntoNetwork(null));
+
+        network.setPressure(IFNPressurePolicy.injectorCutoffPressureBar() + 0.01f);
+
+        assertFalse(MTEIntegratedFluidInjectorHatch.canInjectIntoNetwork(network));
+
+        network.setPressure(1.0f);
+        network.setPending(true);
+
+        assertFalse(MTEIntegratedFluidInjectorHatch.canInjectIntoNetwork(network));
+
+        network.setPending(false);
+
+        network.freeze("test freeze");
+
+        assertFalse(MTEIntegratedFluidInjectorHatch.canInjectIntoNetwork(network));
+    }
 
     @Test
     void injectorClampKeepsPhysicalGasFillAtOrBelowOneBar() {

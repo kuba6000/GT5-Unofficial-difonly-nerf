@@ -25,6 +25,7 @@ import gregtech.api.metatileentity.implementations.MTEHatch;
 import gregtech.api.metatileentity.implementations.integratedfluid.FluidThermalProperties;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNAmbientTemperature;
 import gregtech.api.metatileentity.implementations.integratedfluid.IntegratedFluidThermoModel;
+import gregtech.api.metatileentity.implementations.integratedfluid.state.IFNNetworkStatus;
 import gregtech.api.render.TextureFactory;
 import gregtech.api.util.GTUtility;
 import mcp.mobius.waila.api.IWailaConfigHandler;
@@ -272,7 +273,7 @@ public class MTEIntegratedFluidInjectorHatch extends MTEHatch implements IIntegr
             manager.onMemberAdded(this);
         }
         if (network != null && resource != null) {
-            if (network.getPressure() > IFNPressurePolicy.injectorCutoffPressureBar()) {
+            if (!canInjectIntoNetwork(network)) {
                 return 0;
             }
             if (resource.amount <= 0 || resource.getFluid() == null) {
@@ -339,6 +340,12 @@ public class MTEIntegratedFluidInjectorHatch extends MTEHatch implements IIntegr
             return (int) Math.min(resource.amount, acceptedAmountMb);
         }
         return 0;
+    }
+
+    static boolean canInjectIntoNetwork(IntegratedFluidNetwork network) {
+        return network != null
+            && network.getNetworkStatus() == IFNNetworkStatus.NORMAL
+            && network.getPressure() <= IFNPressurePolicy.injectorCutoffPressureBar();
     }
 
     static long clampAcceptedPhysicalAddToInjectorPressure(IntegratedFluidNetwork network, net.minecraftforge.fluids.Fluid fluid,
