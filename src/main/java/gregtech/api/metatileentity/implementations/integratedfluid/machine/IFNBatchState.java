@@ -64,6 +64,27 @@ public final class IFNBatchState {
         return new IFNBatchState(fluidName, newAmountQ, specificEnthalpy, pressure);
     }
 
+    public IFNBatchState mergeWith(IFNBatchState other) {
+        if (other == null || other.isEmpty()) {
+            return this;
+        }
+        if (isEmpty()) {
+            return other;
+        }
+        if (!Objects.equals(fluidName, other.fluidName)) {
+            return empty();
+        }
+        long mergedAmountQ = amountQ + other.amountQ;
+        if (mergedAmountQ <= 0L) {
+            return empty();
+        }
+        double mergedSpecificEnthalpy = ((specificEnthalpy * amountQ) + (other.specificEnthalpy * other.amountQ))
+            / mergedAmountQ;
+        float mergedPressure = (float) (((double) pressure * amountQ + (double) other.pressure * other.amountQ)
+            / mergedAmountQ);
+        return new IFNBatchState(fluidName, mergedAmountQ, mergedSpecificEnthalpy, mergedPressure);
+    }
+
     public void writeToNBT(NBTTagCompound tag) {
         tag.setBoolean(KEY_PRESENT, !isEmpty());
         if (isEmpty()) {

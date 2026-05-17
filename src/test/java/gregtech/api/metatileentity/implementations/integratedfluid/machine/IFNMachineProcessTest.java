@@ -58,6 +58,24 @@ class IFNMachineProcessTest {
     }
 
     @Test
+    void drainedPendingOutputCanBeRequeuedAfterBlockedOutput() {
+        IFNMachineProcess process = IFNMachineProcess.create();
+        IFNBatchState input = IFNBatchState.of("water", 1_000L, 120.0d, 1.0f);
+        IFNBatchState output = IFNBatchState.of("steam", 1_000L, 320.0d, 1.0f);
+
+        assertEquals(IFNTransferPlan.Status.ACCEPTED, process.start(input).status());
+        assertEquals(IFNTransferPlan.Status.ACCEPTED, process.finish(output).status());
+
+        IFNBatchState drained = process.drainPendingOutput(400L).batch();
+        assertEquals(400L, drained.amountQ());
+        assertEquals(600L, process.pendingOutput().amountQ());
+
+        assertEquals(IFNTransferPlan.Status.ACCEPTED, process.requeuePendingOutput(drained).status());
+        assertEquals(1_000L, process.pendingOutput().amountQ());
+        assertEquals(320.0d, process.pendingOutput().specificEnthalpy());
+    }
+
+    @Test
     void processStateRoundTripsThroughNbt() {
         IFNMachineProcess process = IFNMachineProcess.create();
         IFNBatchState active = IFNBatchState.of("water", 800L, 180.0d, 2.0f);

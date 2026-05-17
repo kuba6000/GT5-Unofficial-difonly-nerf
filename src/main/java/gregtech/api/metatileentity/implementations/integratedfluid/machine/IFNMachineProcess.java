@@ -61,6 +61,18 @@ public final class IFNMachineProcess {
         return IFNTransferPlan.accepted(drained);
     }
 
+    public IFNTransferPlan requeuePendingOutput(IFNBatchState batch) {
+        if (batch == null || batch.isEmpty()) {
+            return IFNTransferPlan.rejected(IFNTransferPlan.Status.NOTHING_TO_TRANSFER);
+        }
+        IFNBatchState merged = pendingOutput.mergeWith(batch);
+        if (merged.isEmpty()) {
+            return IFNTransferPlan.rejected(IFNTransferPlan.Status.INVALID_REQUEST);
+        }
+        pendingOutput = merged;
+        return IFNTransferPlan.accepted(pendingOutput);
+    }
+
     public boolean isEnabled() {
         return enabled;
     }
