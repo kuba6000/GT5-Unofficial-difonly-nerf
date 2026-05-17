@@ -198,9 +198,6 @@ public class MTERadiator extends MTEEnhancedMultiBlockBase<MTERadiator> implemen
         MTEIntegratedFluidOutputHatch outputHatch = mIntegratedOutputHatches.get(0);
         IntegratedFluidNetwork inputNetwork = inputHatch.getNetwork();
         IntegratedFluidNetwork outputNetwork = outputHatch.getNetwork();
-        if (inputNetwork == null || outputNetwork == null) {
-            return CheckRecipeResultRegistry.NO_RECIPE;
-        }
         CheckRecipeResult networkStatus = IFNMachineResultMapper.requireOperationalNetworks(
             new IntegratedFluidNetwork[] { inputNetwork },
             new IntegratedFluidNetwork[] { outputNetwork });

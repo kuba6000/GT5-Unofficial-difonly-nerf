@@ -234,9 +234,6 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         var redNetwork = redOutput.getNetwork();
         var blueNetwork = blueOutput.getNetwork();
 
-        if (inputNetwork == null || redNetwork == null || blueNetwork == null) {
-            return CheckRecipeResultRegistry.NO_RECIPE;
-        }
         CheckRecipeResult networkStatus = IFNMachineResultMapper.requireOperationalNetworks(
             new IntegratedFluidNetwork[] { inputNetwork },
             new IntegratedFluidNetwork[] { redNetwork, blueNetwork });
@@ -497,9 +494,6 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         var redOutNet = redOutput.getNetwork();
         var blueOutNet = blueOutput.getNetwork();
 
-        if (redInNet == null || blueInNet == null || redOutNet == null || blueOutNet == null) {
-            return CheckRecipeResultRegistry.NO_RECIPE;
-        }
         CheckRecipeResult networkStatus = IFNMachineResultMapper.requireOperationalNetworks(
             new IntegratedFluidNetwork[] { redInNet, blueInNet },
             new IntegratedFluidNetwork[] { redOutNet, blueOutNet });
@@ -825,14 +819,7 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         MTEIntegratedFluidOutputHatch outputHatch = mIntegratedOutputHatches.get(0);
 
         var inputNetwork = inputHatch.getNetwork();
-        if (inputNetwork == null) {
-            return CheckRecipeResultRegistry.NO_RECIPE;
-        }
-
         var outputNetwork = outputHatch.getNetwork();
-        if (outputNetwork == null) {
-            return CheckRecipeResultRegistry.NO_RECIPE;
-        }
         CheckRecipeResult networkStatus = IFNMachineResultMapper.requireOperationalNetworks(
             new IntegratedFluidNetwork[] { inputNetwork },
             new IntegratedFluidNetwork[] { outputNetwork });
