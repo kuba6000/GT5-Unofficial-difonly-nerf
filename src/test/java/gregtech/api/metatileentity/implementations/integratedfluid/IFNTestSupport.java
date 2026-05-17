@@ -4,6 +4,8 @@ import java.util.UUID;
 
 import net.minecraftforge.fluids.Fluid;
 
+import gregtech.api.metatileentity.implementations.integratedfluid.fluid.IFNFluidRegistry;
+
 public final class IFNTestSupport {
 
     private static final String LIQUID_ID = "ifn_test_liquid";
@@ -54,6 +56,11 @@ public final class IFNTestSupport {
     public static synchronized Fluid gameLikeCoolantFluid() {
         ensureInitialized();
         return gameLikeCoolantFluid;
+    }
+
+    public static synchronized Fluid waterFluid() {
+        IFNFluidRegistry.init();
+        return new Fluid("water");
     }
 
     public static IntegratedFluidNetwork newNetwork(Fluid fluid, int baseCapacity, int accumulatorCapacity,

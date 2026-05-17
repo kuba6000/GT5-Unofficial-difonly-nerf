@@ -82,7 +82,7 @@ class IFNStateTransferPlannerTest {
 
     @Test
     void sharedDualInputNetworkCannotAcceptMoreThanAvailableInput() {
-        Fluid fluid = IFNTestSupport.liquidFluid();
+        Fluid fluid = IFNTestSupport.waterFluid();
         IntegratedFluidNetwork sharedInput = IFNTestSupport.newNetwork(fluid, 10_000, 0, 100.0f);
         IntegratedFluidNetwork redOutput = IFNTestSupport.newNetwork(fluid, 10_000, 0, 100.0f);
         IntegratedFluidNetwork blueOutput = IFNTestSupport.newNetwork(fluid, 10_000, 0, 100.0f);
