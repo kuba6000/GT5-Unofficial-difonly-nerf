@@ -577,16 +577,13 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
                     currentEfficiencyPenalty = 1.0f;
                     effectiveCOP = 0.0f;
                 } else {
-                    // For COP, Hot is Red, Cold is Blue.
-                    float tColdForCop = (float) Math.min(blueInTemp, configureRed ? targetOutTemp : targetInTemp);
-                    float tHotForCop = (float) Math.max(redInTemp, configureRed ? targetOutTemp : targetInTemp);
-                    currentCOP = FluidThermalProperties.calculateHeatPumpCOP(tColdForCop, tHotForCop);
-
-                    double absDelta = Math.abs(temperatureDelta);
-                    double penalty = FluidThermalProperties.calculateTemperaturePenalty((float) absDelta);
-                    currentTemperatureDelta = (float) absDelta;
-                    currentEfficiencyPenalty = (float) penalty;
-                    effectiveCOP = currentCOP / currentEfficiencyPenalty;
+                    applyHeatPumpMetrics(IFNMachineThermo.computeHeatExchangerMetrics(
+                        redInTemp,
+                        blueInTemp,
+                        configureRed,
+                        targetInTemp,
+                        targetOutTemp
+                    ));
 
                     double hTarget = FluidThermalProperties.getSpecificEnthalpyFromPT(targetFluid, targetOutNet.getPressure(), targetOutTemp);
                     energyCost = IFNMachineThermo.computeHeatPumpEnergyCost(
@@ -594,35 +591,27 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
                         hTarget,
                         targetProcessQ,
                         currentCOP,
-                        (float) penalty
+                        currentEfficiencyPenalty
                     );
                     targetOutH = hTarget;
                 }
                 break;
             case TARGET_COP:
-                if (targetCOP <= 1.0f) targetCOP = 1.1f;
-
-                if (actualTargetHeating) {
-                     // Heating Red. Source is Blue.
-                     targetOutTemp = (targetCOP * blueInTemp) / (targetCOP - 1.0f);
-                } else {
-                     // Cooling Blue. Source is Blue (cooling it down). Target is Red.
-                     // T_cold = T_hot * (COP - 1) / COP.
-                     // Here we know Red's temp (T_hot), want to find Blue's new temp (T_cold).
-                     targetOutTemp = redInTemp * (targetCOP - 1.0f) / targetCOP;
-                }
-
+                targetOutTemp = IFNMachineThermo.computeHeatExchangerTargetCopOutputTemperature(
+                    redInTemp,
+                    blueInTemp,
+                    targetCOP,
+                    configureRed
+                );
                 temperatureDelta = targetOutTemp - targetInTemp;
-                double absDelta = Math.abs(temperatureDelta);
-                if (absDelta < 0.1d) {
-                    absDelta = 0.1d;
-                    targetOutTemp = targetInTemp + (actualTargetHeating ? absDelta : -absDelta);
-                    temperatureDelta = targetOutTemp - targetInTemp;
-                }
-                currentCOP = targetCOP;
-                double penalty = FluidThermalProperties.calculateTemperaturePenalty((float) Math.abs(temperatureDelta));
-                currentTemperatureDelta = (float) Math.abs(temperatureDelta);
-                currentEfficiencyPenalty = (float) penalty;
+                applyHeatPumpMetrics(IFNMachineThermo.computeHeatExchangerMetrics(
+                    redInTemp,
+                    blueInTemp,
+                    configureRed,
+                    targetInTemp,
+                    targetOutTemp
+                ));
+                currentCOP = targetCOP <= 1.0f ? 1.1f : targetCOP;
                 effectiveCOP = currentCOP / currentEfficiencyPenalty;
 
                 double hTarget = FluidThermalProperties.getSpecificEnthalpyFromPT(targetFluid, targetOutNet.getPressure(), targetOutTemp);
@@ -631,7 +620,7 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
                     hTarget,
                     targetProcessQ,
                     currentCOP,
-                    (float) penalty
+                    currentEfficiencyPenalty
                 );
                 targetOutH = hTarget;
                 break;
@@ -644,14 +633,14 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
                 for (int i = 0; i < 10; i++) {
                     lastTempEstimate = tempEstimate;
 
-                    float tColdForCop = (float) Math.min(blueInTemp, configureRed ? tempEstimate : targetInTemp);
-                    float tHotForCop = (float) Math.max(redInTemp, configureRed ? tempEstimate : targetInTemp);
-
-                    double copLocal = FluidThermalProperties.calculateHeatPumpCOP(tColdForCop, tHotForCop);
-                    double delta = Math.abs(tempEstimate - targetInTemp);
-                    double penaltyLocal = FluidThermalProperties.calculateTemperaturePenalty((float) delta);
-                    double effectiveCopLocal = copLocal / penaltyLocal;
-                    double qTransferred = effectiveCopLocal * targetTotalEnergy;
+                    IFNMachineThermo.HeatPumpMetrics metrics = IFNMachineThermo.computeHeatExchangerMetrics(
+                        redInTemp,
+                        blueInTemp,
+                        configureRed,
+                        targetInTemp,
+                        tempEstimate
+                    );
+                    double qTransferred = metrics.effectiveCop() * targetTotalEnergy;
 
                     targetOutH = targetInH + (actualTargetHeating ? qTransferred : -qTransferred) / targetProcessAmt;
                     tempEstimate = FluidThermalProperties.getTemperatureFromPH(targetFluid, targetOutNet.getPressure(), targetOutH);
@@ -665,12 +654,13 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
 
                 targetOutTemp = tempEstimate;
                 temperatureDelta = targetOutTemp - targetInTemp;
-                float finalCold = (float) Math.min(blueInTemp, configureRed ? targetOutTemp : targetInTemp);
-                float finalHot = (float) Math.max(redInTemp, configureRed ? targetOutTemp : targetInTemp);
-                currentCOP = FluidThermalProperties.calculateHeatPumpCOP(finalCold, finalHot);
-                currentEfficiencyPenalty = FluidThermalProperties.calculateTemperaturePenalty((float) Math.abs(temperatureDelta));
-                currentTemperatureDelta = (float) Math.abs(temperatureDelta);
-                effectiveCOP = currentCOP / currentEfficiencyPenalty;
+                applyHeatPumpMetrics(IFNMachineThermo.computeHeatExchangerMetrics(
+                    redInTemp,
+                    blueInTemp,
+                    configureRed,
+                    targetInTemp,
+                    targetOutTemp
+                ));
                 break;
         }
 

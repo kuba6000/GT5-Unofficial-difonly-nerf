@@ -66,6 +66,53 @@ class IFNMachineThermoTest {
     }
 
     @Test
+    void heatExchangerTargetCopTemperatureUsesOppositeStreamReference() {
+        assertEquals(
+            375.0d,
+            IFNMachineThermo.computeHeatExchangerTargetCopOutputTemperature(360.0d, 300.0d, 5.0f, true),
+            0.001d
+        );
+        assertEquals(
+            288.0d,
+            IFNMachineThermo.computeHeatExchangerTargetCopOutputTemperature(360.0d, 300.0d, 5.0f, false),
+            0.001d
+        );
+        assertEquals(
+            300.1d,
+            IFNMachineThermo.computeHeatExchangerTargetCopOutputTemperature(300.0d, 300.0d, 10_000.0f, true),
+            0.001d
+        );
+        assertEquals(
+            299.9d,
+            IFNMachineThermo.computeHeatExchangerTargetCopOutputTemperature(300.0d, 300.0d, 10_000.0f, false),
+            0.001d
+        );
+    }
+
+    @Test
+    void heatExchangerMetricsUseRedBlueReferenceTemperaturesAndTargetDelta() {
+        IFNMachineThermo.HeatPumpMetrics redConfigured = IFNMachineThermo.computeHeatExchangerMetrics(
+            360.0d,
+            300.0d,
+            true,
+            360.0d,
+            380.0d
+        );
+        IFNMachineThermo.HeatPumpMetrics blueConfigured = IFNMachineThermo.computeHeatExchangerMetrics(
+            360.0d,
+            300.0d,
+            false,
+            300.0d,
+            280.0d
+        );
+
+        assertEquals(20.0d, redConfigured.temperatureDelta(), 0.001d);
+        assertEquals(FluidThermalProperties.calculateHeatPumpCOP(300.0f, 380.0f), redConfigured.cop(), 0.001d);
+        assertEquals(20.0d, blueConfigured.temperatureDelta(), 0.001d);
+        assertEquals(FluidThermalProperties.calculateHeatPumpCOP(300.0f, 360.0f), blueConfigured.cop(), 0.001d);
+    }
+
+    @Test
     void targetEnergyOutputStateMovesSpecificEnthalpyInRequestedDirection() {
         Fluid fluid = IFNTestSupport.liquidFluid();
         double inputSpecificEnthalpy = FluidThermalProperties.getSpecificEnthalpyFromPT(fluid, 1.0f, 300.0d);

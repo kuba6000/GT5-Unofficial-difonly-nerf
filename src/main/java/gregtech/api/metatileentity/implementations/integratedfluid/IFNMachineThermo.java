@@ -88,6 +88,31 @@ public final class IFNMachineThermo {
         return outputTemperature;
     }
 
+    public static double computeHeatExchangerTargetCopOutputTemperature(double redInputTemperature,
+        double blueInputTemperature, float targetCop, boolean configureRed) {
+        float effectiveCop = targetCop <= 1.0f ? 1.1f : targetCop;
+        double targetInputTemperature = configureRed ? redInputTemperature : blueInputTemperature;
+        double outputTemperature = configureRed
+            ? (effectiveCop * blueInputTemperature) / (effectiveCop - 1.0f)
+            : redInputTemperature * (effectiveCop - 1.0f) / effectiveCop;
+        double delta = Math.abs(outputTemperature - targetInputTemperature);
+        if (delta < 0.1d) {
+            outputTemperature = targetInputTemperature + (configureRed ? 0.1d : -0.1d);
+        }
+        return outputTemperature;
+    }
+
+    public static HeatPumpMetrics computeHeatExchangerMetrics(double redInputTemperature, double blueInputTemperature,
+        boolean configureRed, double targetInputTemperature, double targetOutputTemperature) {
+        double targetTemperatureForCop = configureRed ? targetOutputTemperature : targetInputTemperature;
+        float coldForCop = (float) Math.min(blueInputTemperature, targetTemperatureForCop);
+        float hotForCop = (float) Math.max(redInputTemperature, targetTemperatureForCop);
+        double delta = Math.abs(targetOutputTemperature - targetInputTemperature);
+        float cop = FluidThermalProperties.calculateHeatPumpCOP(coldForCop, hotForCop);
+        float penalty = FluidThermalProperties.calculateTemperaturePenalty((float) delta);
+        return new HeatPumpMetrics(cop, penalty, delta, cop / penalty);
+    }
+
     public static TargetEnergyState computeTargetEnergyOutputState(Fluid fluid, float outputPressure,
         double inputTemperature, double inputSpecificEnthalpy, long amountQ, long targetTotalEnergy, boolean heating) {
         if (fluid == null || amountQ <= 0L || targetTotalEnergy <= 0L) {
