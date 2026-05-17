@@ -28,6 +28,7 @@ import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
 import gregtech.api.metatileentity.implementations.MTEEnhancedMultiBlockBase;
 import gregtech.api.metatileentity.implementations.integratedfluid.FluidThermalProperties;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNBufferedSingleOutputProcess;
+import gregtech.api.metatileentity.implementations.integratedfluid.IFNBufferedSplitOutputProcess;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNDualOutputProcess;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNHeatExchangerPlanner;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNHeatPumpHatchLayout;
@@ -39,7 +40,6 @@ import gregtech.api.metatileentity.implementations.integratedfluid.IFNMachineThe
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNNormalHeatPumpPlanner;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNPressurePolicy;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNSplitHeatPumpPlanner;
-import gregtech.api.metatileentity.implementations.integratedfluid.IFNSplitOutputProcess;
 import gregtech.api.metatileentity.implementations.integratedfluid.IntegratedFluidNetwork;
 import gregtech.api.metatileentity.implementations.integratedfluid.MTEIntegratedFluidInputHatch;
 import gregtech.api.metatileentity.implementations.integratedfluid.MTEIntegratedFluidOutputHatch;
@@ -321,11 +321,16 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         long originalEnergyCost = energyCost;
         final double requestedHotSpecificEnthalpy = plan.getHotOutputSpecificEnthalpy();
         final double requestedColdSpecificEnthalpy = plan.getColdOutputSpecificEnthalpy();
-        IFNSplitOutputProcess.Result processResult = IFNSplitOutputProcess.execute(IFNSplitOutputProcess.Request.of(
+        IFNBufferedSplitOutputProcess.Result processResult = IFNBufferedSplitOutputProcess.execute(
+            IFNBufferedSplitOutputProcess.Request.of(
             context.inputNetwork,
             context.redOutputNetwork,
+            machineProcessState.outputBuffer(),
+            HeatPumpOutputPorts.RED,
             inputFluid,
             context.blueOutputNetwork,
+            machineProcessState.outputBuffer(),
+            HeatPumpOutputPorts.BLUE,
             inputFluid,
             amountToProcessQ,
             splitRatio,
