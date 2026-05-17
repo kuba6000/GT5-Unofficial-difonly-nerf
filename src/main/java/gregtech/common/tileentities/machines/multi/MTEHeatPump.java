@@ -31,6 +31,7 @@ import gregtech.api.metatileentity.implementations.integratedfluid.IFNMachineRes
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNMachineThermo;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNPressurePolicy;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNSingleOutputProcess;
+import gregtech.api.metatileentity.implementations.integratedfluid.IFNStateExtractionApplier;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNStateMutationApplier;
 import gregtech.api.metatileentity.implementations.integratedfluid.IntegratedFluidNetwork;
 import gregtech.api.metatileentity.implementations.integratedfluid.IntegratedFluidThermoModel;
@@ -773,12 +774,18 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
             blueProcessQ = plan.acceptedBlueAmountQ;
         }
 
-        var extractedRed = redInNet.extractProportional(redProcessQ, false);
-        var extractedBlue = blueInNet.extractProportional(blueProcessQ, false);
-
-        if (extractedRed.amountQ <= 0L || extractedBlue.amountQ <= 0L) {
+        IFNStateExtractionApplier.TwoInputExtraction extraction = IFNStateExtractionApplier.extractTwoOrRestoreFirst(
+            redInNet,
+            redFluid,
+            redProcessQ,
+            blueInNet,
+            blueFluid,
+            blueProcessQ);
+        if (!extraction.isSuccess()) {
             return CheckRecipeResultRegistry.NO_RECIPE;
         }
+        var extractedRed = extraction.getFirst();
+        var extractedBlue = extraction.getSecond();
 
         // Adjust if extraction was partial OR if we scaled down due to pressure
         double ratioRed = extractedRed.amountQ / (double) originalRedProcessQ;
