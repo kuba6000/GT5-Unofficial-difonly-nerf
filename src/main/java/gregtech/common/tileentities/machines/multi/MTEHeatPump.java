@@ -29,6 +29,7 @@ import gregtech.api.metatileentity.implementations.MTEEnhancedMultiBlockBase;
 import gregtech.api.metatileentity.implementations.integratedfluid.FluidThermalProperties;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNDualOutputProcess;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNHeatExchangerPlanner;
+import gregtech.api.metatileentity.implementations.integratedfluid.IFNHeatPumpMachineWorkPlan;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNMachineBatchPlanner;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNMachineProcessStatus;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNMachineResultMapper;
@@ -309,17 +310,8 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         }
 
         currentEnergyUsage = energyCost;
-        this.totalEnergyCost = (int) ((energyCost + 19) / 20);
         currentOutputTemperature = (float) plan.getHotOutputTemperature();
-
-        if (plan.isPassthrough()) {
-            this.mMaxProgresstime = 5;
-            this.mEUt = 0;
-        } else {
-            this.mMaxProgresstime = 20;
-            this.mEfficiency = 10000;
-            this.mEUt = (operatingMode == HeatPumpMode.TARGET_ENERGY) ? -targetEnergyPerTick : -this.totalEnergyCost;
-        }
+        applyMachineWorkPlan(energyCost, plan.isPassthrough());
 
         return CheckRecipeResultRegistry.SUCCESSFUL;
     }
@@ -442,17 +434,8 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         }
 
         currentEnergyUsage = energyCost;
-        this.totalEnergyCost = (int) ((energyCost + 19) / 20);
         currentOutputTemperature = (float) plan.getTargetOutputTemperature();
-
-        if (plan.isPassthrough()) {
-            this.mMaxProgresstime = 5;
-            this.mEUt = 0;
-        } else {
-            this.mMaxProgresstime = 20;
-            this.mEfficiency = 10000;
-            this.mEUt = (operatingMode == HeatPumpMode.TARGET_ENERGY) ? -targetEnergyPerTick : -this.totalEnergyCost;
-        }
+        applyMachineWorkPlan(energyCost, plan.isPassthrough());
 
         return CheckRecipeResultRegistry.SUCCESSFUL;
     }
@@ -551,7 +534,6 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
 
         if (amountToProcessQ != originalAmountToProcessQ && totalEnergyCost > 0L) {
             totalEnergyCost = IFNMachineThermo.scaleEnergyCost(totalEnergyCost, originalAmountToProcessQ, amountToProcessQ);
-            this.totalEnergyCost = (int) ((totalEnergyCost + 19) / 20);
         }
 
         if (targetOutputState) {
@@ -562,7 +544,6 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
                 currentCOP,
                 currentEfficiencyPenalty
             );
-            this.totalEnergyCost = (int) ((totalEnergyCost + 19) / 20);
         }
 
         currentOutputTemperature = (float) FluidThermalProperties.getTemperatureFromPH(
@@ -571,20 +552,7 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
             outputSpecificEnthalpy
         );
         currentEnergyUsage = totalEnergyCost;
-
-        if (plan.isPassthrough()) {
-            this.mMaxProgresstime = 5;
-            this.mEUt = 0;
-        } else {
-            this.mMaxProgresstime = 20;
-            this.mEfficiency = 10000;
-            if (operatingMode == HeatPumpMode.TARGET_ENERGY) {
-                this.mEUt = -targetEnergyPerTick;
-            } else {
-                long energyPerTick = (totalEnergyCost + 19) / 20;
-                this.mEUt = (int) -energyPerTick;
-            }
-        }
+        applyMachineWorkPlan(totalEnergyCost, plan.isPassthrough());
 
         return CheckRecipeResultRegistry.SUCCESSFUL;
     }
@@ -716,6 +684,20 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         currentTemperatureDelta = (float) metrics.temperatureDelta();
         currentEfficiencyPenalty = metrics.efficiencyPenalty();
         effectiveCOP = metrics.effectiveCop();
+    }
+
+    private void applyMachineWorkPlan(long energyCostEu, boolean passthrough) {
+        IFNHeatPumpMachineWorkPlan workPlan = IFNHeatPumpMachineWorkPlan.of(
+            passthrough,
+            operatingMode == HeatPumpMode.TARGET_ENERGY,
+            energyCostEu,
+            targetEnergyPerTick);
+        this.totalEnergyCost = workPlan.getEnergyCostPerTick();
+        this.mMaxProgresstime = workPlan.getMaxProgressTime();
+        this.mEUt = workPlan.getEuT();
+        if (workPlan.shouldSetEfficiency()) {
+            this.mEfficiency = workPlan.getEfficiency();
+        }
     }
 
     public float getCOP() {
