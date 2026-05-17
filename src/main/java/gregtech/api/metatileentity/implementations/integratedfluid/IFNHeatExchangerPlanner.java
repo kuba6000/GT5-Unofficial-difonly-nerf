@@ -186,7 +186,7 @@ public final class IFNHeatExchangerPlanner {
         long blueAmountQ = configureRed ? source.amountQ : target.amountQ;
 
         return new Plan(
-            passthroughMode ? Status.PASSTHROUGH : Status.READY,
+            passthroughMode ? IFNHeatPumpPlanStatus.PASSTHROUGH : IFNHeatPumpPlanStatus.READY,
             redAmountQ,
             blueAmountQ,
             redOutH,
@@ -207,11 +207,6 @@ public final class IFNHeatExchangerPlanner {
     }
 
 
-    public enum Status {
-        READY,
-        PASSTHROUGH,
-        INVALID_CONFIGURATION
-    }
 
     private static final class StreamState {
 
@@ -307,7 +302,7 @@ public final class IFNHeatExchangerPlanner {
 
     public static final class Plan {
 
-        private final Status status;
+        private final IFNHeatPumpPlanStatus status;
         private final long redAmountQ;
         private final long blueAmountQ;
         private final double redOutputSpecificEnthalpy;
@@ -317,7 +312,7 @@ public final class IFNHeatExchangerPlanner {
         private final IFNMachineThermo.HeatPumpMetrics metrics;
         private final boolean passthrough;
 
-        private Plan(Status status, long redAmountQ, long blueAmountQ, double redOutputSpecificEnthalpy,
+        private Plan(IFNHeatPumpPlanStatus status, long redAmountQ, long blueAmountQ, double redOutputSpecificEnthalpy,
             double blueOutputSpecificEnthalpy, double targetOutputTemperature, long energyCostEu,
             IFNMachineThermo.HeatPumpMetrics metrics, boolean passthrough) {
             this.status = status;
@@ -333,7 +328,7 @@ public final class IFNHeatExchangerPlanner {
 
         private static Plan invalid() {
             return new Plan(
-                Status.INVALID_CONFIGURATION,
+                IFNHeatPumpPlanStatus.INVALID_CONFIGURATION,
                 0L,
                 0L,
                 0.0d,
@@ -345,7 +340,7 @@ public final class IFNHeatExchangerPlanner {
             );
         }
 
-        public Status getStatus() {
+        public IFNHeatPumpPlanStatus getStatus() {
             return status;
         }
 

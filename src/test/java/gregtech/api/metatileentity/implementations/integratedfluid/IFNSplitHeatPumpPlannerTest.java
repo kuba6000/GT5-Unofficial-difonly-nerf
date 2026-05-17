@@ -30,7 +30,7 @@ class IFNSplitHeatPumpPlannerTest {
             0.5f,
             300.0f));
 
-        assertEquals(IFNSplitHeatPumpPlanner.Status.READY, plan.getStatus());
+        assertEquals(IFNHeatPumpPlanStatus.READY, plan.getStatus());
         assertFalse(plan.isPassthrough());
         assertEquals(10L * IntegratedFluidNetwork.AMOUNT_SCALE, plan.getAmountQ());
         assertEquals(6L * IntegratedFluidNetwork.AMOUNT_SCALE, plan.getHotAmountQ());
@@ -61,7 +61,7 @@ class IFNSplitHeatPumpPlannerTest {
             0.5f,
             300.0f));
 
-        assertEquals(IFNSplitHeatPumpPlanner.Status.PASSTHROUGH, plan.getStatus());
+        assertEquals(IFNHeatPumpPlanStatus.PASSTHROUGH, plan.getStatus());
         assertTrue(plan.isPassthrough());
         assertEquals(inputBatch.specificEnthalpy(), plan.getHotOutputSpecificEnthalpy(), 0.001d);
         assertEquals(inputBatch.specificEnthalpy(), plan.getColdOutputSpecificEnthalpy(), 0.001d);
@@ -89,7 +89,7 @@ class IFNSplitHeatPumpPlannerTest {
             0.5f,
             300.0f));
 
-        assertEquals(IFNSplitHeatPumpPlanner.Status.READY, plan.getStatus());
+        assertEquals(IFNHeatPumpPlanStatus.READY, plan.getStatus());
         assertTrue(plan.getHotOutputSpecificEnthalpy() > inputBatch.specificEnthalpy());
         assertEquals(4.0f, plan.getMetrics().cop(), 0.001f);
         assertEquals(4.0f / plan.getMetrics().efficiencyPenalty(), plan.getMetrics().effectiveCop(), 0.001f);
@@ -115,7 +115,7 @@ class IFNSplitHeatPumpPlannerTest {
             0.5f,
             300.0f));
 
-        assertEquals(IFNSplitHeatPumpPlanner.Status.INVALID_CONFIGURATION, plan.getStatus());
+        assertEquals(IFNHeatPumpPlanStatus.INVALID_CONFIGURATION, plan.getStatus());
     }
 
     private static IFNMachineBatchPlanner.BatchPlan batch(Fluid fluid, float pressure, double temperature, int refL) {

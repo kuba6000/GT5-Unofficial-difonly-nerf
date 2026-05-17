@@ -137,7 +137,7 @@ public final class IFNSplitHeatPumpPlanner {
             : inputSpecificEnthalpy + (qColdTotal / coldAmount);
 
         return new Plan(
-            passthroughMode ? Status.PASSTHROUGH : Status.READY,
+            passthroughMode ? IFNHeatPumpPlanStatus.PASSTHROUGH : IFNHeatPumpPlanStatus.READY,
             amountQ,
             hotAmountQ,
             coldAmountQ,
@@ -159,11 +159,6 @@ public final class IFNSplitHeatPumpPlanner {
     }
 
 
-    public enum Status {
-        READY,
-        PASSTHROUGH,
-        INVALID_CONFIGURATION
-    }
 
     public static final class Request {
 
@@ -234,7 +229,7 @@ public final class IFNSplitHeatPumpPlanner {
 
     public static final class Plan {
 
-        private final Status status;
+        private final IFNHeatPumpPlanStatus status;
         private final long amountQ;
         private final long hotAmountQ;
         private final long coldAmountQ;
@@ -245,7 +240,7 @@ public final class IFNSplitHeatPumpPlanner {
         private final IFNMachineThermo.HeatPumpMetrics metrics;
         private final boolean passthrough;
 
-        private Plan(Status status, long amountQ, long hotAmountQ, long coldAmountQ,
+        private Plan(IFNHeatPumpPlanStatus status, long amountQ, long hotAmountQ, long coldAmountQ,
             double hotOutputSpecificEnthalpy, double coldOutputSpecificEnthalpy, double hotOutputTemperature,
             long energyCostEu, IFNMachineThermo.HeatPumpMetrics metrics, boolean passthrough) {
             this.status = status;
@@ -262,7 +257,7 @@ public final class IFNSplitHeatPumpPlanner {
 
         private static Plan invalid() {
             return new Plan(
-                Status.INVALID_CONFIGURATION,
+                IFNHeatPumpPlanStatus.INVALID_CONFIGURATION,
                 0L,
                 0L,
                 0L,
@@ -275,7 +270,7 @@ public final class IFNSplitHeatPumpPlanner {
             );
         }
 
-        public Status getStatus() {
+        public IFNHeatPumpPlanStatus getStatus() {
             return status;
         }
 

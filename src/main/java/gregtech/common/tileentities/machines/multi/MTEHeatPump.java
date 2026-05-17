@@ -30,6 +30,7 @@ import gregtech.api.metatileentity.implementations.integratedfluid.FluidThermalP
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNDualOutputProcess;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNHeatExchangerPlanner;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNHeatPumpMode;
+import gregtech.api.metatileentity.implementations.integratedfluid.IFNHeatPumpPlanStatus;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNMachineBatchPlanner;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNMachineResultMapper;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNMachineThermo;
@@ -275,7 +276,7 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
             lowerTemperatureTolerance,
             upperTemperatureTolerance,
             COLD_RESERVOIR_TEMPERATURE));
-        if (plan.getStatus() == IFNSplitHeatPumpPlanner.Status.INVALID_CONFIGURATION) {
+        if (plan.getStatus() == IFNHeatPumpPlanStatus.INVALID_CONFIGURATION) {
             return SimpleCheckRecipeResult.ofFailure("awaiting_configuration");
         }
 
@@ -394,7 +395,7 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
             targetEnergyPerTick,
             lowerTemperatureTolerance,
             upperTemperatureTolerance));
-        if (plan.getStatus() == IFNHeatExchangerPlanner.Status.INVALID_CONFIGURATION) {
+        if (plan.getStatus() == IFNHeatPumpPlanStatus.INVALID_CONFIGURATION) {
             return SimpleCheckRecipeResult.ofFailure("awaiting_configuration");
         }
 
@@ -514,7 +515,7 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
             lowerTemperatureTolerance,
             upperTemperatureTolerance,
             COLD_RESERVOIR_TEMPERATURE));
-        if (plan.getStatus() == IFNNormalHeatPumpPlanner.Status.INVALID_CONFIGURATION) {
+        if (plan.getStatus() == IFNHeatPumpPlanStatus.INVALID_CONFIGURATION) {
             return SimpleCheckRecipeResult.ofFailure("awaiting_configuration");
         }
 

@@ -33,7 +33,7 @@ class IFNHeatExchangerPlannerTest {
             0.5f,
             0.5f));
 
-        assertEquals(IFNHeatExchangerPlanner.Status.READY, plan.getStatus());
+        assertEquals(IFNHeatPumpPlanStatus.READY, plan.getStatus());
         assertFalse(plan.isPassthrough());
         assertEquals(5L * IntegratedFluidNetwork.AMOUNT_SCALE, plan.getRedAmountQ());
         assertEquals(5L * IntegratedFluidNetwork.AMOUNT_SCALE, plan.getBlueAmountQ());
@@ -67,7 +67,7 @@ class IFNHeatExchangerPlannerTest {
             0.5f,
             0.5f));
 
-        assertEquals(IFNHeatExchangerPlanner.Status.READY, plan.getStatus());
+        assertEquals(IFNHeatPumpPlanStatus.READY, plan.getStatus());
         assertTrue(plan.getBlueOutputSpecificEnthalpy() < blueInput.specificEnthalpy());
         assertTrue(plan.getRedOutputSpecificEnthalpy() > redInput.specificEnthalpy());
         assertEquals(4.0f, plan.getMetrics().cop(), 0.001f);
@@ -97,7 +97,7 @@ class IFNHeatExchangerPlannerTest {
             0.5f,
             0.5f));
 
-        assertEquals(IFNHeatExchangerPlanner.Status.PASSTHROUGH, plan.getStatus());
+        assertEquals(IFNHeatPumpPlanStatus.PASSTHROUGH, plan.getStatus());
         assertTrue(plan.isPassthrough());
         assertEquals(redInput.specificEnthalpy(), plan.getRedOutputSpecificEnthalpy(), 0.001d);
         assertEquals(blueInput.specificEnthalpy(), plan.getBlueOutputSpecificEnthalpy(), 0.001d);
@@ -128,7 +128,7 @@ class IFNHeatExchangerPlannerTest {
             0.5f,
             0.5f));
 
-        assertEquals(IFNHeatExchangerPlanner.Status.INVALID_CONFIGURATION, plan.getStatus());
+        assertEquals(IFNHeatPumpPlanStatus.INVALID_CONFIGURATION, plan.getStatus());
     }
 
     private static IFNMachineBatchPlanner.BatchPlan batch(Fluid fluid, float pressure, double temperature, int refL) {

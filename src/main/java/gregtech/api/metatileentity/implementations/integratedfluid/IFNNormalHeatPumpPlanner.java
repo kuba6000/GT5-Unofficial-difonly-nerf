@@ -124,7 +124,7 @@ public final class IFNNormalHeatPumpPlanner {
         }
 
         return new Plan(
-            passthroughMode ? Status.PASSTHROUGH : Status.READY,
+            passthroughMode ? IFNHeatPumpPlanStatus.PASSTHROUGH : IFNHeatPumpPlanStatus.READY,
             amountQ,
             outputSpecificEnthalpy,
             outputTemperature,
@@ -140,11 +140,6 @@ public final class IFNNormalHeatPumpPlanner {
     }
 
 
-    public enum Status {
-        READY,
-        PASSTHROUGH,
-        INVALID_CONFIGURATION
-    }
 
     public static final class Request {
 
@@ -212,7 +207,7 @@ public final class IFNNormalHeatPumpPlanner {
 
     public static final class Plan {
 
-        private final Status status;
+        private final IFNHeatPumpPlanStatus status;
         private final long amountQ;
         private final double outputSpecificEnthalpy;
         private final double outputTemperature;
@@ -221,7 +216,7 @@ public final class IFNNormalHeatPumpPlanner {
         private final boolean passthrough;
         private final boolean targetOutputState;
 
-        private Plan(Status status, long amountQ, double outputSpecificEnthalpy, double outputTemperature,
+        private Plan(IFNHeatPumpPlanStatus status, long amountQ, double outputSpecificEnthalpy, double outputTemperature,
             long energyCostEu, IFNMachineThermo.HeatPumpMetrics metrics, boolean passthrough,
             boolean targetOutputState) {
             this.status = status;
@@ -236,7 +231,7 @@ public final class IFNNormalHeatPumpPlanner {
 
         private static Plan invalid() {
             return new Plan(
-                Status.INVALID_CONFIGURATION,
+                IFNHeatPumpPlanStatus.INVALID_CONFIGURATION,
                 0L,
                 0.0d,
                 0.0d,
@@ -247,7 +242,7 @@ public final class IFNNormalHeatPumpPlanner {
             );
         }
 
-        public Status getStatus() {
+        public IFNHeatPumpPlanStatus getStatus() {
             return status;
         }
 
