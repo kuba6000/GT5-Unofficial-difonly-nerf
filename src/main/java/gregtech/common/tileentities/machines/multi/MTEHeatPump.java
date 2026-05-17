@@ -335,36 +335,19 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
                 long targetTotalEnergy = (long) targetEnergyPerTick * 20L;
                 energyCost = targetTotalEnergy;
 
-                double tempEstimate = inputTemperature;
-                double lastTempEstimate;
-                for (int i = 0; i < 10; i++) {
-                    lastTempEstimate = tempEstimate;
-                    float tCold = (float) Math.min(tempEstimate, inputTemperature);
-                    float tHot = (float) Math.max(tempEstimate, inputTemperature);
-                    double copLocal = FluidThermalProperties.calculateHeatPumpCOP(tCold, tHot);
-                    double delta = Math.abs(tempEstimate - inputTemperature);
-                    double penaltyLocal = FluidThermalProperties.calculateTemperaturePenalty((float) delta);
-                    double effectiveCopLocal = copLocal / penaltyLocal;
-                    double qHot = effectiveCopLocal * targetTotalEnergy;
-
-                    hotSpecificEnthalpy = inputSpecificEnthalpy + (targetHeating ? qHot : -qHot) / hotAmount;
-                    tempEstimate = FluidThermalProperties.getTemperatureFromPH(
-                        inputFluid, redNetwork.getPressure(), hotSpecificEnthalpy
-                    );
-
-                    if (Double.isNaN(tempEstimate) || Double.isInfinite(tempEstimate)) {
-                        tempEstimate = lastTempEstimate;
-                        break;
-                    }
-                    if (Math.abs(tempEstimate - lastTempEstimate) < 1e-3) break;
-                }
-
-                hotTemperature = tempEstimate;
+                IFNMachineThermo.TargetEnergyState targetEnergyState = IFNMachineThermo.computeTargetEnergyOutputState(
+                    inputFluid,
+                    redNetwork.getPressure(),
+                    inputTemperature,
+                    inputSpecificEnthalpy,
+                    hotAmountQ,
+                    targetTotalEnergy,
+                    targetHeating
+                );
+                hotSpecificEnthalpy = targetEnergyState.specificEnthalpy();
+                hotTemperature = targetEnergyState.temperature();
                 temperatureDelta = hotTemperature - inputTemperature;
-                currentCOP = FluidThermalProperties.calculateHeatPumpCOP((float) Math.min(hotTemperature, inputTemperature), (float) Math.max(hotTemperature, inputTemperature));
-                currentEfficiencyPenalty = FluidThermalProperties.calculateTemperaturePenalty((float) Math.abs(temperatureDelta));
-                currentTemperatureDelta = (float) Math.abs(temperatureDelta);
-                effectiveCOP = currentCOP / currentEfficiencyPenalty;
+                applyHeatPumpMetrics(IFNMachineThermo.computeHeatPumpMetrics(inputTemperature, hotTemperature));
                 break;
         }
 
@@ -954,44 +937,20 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
                 }
                 totalEnergyCost = targetTotalEnergy;
 
-                double tempEstimate = inputTemperature;
-                double lastTempEstimate;
-                double copLocal = 1.0d;
-                double penaltyLocal = 1.0d;
-                double effectiveCopLocal = 1.0d;
-
-                for (int i = 0; i < 10; i++) {
-                    lastTempEstimate = tempEstimate;
-                    float tCold = (float) Math.min(tempEstimate, inputTemperature);
-                    float tHot = (float) Math.max(tempEstimate, inputTemperature);
-                    copLocal = FluidThermalProperties.calculateHeatPumpCOP(tCold, tHot);
-                    double delta = Math.abs(tempEstimate - inputTemperature);
-                    penaltyLocal = FluidThermalProperties.calculateTemperaturePenalty((float) delta);
-                    effectiveCopLocal = copLocal / penaltyLocal;
-                    double qHot = effectiveCopLocal * targetTotalEnergy;
-                    outputSpecificEnthalpy = inputSpecificEnthalpy + (targetHeating ? qHot : -qHot) / amountToProcess;
-                    tempEstimate = FluidThermalProperties.getTemperatureFromPH(
-                        inputFluid,
-                        outputNetwork.getPressure(),
-                        outputSpecificEnthalpy
-                    );
-
-                    if (Double.isNaN(tempEstimate) || Double.isInfinite(tempEstimate)) {
-                        tempEstimate = lastTempEstimate;
-                        break;
-                    }
-                    if (Math.abs(tempEstimate - lastTempEstimate) < 1e-3) {
-                        break;
-                    }
-                }
-
-                outputTemperature = tempEstimate;
+                IFNMachineThermo.TargetEnergyState targetEnergyState = IFNMachineThermo.computeTargetEnergyOutputState(
+                    inputFluid,
+                    outputNetwork.getPressure(),
+                    inputTemperature,
+                    inputSpecificEnthalpy,
+                    amountToProcessQ,
+                    targetTotalEnergy,
+                    targetHeating
+                );
+                outputSpecificEnthalpy = targetEnergyState.specificEnthalpy();
+                outputTemperature = targetEnergyState.temperature();
                 temperatureDelta = outputTemperature - inputTemperature;
                 heatingDirection = targetHeating;
-                currentCOP = (float) copLocal;
-                currentEfficiencyPenalty = (float) penaltyLocal;
-                currentTemperatureDelta = (float) Math.abs(temperatureDelta);
-                effectiveCOP = (float) effectiveCopLocal;
+                applyHeatPumpMetrics(targetEnergyState.metrics());
                 this.totalEnergyCost = targetEnergyPerTick;
                 break;
             }

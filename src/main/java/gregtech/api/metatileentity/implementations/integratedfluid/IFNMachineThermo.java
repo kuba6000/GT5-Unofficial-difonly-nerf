@@ -88,6 +88,37 @@ public final class IFNMachineThermo {
         return outputTemperature;
     }
 
+    public static TargetEnergyState computeTargetEnergyOutputState(Fluid fluid, float outputPressure,
+        double inputTemperature, double inputSpecificEnthalpy, long amountQ, long targetTotalEnergy, boolean heating) {
+        if (fluid == null || amountQ <= 0L || targetTotalEnergy <= 0L) {
+            HeatPumpMetrics metrics = new HeatPumpMetrics(1.0f, 1.0f, 0.0d, 1.0f);
+            return new TargetEnergyState(inputSpecificEnthalpy, inputTemperature, metrics);
+        }
+
+        double amount = amountQ / (double) IntegratedFluidNetwork.AMOUNT_SCALE;
+        double tempEstimate = inputTemperature;
+        double outputSpecificEnthalpy = inputSpecificEnthalpy;
+        HeatPumpMetrics metrics = new HeatPumpMetrics(1.0f, 1.0f, 0.0d, 1.0f);
+
+        for (int i = 0; i < 10; i++) {
+            double lastTempEstimate = tempEstimate;
+            metrics = computeHeatPumpMetrics(tempEstimate, inputTemperature);
+            double transferredHeat = metrics.effectiveCop() * targetTotalEnergy;
+            outputSpecificEnthalpy = inputSpecificEnthalpy + (heating ? transferredHeat : -transferredHeat) / amount;
+            tempEstimate = FluidThermalProperties.getTemperatureFromPH(fluid, outputPressure, outputSpecificEnthalpy);
+
+            if (Double.isNaN(tempEstimate) || Double.isInfinite(tempEstimate)) {
+                tempEstimate = lastTempEstimate;
+                break;
+            }
+            if (Math.abs(tempEstimate - lastTempEstimate) < 1e-3) {
+                break;
+            }
+        }
+
+        return new TargetEnergyState(outputSpecificEnthalpy, tempEstimate, metrics);
+    }
+
     private static long toEnthalpyQ(double energyEu) {
         return (long) Math.round(energyEu * IntegratedFluidNetwork.ENTHALPY_SCALE);
     }
@@ -125,6 +156,31 @@ public final class IFNMachineThermo {
 
         public float effectiveCop() {
             return effectiveCop;
+        }
+    }
+
+    public static final class TargetEnergyState {
+
+        private final double specificEnthalpy;
+        private final double temperature;
+        private final HeatPumpMetrics metrics;
+
+        private TargetEnergyState(double specificEnthalpy, double temperature, HeatPumpMetrics metrics) {
+            this.specificEnthalpy = specificEnthalpy;
+            this.temperature = temperature;
+            this.metrics = metrics;
+        }
+
+        public double specificEnthalpy() {
+            return specificEnthalpy;
+        }
+
+        public double temperature() {
+            return temperature;
+        }
+
+        public HeatPumpMetrics metrics() {
+            return metrics;
         }
     }
 }

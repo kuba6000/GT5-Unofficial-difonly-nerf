@@ -64,4 +64,34 @@ class IFNMachineThermoTest {
         assertEquals(300.1d, IFNMachineThermo.computeTargetCopOutputTemperature(300.0d, 10_000.0f, true), 0.001d);
         assertEquals(299.9d, IFNMachineThermo.computeTargetCopOutputTemperature(300.0d, 10_000.0f, false), 0.001d);
     }
+
+    @Test
+    void targetEnergyOutputStateMovesSpecificEnthalpyInRequestedDirection() {
+        Fluid fluid = IFNTestSupport.liquidFluid();
+        double inputSpecificEnthalpy = FluidThermalProperties.getSpecificEnthalpyFromPT(fluid, 1.0f, 300.0d);
+        long amountQ = 5L * IntegratedFluidNetwork.AMOUNT_SCALE;
+
+        IFNMachineThermo.TargetEnergyState heating = IFNMachineThermo.computeTargetEnergyOutputState(
+            fluid,
+            1.0f,
+            300.0d,
+            inputSpecificEnthalpy,
+            amountQ,
+            2_000L,
+            true);
+        IFNMachineThermo.TargetEnergyState cooling = IFNMachineThermo.computeTargetEnergyOutputState(
+            fluid,
+            1.0f,
+            300.0d,
+            inputSpecificEnthalpy,
+            amountQ,
+            2_000L,
+            false);
+
+        assertTrue(heating.specificEnthalpy() > inputSpecificEnthalpy);
+        assertTrue(heating.temperature() > 300.0d);
+        assertTrue(cooling.specificEnthalpy() < inputSpecificEnthalpy);
+        assertTrue(cooling.temperature() < 300.0d);
+        assertTrue(heating.metrics().effectiveCop() > 0.0f);
+    }
 }
