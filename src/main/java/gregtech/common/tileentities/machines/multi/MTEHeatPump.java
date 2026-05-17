@@ -301,7 +301,12 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
                         IFNMachineThermo.computeHeatPumpMetrics(inputTemperature, hotTemperature);
                     applyHeatPumpMetrics(metrics);
 
-                    double hTarget = FluidThermalProperties.getSpecificEnthalpyFromPT(inputFluid, redNetwork.getPressure(), hotTemperature);
+                    double hTarget = IFNMachineThermo.computeTargetSpecificEnthalpyForStateAdd(
+                        redNetwork,
+                        inputFluid,
+                        hotTemperature,
+                        hotAmountQ
+                    );
                     energyCost = IFNMachineThermo.computeHeatPumpEnergyCost(
                         inputSpecificEnthalpy,
                         hTarget,
@@ -320,7 +325,12 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
                 temperatureDelta = hotTemperature - inputTemperature;
                 applyTargetCopMetrics(targetCOP, temperatureDelta);
 
-                double hTarget = FluidThermalProperties.getSpecificEnthalpyFromPT(inputFluid, redNetwork.getPressure(), hotTemperature);
+                double hTarget = IFNMachineThermo.computeTargetSpecificEnthalpyForStateAdd(
+                    redNetwork,
+                    inputFluid,
+                    hotTemperature,
+                    hotAmountQ
+                );
                 energyCost = IFNMachineThermo.computeHeatPumpEnergyCost(
                     inputSpecificEnthalpy,
                     hTarget,
@@ -585,7 +595,12 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
                         targetOutTemp
                     ));
 
-                    double hTarget = FluidThermalProperties.getSpecificEnthalpyFromPT(targetFluid, targetOutNet.getPressure(), targetOutTemp);
+                    double hTarget = IFNMachineThermo.computeTargetSpecificEnthalpyForStateAdd(
+                        targetOutNet,
+                        targetFluid,
+                        targetOutTemp,
+                        targetProcessQ
+                    );
                     energyCost = IFNMachineThermo.computeHeatPumpEnergyCost(
                         targetInH,
                         hTarget,
@@ -614,7 +629,12 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
                 currentCOP = targetCOP <= 1.0f ? 1.1f : targetCOP;
                 effectiveCOP = currentCOP / currentEfficiencyPenalty;
 
-                double hTarget = FluidThermalProperties.getSpecificEnthalpyFromPT(targetFluid, targetOutNet.getPressure(), targetOutTemp);
+                double hTarget = IFNMachineThermo.computeTargetSpecificEnthalpyForStateAdd(
+                    targetOutNet,
+                    targetFluid,
+                    targetOutTemp,
+                    targetProcessQ
+                );
                 energyCost = IFNMachineThermo.computeHeatPumpEnergyCost(
                     targetInH,
                     hTarget,
