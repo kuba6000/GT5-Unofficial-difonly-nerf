@@ -26,6 +26,8 @@ import gregtech.api.metatileentity.implementations.integratedfluid.safety.IFNPre
 import gregtech.api.metatileentity.implementations.integratedfluid.safety.IFNPressureWarningTracker;
 import gregtech.api.metatileentity.implementations.integratedfluid.safety.IFNTemperatureLimitEvaluation;
 import gregtech.api.metatileentity.implementations.integratedfluid.safety.IFNTemperatureLimitStatus;
+import gregtech.api.metatileentity.implementations.integratedfluid.solver.IFNSolvedState;
+import gregtech.api.metatileentity.implementations.integratedfluid.solver.IFNStateSolver;
 import gregtech.api.metatileentity.implementations.integratedfluid.state.IFNCanonicalState;
 import gregtech.api.metatileentity.implementations.integratedfluid.state.IFNNetworkStatus;
 import gregtech.api.metatileentity.implementations.integratedfluid.thermal.IFNHeatExchangeRuntime;
@@ -95,6 +97,7 @@ public class IntegratedFluidNetwork {
      * Current pressure of the network in bar.
      */
     private float pressure;
+    private IFNSolvedState solvedStateCache;
 
     private final UUID networkId;
     private boolean pending = false;
@@ -715,6 +718,16 @@ public class IntegratedFluidNetwork {
         );
     }
 
+    public IFNSolvedState getSolvedState() {
+        IFNSolvedState cached = solvedStateCache;
+        if (cached != null) {
+            return cached;
+        }
+        IFNSolvedState solved = IFNStateSolver.solveAtPressure(getFluid(), amountQ, enthalpyQ, pressure);
+        solvedStateCache = solved;
+        return solved;
+    }
+
     public void replaceCanonicalState(IFNCanonicalState state) {
         IFNCanonicalState next = state == null ? IFNCanonicalState.empty() : state;
         if (next.isEmpty()) {
@@ -971,6 +984,7 @@ public class IntegratedFluidNetwork {
 
     public void setExpectedMemberCount(int expectedMemberCount) {
         this.expectedMemberCount = expectedMemberCount;
+        invalidateSolvedState();
     }
 
     public void loadState(String fluidName, long amountQ, long enthalpyQ, float pressure, int expectedMembers) {
@@ -995,6 +1009,7 @@ public class IntegratedFluidNetwork {
         amountQ = 0L;
         enthalpyQ = 0L;
         pressure = DEFAULT_PRESSURE;
+        invalidateSolvedState();
     }
 
     /**
@@ -1103,6 +1118,11 @@ public class IntegratedFluidNetwork {
     private void updatePressure() {
         Fluid fluid = getFluid();
         pressure = computePressureForState(fluid, amountQ, enthalpyQ, pressure);
+        invalidateSolvedState();
+    }
+
+    private void invalidateSolvedState() {
+        solvedStateCache = null;
     }
 
     private boolean isIncompleteNetwork() {
