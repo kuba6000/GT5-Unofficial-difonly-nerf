@@ -3,6 +3,7 @@ package gregtech.api.metatileentity.implementations.integratedfluid;
 import static com.gtnewhorizon.gtnhlib.util.numberformatting.NumberFormatUtil.formatNumber;
 
 import java.util.List;
+import java.util.Locale;
 
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.util.EnumChatFormatting;
@@ -24,6 +25,8 @@ public final class IFNWailaFormatter {
         }
         tag.setLong("substanceAmountQ", network.getAmountQ());
         tag.setDouble("occupiedVolume", network.getOccupiedVolume());
+        tag.setFloat("maxPressureBar", network.getOperationalLimits().accumulatorMaxPressureBar());
+        tag.setFloat("maxTemperatureKelvin", network.getOperationalLimits().maxTemperatureKelvin());
         tag.setString("pressureLimitStatus", network.getPressureLimitEvaluation().status().name());
         tag.setString("temperatureLimitStatus", network.getTemperatureLimitEvaluation().status().name());
     }
@@ -51,6 +54,7 @@ public final class IFNWailaFormatter {
         }
 
         addSubstanceAmount(tag, currenttip);
+        addNetworkLimits(tag, currenttip);
         addLimitStatus(tag.getString("pressureLimitStatus"), "Pressure", currenttip);
         addLimitStatus(tag.getString("temperatureLimitStatus"), "Temperature", currenttip);
     }
@@ -63,6 +67,24 @@ public final class IFNWailaFormatter {
 
         long wholeRefLiters = substanceAmountQ / IntegratedFluidNetwork.AMOUNT_SCALE;
         currenttip.add("Substance: " + EnumChatFormatting.GRAY + wholeRefLiters + " refL" + EnumChatFormatting.RESET);
+    }
+
+    private static void addNetworkLimits(NBTTagCompound tag, List<String> currenttip) {
+        if (tag.hasKey("maxPressureBar")) {
+            currenttip.add(
+                "Max Pressure: " + EnumChatFormatting.YELLOW
+                    + String.format(Locale.ROOT, "%.2f bar", tag.getFloat("maxPressureBar"))
+                    + EnumChatFormatting.RESET);
+        }
+        if (tag.hasKey("maxTemperatureKelvin")) {
+            float maxTemperatureKelvin = tag.getFloat("maxTemperatureKelvin");
+            if (!Float.isInfinite(maxTemperatureKelvin) && maxTemperatureKelvin < Float.MAX_VALUE) {
+                currenttip.add(
+                    "Max Temperature: " + EnumChatFormatting.RED
+                        + String.format(Locale.ROOT, "%.2f K", maxTemperatureKelvin)
+                        + EnumChatFormatting.RESET);
+            }
+        }
     }
 
     public static void addFluidStorageSummary(NBTTagCompound tag, List<String> currenttip, String fluidLabel,

@@ -70,6 +70,26 @@ class IFNWailaFormatterTest {
     }
 
     @Test
+    void networkLimitsShowRawMaximumValues() {
+        NBTTagCompound tag = new NBTTagCompound();
+        List<String> tooltip = new ArrayList<>();
+
+        tag.setBoolean("hasNetwork", true);
+        tag.setString("networkStatus", "NORMAL");
+        tag.setFloat("maxPressureBar", 32.0f);
+        tag.setFloat("maxTemperatureKelvin", 1200.0f);
+
+        IFNWailaFormatter.addNetworkStatus(tag, tooltip);
+
+        assertTrue(
+            tooltip.stream().anyMatch(line -> line.contains("Max Pressure:") && line.contains("32.00 bar")),
+            tooltip.toString());
+        assertTrue(
+            tooltip.stream().anyMatch(line -> line.contains("Max Temperature:") && line.contains("1200.00 K")),
+            tooltip.toString());
+    }
+
+    @Test
     void fluidStorageSummaryUsesOccupiedVolumeInsteadOfFluidStackAmount() {
         NBTTagCompound tag = new NBTTagCompound();
         List<String> tooltip = new ArrayList<>();
