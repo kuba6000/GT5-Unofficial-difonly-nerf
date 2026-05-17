@@ -27,6 +27,7 @@ import gregtech.api.interfaces.metatileentity.IMetaTileEntity;
 import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
 import gregtech.api.metatileentity.implementations.MTEEnhancedMultiBlockBase;
 import gregtech.api.metatileentity.implementations.integratedfluid.FluidThermalProperties;
+import gregtech.api.metatileentity.implementations.integratedfluid.IFNBufferedSingleOutputProcess;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNDualOutputProcess;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNHeatExchangerPlanner;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNHeatPumpHatchLayout;
@@ -38,7 +39,6 @@ import gregtech.api.metatileentity.implementations.integratedfluid.IFNMachineThe
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNNormalHeatPumpPlanner;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNPressurePolicy;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNSplitHeatPumpPlanner;
-import gregtech.api.metatileentity.implementations.integratedfluid.IFNSingleOutputProcess;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNSplitOutputProcess;
 import gregtech.api.metatileentity.implementations.integratedfluid.IntegratedFluidNetwork;
 import gregtech.api.metatileentity.implementations.integratedfluid.MTEIntegratedFluidInputHatch;
@@ -489,9 +489,12 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         boolean targetOutputState = plan.isTargetOutputState();
         double requestedOutputSpecificEnthalpy = plan.getOutputSpecificEnthalpy();
         double requestedOutputTemperature = plan.getOutputTemperature();
-        IFNSingleOutputProcess.Result processResult = IFNSingleOutputProcess.execute(IFNSingleOutputProcess.Request.of(
+        IFNBufferedSingleOutputProcess.Result processResult = IFNBufferedSingleOutputProcess.execute(
+            IFNBufferedSingleOutputProcess.Request.of(
             context.inputNetwork,
             context.outputNetwork,
+            machineProcessState.outputBuffer(),
+            HeatPumpOutputPorts.NORMAL,
             inputFluid,
             amountToProcessQ,
             amountQ -> targetOutputState
