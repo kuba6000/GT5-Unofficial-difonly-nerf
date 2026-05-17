@@ -4,6 +4,7 @@ import java.util.UUID;
 
 import net.minecraftforge.fluids.Fluid;
 
+import gregtech.api.metatileentity.implementations.integratedfluid.fluid.IFNFluidDefinition;
 import gregtech.api.metatileentity.implementations.integratedfluid.fluid.IFNFluidRegistry;
 
 public final class IFNTestSupport {
@@ -117,6 +118,13 @@ public final class IFNTestSupport {
         pressureSensitiveLiquidFluid = new Fluid(PRESSURE_SENSITIVE_LIQUID_ID);
         gameLikeCoolantFluid = new Fluid(GAME_LIKE_COOLANT_ID);
 
+        registerTestFluidMetadata(LIQUID_ID, LIQUID_ID, "IFN Test Liquid", 1.0d, 1.0d);
+        registerTestFluidMetadata(VAPOR_ID, VAPOR_ID, "IFN Test Vapor", 1.0d, 10.0d);
+        registerTestFluidMetadata(PRESSURE_SENSITIVE_LIQUID_ID, PRESSURE_SENSITIVE_LIQUID_ID,
+            "IFN Test Pressure Sensitive Liquid", 1.0d, 1.0d);
+        registerTestFluidMetadata(GAME_LIKE_COOLANT_ID, GAME_LIKE_COOLANT_ID,
+            "IFN Test Game Like Coolant", 1.0d, 1.0d);
+
         IFNFluidThermalRegistry.register(liquidFluid, builder -> builder
             .setCriticalPressure(100.0d)
             .setCriticalTemperature(1000.0d)
@@ -170,6 +178,20 @@ public final class IFNTestSupport {
             .setSpecificEnthalpyFromPT(IFNTestSupport::ic2SpecificEnthalpyFromPT));
 
         initialized = true;
+    }
+
+    private static void registerTestFluidMetadata(String fluidId, String substanceId, String displayName,
+        double liquidSpecificVolume, double vaporSpecificVolumeAtStp) {
+        IFNFluidRegistry.registerMetadata(IFNFluidDefinition.builder(fluidId, substanceId)
+            .displayName(displayName)
+            .criticalPoint(100.0d, 1000.0d)
+            .freezeTemperature(1.0d)
+            .normalBoilingTemperature(500.0d)
+            .saturationSlope(100.0d)
+            .specificHeat(1.0d, 1.0d)
+            .latentHeat(100.0d)
+            .specificVolumes(liquidSpecificVolume, vaporSpecificVolumeAtStp)
+            .build());
     }
 
     private static double ic2SaturationTemperature(double pBar) {

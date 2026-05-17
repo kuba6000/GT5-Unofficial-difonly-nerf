@@ -66,6 +66,11 @@ public final class IFNFluidRegistry {
         return Collections.unmodifiableCollection(DEFINITIONS.values());
     }
 
+    public static synchronized void registerMetadata(IFNFluidDefinition definition) {
+        init();
+        DEFINITIONS.put(normalize(definition.fluidId()), definition);
+    }
+
     private static void register(IFNFluidDefinition definition) {
         DEFINITIONS.put(normalize(definition.fluidId()), definition);
         definition.registerThermalProperties();
