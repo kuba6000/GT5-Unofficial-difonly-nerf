@@ -137,6 +137,7 @@ import gregtech.api.items.MetaGeneratedItem;
 import gregtech.api.items.MetaGeneratedTool;
 import gregtech.api.items.armor.ArmorActionManager;
 import gregtech.api.items.armor.ArmorEventHandlers;
+import gregtech.api.metatileentity.implementations.integratedfluid.IntegratedFluidNetworkEventHandlerRegistration;
 import gregtech.api.net.GTPacketMusicSystemData;
 import gregtech.api.objects.GTChunkManager;
 import gregtech.api.objects.GTUODimensionList;
@@ -738,6 +739,7 @@ public class GTProxy implements IFuelHandler {
     public CameraViewportManager cameraViewportManager;
     public TetherManager tetherManager;
     public WirelessEnergyHatchManager wirelessEnergyHatchManager;
+    public IntegratedFluidNetworkEventHandlerRegistration integratedFluidNetworkEventHandlerRegistration;
 
     public SyncedKeybind TOOL_MODE_SWITCH_KEYBIND;
     public SyncedKeybind CTRL_KEYBIND;
@@ -1232,6 +1234,9 @@ public class GTProxy implements IFuelHandler {
         if (cameraViewportManager == null) cameraViewportManager = new CameraViewportManager();
         tetherManager = new TetherManager();
         wirelessEnergyHatchManager = new WirelessEnergyHatchManager();
+        if (integratedFluidNetworkEventHandlerRegistration == null) {
+            integratedFluidNetworkEventHandlerRegistration = new IntegratedFluidNetworkEventHandlerRegistration();
+        }
         FMLCommonHandler.instance().bus().register(wirelessChargerManager);
         MinecraftForge.EVENT_BUS.register(spawnEventHandler);
         FMLCommonHandler.instance().bus().register(powerfailTracker);
@@ -1244,7 +1249,7 @@ public class GTProxy implements IFuelHandler {
         FMLCommonHandler.instance().bus().register(wirelessEnergyHatchManager);
 
         // Register Integrated Fluid Network event handler for heat loss
-        FMLCommonHandler.instance().bus().register(new gregtech.api.metatileentity.implementations.integratedfluid.IntegratedFluidNetworkEventHandler());
+        integratedFluidNetworkEventHandlerRegistration.register(FMLCommonHandler.instance().bus()::register);
         // spotless:off
     }
 
@@ -1323,11 +1328,15 @@ public class GTProxy implements IFuelHandler {
         if (wirelessEnergyHatchManager != null) {
             FMLCommonHandler.instance().bus().unregister(wirelessEnergyHatchManager);
         }
+        if (integratedFluidNetworkEventHandlerRegistration != null) {
+            integratedFluidNetworkEventHandlerRegistration.unregister(FMLCommonHandler.instance().bus()::unregister);
+        }
         wirelessChargerManager = null;
         spawnEventHandler = null;
         powerfailTracker = null;
         tetherManager = null;
         wirelessEnergyHatchManager = null;
+        integratedFluidNetworkEventHandlerRegistration = null;
         PLAYERS_BY_UUID = null;
         UUID_BY_NAME = null;
         // spotless:on

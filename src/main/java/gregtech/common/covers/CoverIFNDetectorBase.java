@@ -12,7 +12,7 @@ import gregtech.api.covers.CoverContext;
 import gregtech.api.interfaces.ITexture;
 import gregtech.api.interfaces.metatileentity.IMetaTileEntity;
 import gregtech.api.interfaces.tileentity.ICoverable;
-import gregtech.api.metatileentity.BaseMetaTileEntity;
+import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
 import gregtech.api.metatileentity.implementations.integratedfluid.IIntegratedFluidMember;
 import gregtech.api.metatileentity.implementations.integratedfluid.IntegratedFluidNetwork;
 import gregtech.api.metatileentity.implementations.integratedfluid.covers.IFNDetectorCoverLogic;
@@ -115,10 +115,10 @@ public abstract class CoverIFNDetectorBase extends Cover {
     }
 
     private static IntegratedFluidNetwork resolveNetwork(ICoverable coverable) {
-        if (!(coverable instanceof BaseMetaTileEntity)) {
+        if (!(coverable instanceof IGregTechTileEntity)) {
             return null;
         }
-        IMetaTileEntity metaTileEntity = ((BaseMetaTileEntity) coverable).getMetaTileEntity();
+        IMetaTileEntity metaTileEntity = ((IGregTechTileEntity) coverable).getMetaTileEntity();
         if (metaTileEntity instanceof IIntegratedFluidMember) {
             return ((IIntegratedFluidMember) metaTileEntity).getNetwork();
         }
