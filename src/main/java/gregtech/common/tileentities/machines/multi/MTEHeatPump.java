@@ -31,6 +31,7 @@ import gregtech.api.metatileentity.implementations.integratedfluid.IFNMachineRes
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNMachineThermo;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNPressurePolicy;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNSingleOutputProcess;
+import gregtech.api.metatileentity.implementations.integratedfluid.IFNStateMutationApplier;
 import gregtech.api.metatileentity.implementations.integratedfluid.IntegratedFluidNetwork;
 import gregtech.api.metatileentity.implementations.integratedfluid.IntegratedFluidThermoModel;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNStateTransferPlanner;
@@ -451,10 +452,22 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
 
         long outHotEnthalpyQ = toEnthalpyQ(hotSpecificEnthalpy, hotAmountQ);
         long outColdEnthalpyQ = toEnthalpyQ(coldSpecificEnthalpy, coldAmountQ);
+        long hotExtractedEnthalpyQ = splitEnthalpyQ(extracted.enthalpyQ, hotAmountQ, extracted.amountQ);
+        long coldExtractedEnthalpyQ = extracted.enthalpyQ - hotExtractedEnthalpyQ;
 
-        // Add to outputs
-        redNetwork.addState(inputFluid, hotAmountQ, outHotEnthalpyQ);
-        blueNetwork.addState(inputFluid, coldAmountQ, outColdEnthalpyQ);
+        if (!IFNStateMutationApplier.addTwoOutputsOrRestoreInputs(
+            inputNetwork,
+            redNetwork,
+            inputFluid,
+            IntegratedFluidNetwork.ExtractedPayload.of(hotAmountQ, hotExtractedEnthalpyQ),
+            outHotEnthalpyQ,
+            inputNetwork,
+            blueNetwork,
+            inputFluid,
+            IntegratedFluidNetwork.ExtractedPayload.of(coldAmountQ, coldExtractedEnthalpyQ),
+            outColdEnthalpyQ)) {
+            return CheckRecipeResultRegistry.ITEM_OUTPUT_FULL;
+        }
 
         currentOutputTemperature = (float) hotTemperature;
 
@@ -784,8 +797,19 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         long outRedEnthalpyQ = toEnthalpyQ(redOutH, extractedRed.amountQ);
         long outBlueEnthalpyQ = toEnthalpyQ(blueOutH, extractedBlue.amountQ);
 
-        redOutNet.addState(redFluid, extractedRed.amountQ, outRedEnthalpyQ);
-        blueOutNet.addState(blueFluid, extractedBlue.amountQ, outBlueEnthalpyQ);
+        if (!IFNStateMutationApplier.addTwoOutputsOrRestoreInputs(
+            redInNet,
+            redOutNet,
+            redFluid,
+            extractedRed,
+            outRedEnthalpyQ,
+            blueInNet,
+            blueOutNet,
+            blueFluid,
+            extractedBlue,
+            outBlueEnthalpyQ)) {
+            return CheckRecipeResultRegistry.ITEM_OUTPUT_FULL;
+        }
 
         currentOutputTemperature = (float) targetOutTemp;
 
@@ -1217,6 +1241,16 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
 
     private static long toEnthalpyQ(double specificEnthalpy, long amountQ) {
         return toEnthalpyQ(specificEnthalpy * toAmount(amountQ));
+    }
+
+    private static long splitEnthalpyQ(long totalEnthalpyQ, long partAmountQ, long totalAmountQ) {
+        if (totalEnthalpyQ <= 0L || partAmountQ <= 0L || totalAmountQ <= 0L) {
+            return 0L;
+        }
+        if (partAmountQ >= totalAmountQ) {
+            return totalEnthalpyQ;
+        }
+        return (long) (totalEnthalpyQ * ((double) partAmountQ / (double) totalAmountQ));
     }
 
     public float getCOP() {

@@ -693,6 +693,18 @@ public class IntegratedFluidNetwork {
         return new IFNFluidState(fluidName, amountQ, enthalpyQ, pressure);
     }
 
+    void restoreSnapshot(IFNFluidState state) {
+        if (state == null || state.isEmpty()) {
+            clearFluid();
+            return;
+        }
+
+        this.fluidName = state.getFluidName();
+        this.amountQ = state.getAmountQ();
+        this.enthalpyQ = state.getEnthalpyQ();
+        updatePressure();
+    }
+
     public IFNCanonicalState getCanonicalState() {
         return IFNCanonicalState.of(
             fluidName,
@@ -859,6 +871,13 @@ public class IntegratedFluidNetwork {
 
         public static ExtractedPayload empty() {
             return new ExtractedPayload(0L, 0L);
+        }
+
+        public static ExtractedPayload of(long amountQ, long enthalpyQ) {
+            if (amountQ <= 0L) {
+                return empty();
+            }
+            return new ExtractedPayload(amountQ, Math.max(0L, enthalpyQ));
         }
     }
 
