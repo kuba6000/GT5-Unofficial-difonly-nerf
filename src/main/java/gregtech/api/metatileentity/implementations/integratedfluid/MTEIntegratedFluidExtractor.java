@@ -11,7 +11,6 @@ import gregtech.api.interfaces.ITexture;
 import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
 import gregtech.api.metatileentity.MetaTileEntity;
 import gregtech.api.metatileentity.implementations.MTEHatch;
-import gregtech.api.metatileentity.implementations.integratedfluid.state.IFNNetworkStatus;
 import gregtech.api.render.TextureFactory;
 
 /**
@@ -175,7 +174,7 @@ public class MTEIntegratedFluidExtractor extends MTEHatch implements IIntegrated
     }
 
     static boolean canExtractFromNetwork(IntegratedFluidNetwork network) {
-        return network != null && network.getNetworkStatus() == IFNNetworkStatus.NORMAL;
+        return IFNNetworkTransferGate.canExtractToGtPipe(network);
     }
 
     @Override

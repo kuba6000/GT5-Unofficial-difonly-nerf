@@ -2,7 +2,6 @@ package gregtech.api.metatileentity.implementations.integratedfluid;
 
 import gregtech.api.recipe.check.CheckRecipeResult;
 import gregtech.api.recipe.check.CheckRecipeResultRegistry;
-import gregtech.api.metatileentity.implementations.integratedfluid.state.IFNNetworkStatus;
 
 public final class IFNMachineResultMapper {
 
@@ -30,24 +29,12 @@ public final class IFNMachineResultMapper {
 
     public static CheckRecipeResult requireOperationalNetworks(IntegratedFluidNetwork[] inputNetworks,
         IntegratedFluidNetwork[] outputNetworks) {
-        if (!areOperational(inputNetworks)) {
+        if (!IFNNetworkTransferGate.areOperational(inputNetworks)) {
             return CheckRecipeResultRegistry.NO_RECIPE;
         }
-        if (!areOperational(outputNetworks)) {
+        if (!IFNNetworkTransferGate.areOperational(outputNetworks)) {
             return CheckRecipeResultRegistry.ITEM_OUTPUT_FULL;
         }
         return CheckRecipeResultRegistry.SUCCESSFUL;
-    }
-
-    private static boolean areOperational(IntegratedFluidNetwork[] networks) {
-        if (networks == null) {
-            return false;
-        }
-        for (IntegratedFluidNetwork network : networks) {
-            if (network == null || network.getNetworkStatus() != IFNNetworkStatus.NORMAL) {
-                return false;
-            }
-        }
-        return true;
     }
 }
