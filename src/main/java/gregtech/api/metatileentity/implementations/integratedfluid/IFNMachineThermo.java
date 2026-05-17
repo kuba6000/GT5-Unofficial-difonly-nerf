@@ -76,6 +76,18 @@ public final class IFNMachineThermo {
         return new HeatPumpMetrics(cop, penalty, delta, cop / penalty);
     }
 
+    public static double computeTargetCopOutputTemperature(double inputTemperature, float targetCop, boolean heating) {
+        float effectiveCop = targetCop <= 1.0f ? 1.1f : targetCop;
+        double outputTemperature = heating
+            ? (effectiveCop * inputTemperature) / (effectiveCop - 1.0f)
+            : inputTemperature * (effectiveCop - 1.0f) / effectiveCop;
+        double delta = Math.abs(outputTemperature - inputTemperature);
+        if (delta < 0.1d) {
+            outputTemperature = inputTemperature + (heating ? 0.1d : -0.1d);
+        }
+        return outputTemperature;
+    }
+
     private static long toEnthalpyQ(double energyEu) {
         return (long) Math.round(energyEu * IntegratedFluidNetwork.ENTHALPY_SCALE);
     }

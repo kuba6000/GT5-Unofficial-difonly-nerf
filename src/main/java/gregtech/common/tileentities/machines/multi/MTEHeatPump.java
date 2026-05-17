@@ -315,18 +315,9 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
 
             case TARGET_COP:
                 if (targetCOP <= 1.0f) targetCOP = 1.1f;
-                if (targetHeating) {
-                    hotTemperature = (targetCOP * inputTemperature) / (targetCOP - 1.0f);
-                } else {
-                    hotTemperature = inputTemperature * (targetCOP - 1.0f) / targetCOP;
-                }
+                hotTemperature = IFNMachineThermo
+                    .computeTargetCopOutputTemperature(inputTemperature, targetCOP, targetHeating);
                 temperatureDelta = hotTemperature - inputTemperature;
-                double absDelta = Math.abs(temperatureDelta);
-                if (absDelta < 0.1d) {
-                    absDelta = 0.1d;
-                    hotTemperature = inputTemperature + (targetHeating ? absDelta : -absDelta);
-                    temperatureDelta = hotTemperature - inputTemperature;
-                }
                 applyTargetCopMetrics(targetCOP, temperatureDelta);
 
                 double hTarget = FluidThermalProperties.getSpecificEnthalpyFromPT(inputFluid, redNetwork.getPressure(), hotTemperature);
@@ -932,20 +923,10 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
                 if (targetCOP <= 1.0f) {
                     targetCOP = 1.1f;
                 }
-                if (targetHeating) {
-                    outputTemperature = (targetCOP * inputTemperature) / (targetCOP - 1.0f);
-                } else {
-                    // T_cold = T_hot * (COP_heating - 1) / COP_heating
-                    outputTemperature = inputTemperature * (targetCOP - 1.0f) / targetCOP;
-                }
+                outputTemperature = IFNMachineThermo
+                    .computeTargetCopOutputTemperature(inputTemperature, targetCOP, targetHeating);
                 temperatureDelta = outputTemperature - inputTemperature;
                 heatingDirection = targetHeating;
-                double absDelta = Math.abs(temperatureDelta);
-                if (absDelta < 0.1d) {
-                    absDelta = 0.1d;
-                    outputTemperature = inputTemperature + (targetHeating ? absDelta : -absDelta);
-                    temperatureDelta = outputTemperature - inputTemperature;
-                }
                 applyTargetCopMetrics(targetCOP, temperatureDelta);
 
                 double hTarget = IFNMachineThermo.computeTargetSpecificEnthalpyForStateAdd(

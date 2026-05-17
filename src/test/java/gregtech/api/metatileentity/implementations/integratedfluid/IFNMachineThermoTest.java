@@ -56,4 +56,12 @@ class IFNMachineThermoTest {
         assertEquals(FluidThermalProperties.calculateTemperaturePenalty(100.0f), metrics.efficiencyPenalty(), 0.001d);
         assertEquals(metrics.cop() / metrics.efficiencyPenalty(), metrics.effectiveCop(), 0.001d);
     }
+
+    @Test
+    void targetCopTemperatureUsesDirectionAndMinimumTemperatureStep() {
+        assertEquals(375.0d, IFNMachineThermo.computeTargetCopOutputTemperature(300.0d, 5.0f, true), 0.001d);
+        assertEquals(240.0d, IFNMachineThermo.computeTargetCopOutputTemperature(300.0d, 5.0f, false), 0.001d);
+        assertEquals(300.1d, IFNMachineThermo.computeTargetCopOutputTemperature(300.0d, 10_000.0f, true), 0.001d);
+        assertEquals(299.9d, IFNMachineThermo.computeTargetCopOutputTemperature(300.0d, 10_000.0f, false), 0.001d);
+    }
 }
