@@ -146,6 +146,8 @@ import static gregtech.common.items.IDMetaItem01.Cover_EnergyDetector;
 import static gregtech.common.items.IDMetaItem01.Cover_FLuidStorageMonitor;
 import static gregtech.common.items.IDMetaItem01.Cover_FluidDetector;
 import static gregtech.common.items.IDMetaItem01.Cover_FluidLimiter;
+import static gregtech.common.items.IDMetaItem01.Cover_IFNPressureDetector;
+import static gregtech.common.items.IDMetaItem01.Cover_IFNTemperatureDetector;
 import static gregtech.common.items.IDMetaItem01.Cover_ItemDetector;
 import static gregtech.common.items.IDMetaItem01.Cover_NeedsMaintenance;
 import static gregtech.common.items.IDMetaItem01.Cover_PlayerDetector;
@@ -531,6 +533,8 @@ import gregtech.common.covers.CoverFluidLimiter;
 import gregtech.common.covers.CoverFluidRegulator;
 import gregtech.common.covers.CoverFluidStorageMonitor;
 import gregtech.common.covers.CoverFluidfilter;
+import gregtech.common.covers.CoverIFNPressureDetector;
+import gregtech.common.covers.CoverIFNTemperatureDetector;
 import gregtech.common.covers.CoverItemFilter;
 import gregtech.common.covers.CoverItemMeter;
 import gregtech.common.covers.CoverLiquidMeter;
@@ -3379,6 +3383,20 @@ public class MetaGeneratedItem01 extends MetaGeneratedItemX32 implements IItemFi
                 "gt.item.cover.player_detector.tooltip",
                 new TCAspects.TC_AspectStack(TCAspects.SENSUS, 2L),
                 new TCAspects.TC_AspectStack(TCAspects.MACHINA, 1L)));
+        ItemList.Cover_IFNPressureDetector.set(
+            addItemWithLocalizationKeys(
+                Cover_IFNPressureDetector.ID,
+                "gt.item.cover.ifn_pressure_detector.name",
+                "gt.item.cover.ifn_pressure_detector.tooltip",
+                new TCAspects.TC_AspectStack(TCAspects.SENSUS, 2L),
+                new TCAspects.TC_AspectStack(TCAspects.AER, 1L)));
+        ItemList.Cover_IFNTemperatureDetector.set(
+            addItemWithLocalizationKeys(
+                Cover_IFNTemperatureDetector.ID,
+                "gt.item.cover.ifn_temperature_detector.name",
+                "gt.item.cover.ifn_temperature_detector.tooltip",
+                new TCAspects.TC_AspectStack(TCAspects.SENSUS, 2L),
+                new TCAspects.TC_AspectStack(TCAspects.IGNIS, 1L)));
         ItemList.Cover_FluidStorageMonitor.set(
             addItemWithLocalizationKeys(
                 Cover_FLuidStorageMonitor.ID,
@@ -4471,6 +4489,14 @@ public class MetaGeneratedItem01 extends MetaGeneratedItemX32 implements IItemFi
             ItemList.Cover_EnergyDetector.get(1L),
             TextureFactory.of(MACHINE_CASINGS[2][0], TextureFactory.of(OVERLAY_ENERGYDETECTOR)),
             context -> new CoverEUMeter(context, TextureFactory.of(OVERLAY_ENERGYDETECTOR)));
+        CoverRegistry.registerCover(
+            ItemList.Cover_IFNPressureDetector.get(1L),
+            TextureFactory.of(MACHINE_CASINGS[2][0], TextureFactory.of(OVERLAY_FLUIDDETECTOR)),
+            context -> new CoverIFNPressureDetector(context, TextureFactory.of(OVERLAY_FLUIDDETECTOR)));
+        CoverRegistry.registerCover(
+            ItemList.Cover_IFNTemperatureDetector.get(1L),
+            TextureFactory.of(MACHINE_CASINGS[2][0], TextureFactory.of(OVERLAY_ENERGYDETECTOR)),
+            context -> new CoverIFNTemperatureDetector(context, TextureFactory.of(OVERLAY_ENERGYDETECTOR)));
 
         CoverRegistry.registerCover(
             ItemList.Cover_PlayerDetector.get(1L),

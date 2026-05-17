@@ -427,6 +427,8 @@ public enum IDMetaItem01 {
     Cover_PlayerDetector(735),
     Energy_Module(736),
     Energy_Cluster(737),
+    Cover_IFNPressureDetector(738),
+    Cover_IFNTemperatureDetector(739),
     Cover_Screen(740),
     Cover_RedstoneTransmitter(741),
     Cover_RedstoneTransmitterInternal(742),

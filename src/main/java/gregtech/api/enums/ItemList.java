@@ -3137,6 +3137,8 @@ public enum ItemList implements IItemContainer {
     ComplexNanochipGlass,
     Gravitational_Lens,
     Planck_Manifold,
+    Cover_IFNPressureDetector,
+    Cover_IFNTemperatureDetector,
 
     CultureNullBioCulture,
     CultureSaccharomycesCerevisiae,
