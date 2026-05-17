@@ -329,6 +329,7 @@ public class MTERadiator extends MTEEnhancedMultiBlockBase<MTERadiator> implemen
             return SimpleCheckRecipeResult.ofFailure("no_energy");
         }
 
+        double rollbackSpecificEnthalpy = inputNetwork.getSpecificEnthalpy();
         FluidStack drainedFluid = inputNetwork.drainFluid(fluidToProcess, false);
         if (drainedFluid == null || drainedFluid.amount <= 0) {
             return CheckRecipeResultRegistry.NO_RECIPE;
@@ -336,7 +337,11 @@ public class MTERadiator extends MTEEnhancedMultiBlockBase<MTERadiator> implemen
 
         long drainedAmountQ = drainedFluid.amount * IntegratedFluidNetwork.AMOUNT_SCALE;
         long outputEnthalpyQ = IntegratedFluidNetwork.toEnthalpyQFromSpecific(outputSpecificEnthalpy, drainedAmountQ);
-        outputNetwork.addState(fluid, drainedAmountQ, outputEnthalpyQ);
+        if (!outputNetwork.addState(fluid, drainedAmountQ, outputEnthalpyQ)) {
+            long rollbackEnthalpyQ = IntegratedFluidNetwork.toEnthalpyQFromSpecific(rollbackSpecificEnthalpy, drainedAmountQ);
+            inputNetwork.addState(fluid, drainedAmountQ, rollbackEnthalpyQ);
+            return CheckRecipeResultRegistry.ITEM_OUTPUT_FULL;
+        }
 
         lastPredictedOutputTemperature = (float) outputTemperature;
         lastLoopOutletPressure = loopOutletPressure;
