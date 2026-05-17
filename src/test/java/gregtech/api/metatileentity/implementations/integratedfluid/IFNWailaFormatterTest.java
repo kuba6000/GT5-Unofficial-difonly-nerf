@@ -90,6 +90,24 @@ class IFNWailaFormatterTest {
     }
 
     @Test
+    void phaseAndOccupiedVolumeAreVisibleInNetworkStatus() {
+        NBTTagCompound tag = new NBTTagCompound();
+        List<String> tooltip = new ArrayList<>();
+
+        tag.setBoolean("hasNetwork", true);
+        tag.setString("networkStatus", "NORMAL");
+        tag.setString("phase", "TWO_PHASE");
+        tag.setDouble("occupiedVolume", 42.4d);
+
+        IFNWailaFormatter.addNetworkStatus(tag, tooltip);
+
+        assertTrue(tooltip.stream().anyMatch(line -> line.contains("Phase:") && line.contains("Two Phase")),
+            tooltip.toString());
+        assertTrue(tooltip.stream().anyMatch(line -> line.contains("Occupied Volume:") && line.contains("42 L")),
+            tooltip.toString());
+    }
+
+    @Test
     void fluidStorageSummaryUsesOccupiedVolumeInsteadOfFluidStackAmount() {
         NBTTagCompound tag = new NBTTagCompound();
         List<String> tooltip = new ArrayList<>();

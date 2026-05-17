@@ -5,6 +5,7 @@ import static com.gtnewhorizon.gtnhlib.util.numberformatting.NumberFormatUtil.fo
 import java.util.List;
 import java.util.Locale;
 
+import gregtech.api.metatileentity.implementations.integratedfluid.solver.IFNSolvedState;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.util.EnumChatFormatting;
 import net.minecraftforge.fluids.FluidStack;
@@ -25,6 +26,10 @@ public final class IFNWailaFormatter {
         }
         tag.setLong("substanceAmountQ", network.getAmountQ());
         tag.setDouble("occupiedVolume", network.getOccupiedVolume());
+        if (network.getAmountQ() > 0L) {
+            IFNSolvedState solvedState = network.getSolvedState();
+            tag.setString("phase", solvedState.phaseComposition().primaryPhase().name());
+        }
         tag.setFloat("maxPressureBar", network.getOperationalLimits().accumulatorMaxPressureBar());
         tag.setFloat("maxTemperatureKelvin", network.getOperationalLimits().maxTemperatureKelvin());
         tag.setString("pressureLimitStatus", network.getPressureLimitEvaluation().status().name());
@@ -54,6 +59,8 @@ public final class IFNWailaFormatter {
         }
 
         addSubstanceAmount(tag, currenttip);
+        addPhase(tag, currenttip);
+        addOccupiedVolume(tag, currenttip);
         addNetworkLimits(tag, currenttip);
         addLimitStatus(tag.getString("pressureLimitStatus"), "Pressure", currenttip);
         addLimitStatus(tag.getString("temperatureLimitStatus"), "Temperature", currenttip);
@@ -67,6 +74,56 @@ public final class IFNWailaFormatter {
 
         long wholeRefLiters = substanceAmountQ / IntegratedFluidNetwork.AMOUNT_SCALE;
         currenttip.add("Substance: " + EnumChatFormatting.GRAY + wholeRefLiters + " refL" + EnumChatFormatting.RESET);
+    }
+
+    private static void addPhase(NBTTagCompound tag, List<String> currenttip) {
+        String phase = tag.getString("phase");
+        if (phase == null || phase.isEmpty() || !hasDisplayableFluidState(tag)) {
+            return;
+        }
+
+        currenttip.add("Phase: " + EnumChatFormatting.GRAY + formatPhaseName(phase) + EnumChatFormatting.RESET);
+    }
+
+    private static void addOccupiedVolume(NBTTagCompound tag, List<String> currenttip) {
+        if (!tag.hasKey("occupiedVolume")) {
+            return;
+        }
+
+        int occupiedVolume = (int) Math.round(tag.getDouble("occupiedVolume"));
+        if (occupiedVolume <= 0) {
+            return;
+        }
+
+        currenttip.add(
+            "Occupied Volume: " + EnumChatFormatting.GREEN
+                + formatNumber(occupiedVolume)
+                + " L"
+                + EnumChatFormatting.RESET);
+    }
+
+    private static boolean hasDisplayableFluidState(NBTTagCompound tag) {
+        return tag.getLong("substanceAmountQ") > 0L || tag.getDouble("occupiedVolume") > 0.0d || tag.hasKey("networkFluid")
+            || tag.hasKey("networkFluidName");
+    }
+
+    private static String formatPhaseName(String phase) {
+        String normalized = phase.toLowerCase(Locale.ROOT).replace('_', ' ');
+        StringBuilder builder = new StringBuilder(normalized.length());
+        boolean startOfWord = true;
+        for (int i = 0; i < normalized.length(); i++) {
+            char value = normalized.charAt(i);
+            if (value == ' ') {
+                builder.append(value);
+                startOfWord = true;
+            } else if (startOfWord) {
+                builder.append(Character.toUpperCase(value));
+                startOfWord = false;
+            } else {
+                builder.append(value);
+            }
+        }
+        return builder.toString();
     }
 
     private static void addNetworkLimits(NBTTagCompound tag, List<String> currenttip) {
