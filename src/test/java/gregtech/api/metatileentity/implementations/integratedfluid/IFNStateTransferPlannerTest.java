@@ -1,6 +1,7 @@
 package gregtech.api.metatileentity.implementations.integratedfluid;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
@@ -77,5 +78,33 @@ class IFNStateTransferPlannerTest {
 
         assertEquals(0.0d, plan.acceptedRatio);
         assertEquals(IFNStateTransferPlanner.Status.INPUT_BLOCKED, plan.status);
+    }
+
+    @Test
+    void sharedDualInputNetworkCannotAcceptMoreThanAvailableInput() {
+        Fluid fluid = IFNTestSupport.liquidFluid();
+        IntegratedFluidNetwork sharedInput = IFNTestSupport.newNetwork(fluid, 10_000, 0, 100.0f);
+        IntegratedFluidNetwork redOutput = IFNTestSupport.newNetwork(fluid, 10_000, 0, 100.0f);
+        IntegratedFluidNetwork blueOutput = IFNTestSupport.newNetwork(fluid, 10_000, 0, 100.0f);
+        long availableQ = 10L * IntegratedFluidNetwork.AMOUNT_SCALE;
+        long requestedQ = 8L * IntegratedFluidNetwork.AMOUNT_SCALE;
+        sharedInput.addState(fluid, availableQ, IntegratedFluidNetwork.toEnthalpyQFromSpecific(300.0d, availableQ));
+
+        IFNStateTransferPlanner.PlannedDualTransfer plan = IFNStateTransferPlanner.planDualStateAddWithSharedRatio(
+            sharedInput,
+            redOutput,
+            fluid,
+            300.0d,
+            requestedQ,
+            sharedInput,
+            blueOutput,
+            fluid,
+            300.0d,
+            requestedQ,
+            100.0f);
+
+        assertEquals(IFNStateTransferPlanner.Status.ACCEPTED, plan.status);
+        assertTrue(plan.acceptedRedAmountQ + plan.acceptedBlueAmountQ <= availableQ);
+        assertTrue(plan.acceptedRedAmountQ + plan.acceptedBlueAmountQ >= availableQ - IntegratedFluidNetwork.AMOUNT_SCALE);
     }
 }

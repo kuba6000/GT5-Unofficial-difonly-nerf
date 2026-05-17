@@ -234,6 +234,13 @@ public final class IFNStateTransferPlanner {
             }
 
             boolean ok = true;
+            if (redInputNetwork == blueInputNetwork) {
+                long availableInputQ = redInputNetwork.getAmountQ();
+                if (testRedQ > availableInputQ - testBlueQ) ok = false;
+            } else {
+                if (testRedQ > redInputNetwork.getAmountQ()) ok = false;
+                if (testBlueQ > blueInputNetwork.getAmountQ()) ok = false;
+            }
             if (redOutputNetwork != redInputNetwork && testRedQ > maxRedAddableQ) ok = false;
             if (blueOutputNetwork != blueInputNetwork && testBlueQ > maxBlueAddableQ) ok = false;
 
