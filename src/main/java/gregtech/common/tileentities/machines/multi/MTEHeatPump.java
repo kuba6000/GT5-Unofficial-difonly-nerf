@@ -27,6 +27,7 @@ import gregtech.api.interfaces.metatileentity.IMetaTileEntity;
 import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
 import gregtech.api.metatileentity.implementations.MTEEnhancedMultiBlockBase;
 import gregtech.api.metatileentity.implementations.integratedfluid.FluidThermalProperties;
+import gregtech.api.metatileentity.implementations.integratedfluid.IFNMachineBatchPlanner;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNMachineResultMapper;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNMachineThermo;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNPressurePolicy;
@@ -252,11 +253,11 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         double inputSpecificEnthalpy = inputNetwork.getSpecificEnthalpy();
         double vFactor = IntegratedFluidThermoModel
             .specificVolumeFromPressureAndSpecificEnthalpy(inputFluid, inputNetwork.getPressure(), inputSpecificEnthalpy);
-        if (vFactor <= 0.0d) return CheckRecipeResultRegistry.NO_RECIPE;
-
-        double desiredVocc = fluidAmountPerOperation;
-        long desiredAmountMb = (long) Math.floor(desiredVocc / vFactor);
-        long amountToProcessQ = Math.min(availableAmountQ, desiredAmountMb * IntegratedFluidNetwork.AMOUNT_SCALE);
+        long amountToProcessQ = IFNMachineBatchPlanner.computeAmountQForVolumeLimit(
+            availableAmountQ,
+            fluidAmountPerOperation,
+            vFactor
+        );
         if (amountToProcessQ <= 0) return CheckRecipeResultRegistry.NO_RECIPE;
 
         double inputTemperature = FluidThermalProperties.getTemperatureFromPH(
@@ -535,13 +536,19 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
 
         // Calculate max amount to process
         double tVFactor = IntegratedFluidThermoModel.specificVolumeFromPressureAndSpecificEnthalpy(targetFluid, targetInNet.getPressure(), targetInH);
-        if (tVFactor <= 0.0d) return CheckRecipeResultRegistry.NO_RECIPE;
-        long targetProcessQ = Math.min(targetAvailQ, (long) Math.floor(fluidAmountPerOperation / tVFactor) * IntegratedFluidNetwork.AMOUNT_SCALE);
+        long targetProcessQ = IFNMachineBatchPlanner.computeAmountQForVolumeLimit(
+            targetAvailQ,
+            fluidAmountPerOperation,
+            tVFactor
+        );
         if (targetProcessQ <= 0) return CheckRecipeResultRegistry.NO_RECIPE;
 
         double sVFactor = IntegratedFluidThermoModel.specificVolumeFromPressureAndSpecificEnthalpy(sourceFluid, sourceInNet.getPressure(), sourceInH);
-        if (sVFactor <= 0.0d) return CheckRecipeResultRegistry.NO_RECIPE;
-        long sourceProcessQ = Math.min(sourceAvailQ, (long) Math.floor(fluidAmountPerOperation / sVFactor) * IntegratedFluidNetwork.AMOUNT_SCALE);
+        long sourceProcessQ = IFNMachineBatchPlanner.computeAmountQForVolumeLimit(
+            sourceAvailQ,
+            fluidAmountPerOperation,
+            sVFactor
+        );
         if (sourceProcessQ <= 0) return CheckRecipeResultRegistry.NO_RECIPE;
 
         double targetProcessAmt = toAmount(targetProcessQ);
@@ -829,12 +836,11 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         double inputSpecificEnthalpy = inputNetwork.getSpecificEnthalpy();
         double vFactor = IntegratedFluidThermoModel
             .specificVolumeFromPressureAndSpecificEnthalpy(inputFluid, inputNetwork.getPressure(), inputSpecificEnthalpy);
-        if (vFactor <= 0.0d) {
-            return CheckRecipeResultRegistry.NO_RECIPE;
-        }
-        double desiredVocc = fluidAmountPerOperation;
-        long desiredAmountMb = (long) Math.floor(desiredVocc / vFactor);
-        long amountToProcessQ = Math.min(availableAmountQ, desiredAmountMb * IntegratedFluidNetwork.AMOUNT_SCALE);
+        long amountToProcessQ = IFNMachineBatchPlanner.computeAmountQForVolumeLimit(
+            availableAmountQ,
+            fluidAmountPerOperation,
+            vFactor
+        );
         if (amountToProcessQ <= 0) {
             return CheckRecipeResultRegistry.NO_RECIPE;
         }
