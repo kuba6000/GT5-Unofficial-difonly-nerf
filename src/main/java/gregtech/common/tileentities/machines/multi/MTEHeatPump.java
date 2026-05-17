@@ -27,9 +27,9 @@ import gregtech.api.interfaces.metatileentity.IMetaTileEntity;
 import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
 import gregtech.api.metatileentity.implementations.MTEEnhancedMultiBlockBase;
 import gregtech.api.metatileentity.implementations.integratedfluid.FluidThermalProperties;
+import gregtech.api.metatileentity.implementations.integratedfluid.IFNBufferedDualOutputProcess;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNBufferedSingleOutputProcess;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNBufferedSplitOutputProcess;
-import gregtech.api.metatileentity.implementations.integratedfluid.IFNDualOutputProcess;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNHeatExchangerPlanner;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNHeatPumpHatchLayout;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNHeatPumpMachineWorkPlan;
@@ -406,13 +406,18 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         long originalEnergyCost = energyCost;
         final double requestedRedOutH = plan.getRedOutputSpecificEnthalpy();
         final double requestedBlueOutH = plan.getBlueOutputSpecificEnthalpy();
-        IFNDualOutputProcess.Result processResult = IFNDualOutputProcess.execute(IFNDualOutputProcess.Request.of(
+        IFNBufferedDualOutputProcess.Result processResult = IFNBufferedDualOutputProcess.execute(
+            IFNBufferedDualOutputProcess.Request.of(
             context.redInputNetwork,
             context.redOutputNetwork,
+            machineProcessState.outputBuffer(),
+            HeatPumpOutputPorts.RED,
             redFluid,
             originalRedProcessQ,
             context.blueInputNetwork,
             context.blueOutputNetwork,
+            machineProcessState.outputBuffer(),
+            HeatPumpOutputPorts.BLUE,
             blueFluid,
             originalBlueProcessQ,
             ignored -> requestedRedOutH,
