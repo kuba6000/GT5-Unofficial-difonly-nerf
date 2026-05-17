@@ -309,11 +309,7 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
                 .scaleEnergyCost(originalEnergyCost, originalAmountToProcessQ, processResult.getAmountQ());
         }
 
-        currentEnergyUsage = energyCost;
-        currentOutputTemperature = (float) plan.getHotOutputTemperature();
-        applyMachineWorkPlan(energyCost, plan.isPassthrough());
-
-        return CheckRecipeResultRegistry.SUCCESSFUL;
+        return finishSuccessfulProcess(energyCost, plan.isPassthrough(), (float) plan.getHotOutputTemperature());
     }
 
     private @NotNull CheckRecipeResult processHeatExchanger() {
@@ -433,11 +429,7 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
             energyCost = Math.min(scaledRedEnergy, scaledBlueEnergy);
         }
 
-        currentEnergyUsage = energyCost;
-        currentOutputTemperature = (float) plan.getTargetOutputTemperature();
-        applyMachineWorkPlan(energyCost, plan.isPassthrough());
-
-        return CheckRecipeResultRegistry.SUCCESSFUL;
+        return finishSuccessfulProcess(energyCost, plan.isPassthrough(), (float) plan.getTargetOutputTemperature());
     }
 
     private @NotNull CheckRecipeResult processNormalMode() {
@@ -546,15 +538,12 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
             );
         }
 
-        currentOutputTemperature = (float) FluidThermalProperties.getTemperatureFromPH(
+        float outputTemperature = (float) FluidThermalProperties.getTemperatureFromPH(
             inputFluid,
             outputNetwork.getPressure(),
             outputSpecificEnthalpy
         );
-        currentEnergyUsage = totalEnergyCost;
-        applyMachineWorkPlan(totalEnergyCost, plan.isPassthrough());
-
-        return CheckRecipeResultRegistry.SUCCESSFUL;
+        return finishSuccessfulProcess(totalEnergyCost, plan.isPassthrough(), outputTemperature);
     }
 
     private CheckRecipeResult validateConfiguration() {
@@ -684,6 +673,13 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         currentTemperatureDelta = (float) metrics.temperatureDelta();
         currentEfficiencyPenalty = metrics.efficiencyPenalty();
         effectiveCOP = metrics.effectiveCop();
+    }
+
+    private CheckRecipeResult finishSuccessfulProcess(long energyCostEu, boolean passthrough, float outputTemperature) {
+        currentEnergyUsage = energyCostEu;
+        currentOutputTemperature = outputTemperature;
+        applyMachineWorkPlan(energyCostEu, passthrough);
+        return CheckRecipeResultRegistry.SUCCESSFUL;
     }
 
     private void applyMachineWorkPlan(long energyCostEu, boolean passthrough) {
