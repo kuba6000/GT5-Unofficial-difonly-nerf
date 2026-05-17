@@ -32,6 +32,7 @@ import gregtech.api.metatileentity.implementations.integratedfluid.IFNHeatExchan
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNMachineBatchPlanner;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNMachineResultMapper;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNMachineThermo;
+import gregtech.api.metatileentity.implementations.integratedfluid.IFNNormalHeatPumpPlanner;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNPressurePolicy;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNSingleOutputProcess;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNSplitOutputProcess;
@@ -616,134 +617,29 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         if (!inputBatch.isValid()) {
             return CheckRecipeResultRegistry.NO_RECIPE;
         }
-        long amountToProcessQ = inputBatch.amountQ();
-        double inputTemperature = inputBatch.temperature();
-        if (inputTemperature <= 0.0d) {
-            inputTemperature = COLD_RESERVOIR_TEMPERATURE;
+        IFNNormalHeatPumpPlanner.Plan plan = IFNNormalHeatPumpPlanner.plan(IFNNormalHeatPumpPlanner.Request.of(
+            toNormalMode(operatingMode),
+            outputNetwork,
+            inputFluid,
+            inputBatch,
+            targetHeating,
+            targetTemperature,
+            targetCOP,
+            targetEnergyPerTick,
+            lowerTemperatureTolerance,
+            upperTemperatureTolerance,
+            COLD_RESERVOIR_TEMPERATURE));
+        if (plan.getStatus() == IFNNormalHeatPumpPlanner.Status.INVALID_CONFIGURATION) {
+            return SimpleCheckRecipeResult.ofFailure("awaiting_configuration");
         }
 
-        double amountToProcess = toAmount(amountToProcessQ);
-        double outputTemperature = inputTemperature;
-        double temperatureDelta = 0.0d;
-        double outputSpecificEnthalpy = inputSpecificEnthalpy;
-        long totalEnergyCost = 0L;
-        boolean passthroughMode = false;
-        boolean heatingDirection = true;
-
-        switch (operatingMode) {
-            case TARGET_TEMPERATURE: {
-                outputTemperature = targetTemperature;
-                temperatureDelta = outputTemperature - inputTemperature;
-                heatingDirection = temperatureDelta >= 0.0d;
-
-                if (inputTemperature >= targetTemperature - lowerTemperatureTolerance
-                    && inputTemperature <= targetTemperature + upperTemperatureTolerance) {
-                    passthroughMode = true;
-                    currentCOP = 0.0f;
-                    totalEnergyCost = 0;
-                    this.totalEnergyCost = 0;
-                    outputTemperature = inputTemperature;
-                    temperatureDelta = 0.0d;
-                    currentTemperatureDelta = 0.0f;
-                    currentEfficiencyPenalty = 1.0f;
-                    effectiveCOP = 0.0f;
-                } else {
-                    IFNMachineThermo.HeatPumpMetrics metrics =
-                        IFNMachineThermo.computeHeatPumpMetrics(inputTemperature, outputTemperature);
-                    applyHeatPumpMetrics(metrics);
-
-                    double hTarget = IFNMachineThermo.computeTargetSpecificEnthalpyForStateAdd(
-                        outputNetwork,
-                        inputFluid,
-                        outputTemperature,
-                        amountToProcessQ
-                    );
-                    totalEnergyCost = IFNMachineThermo.computeHeatPumpEnergyCost(
-                        inputSpecificEnthalpy,
-                        hTarget,
-                        amountToProcessQ,
-                        currentCOP,
-                        currentEfficiencyPenalty
-                    );
-                    this.totalEnergyCost = (int) ((totalEnergyCost + 19) / 20);
-                    outputSpecificEnthalpy = hTarget;
-                }
-                break;
-            }
-
-            case TARGET_COP: {
-                if (targetCOP <= 1.0f) {
-                    targetCOP = 1.1f;
-                }
-                outputTemperature = IFNMachineThermo
-                    .computeTargetCopOutputTemperature(inputTemperature, targetCOP, targetHeating);
-                temperatureDelta = outputTemperature - inputTemperature;
-                heatingDirection = targetHeating;
-                applyTargetCopMetrics(targetCOP, temperatureDelta);
-
-                double hTarget = IFNMachineThermo.computeTargetSpecificEnthalpyForStateAdd(
-                    outputNetwork,
-                    inputFluid,
-                    outputTemperature,
-                    amountToProcessQ
-                );
-                totalEnergyCost = IFNMachineThermo.computeHeatPumpEnergyCost(
-                    inputSpecificEnthalpy,
-                    hTarget,
-                    amountToProcessQ,
-                    currentCOP,
-                    currentEfficiencyPenalty
-                );
-                this.totalEnergyCost = (int) ((totalEnergyCost + 19) / 20);
-                outputSpecificEnthalpy = hTarget;
-                break;
-            }
-
-            case TARGET_ENERGY: {
-                long targetTotalEnergy = (long) targetEnergyPerTick * 20L;
-                if (targetTotalEnergy <= 0L) {
-                    return SimpleCheckRecipeResult.ofFailure("awaiting_configuration");
-                }
-                totalEnergyCost = targetTotalEnergy;
-
-                IFNMachineThermo.TargetEnergyState targetEnergyState = IFNMachineThermo.computeTargetEnergyOutputState(
-                    inputFluid,
-                    outputNetwork.getPressure(),
-                    inputTemperature,
-                    inputSpecificEnthalpy,
-                    amountToProcessQ,
-                    targetTotalEnergy,
-                    targetHeating
-                );
-                outputSpecificEnthalpy = targetEnergyState.specificEnthalpy();
-                outputTemperature = targetEnergyState.temperature();
-                temperatureDelta = outputTemperature - inputTemperature;
-                heatingDirection = targetHeating;
-                applyHeatPumpMetrics(targetEnergyState.metrics());
-                this.totalEnergyCost = targetEnergyPerTick;
-                break;
-            }
-
-            default:
-                return CheckRecipeResultRegistry.NO_RECIPE;
-        }
-
-        currentOutputTemperature = (float) outputTemperature;
-
-        if (heatingDirection) {
-            if (outputSpecificEnthalpy < inputSpecificEnthalpy - 1e-6d) {
-                return SimpleCheckRecipeResult.ofFailure("awaiting_configuration");
-            }
-        } else {
-            if (outputSpecificEnthalpy > inputSpecificEnthalpy + 1e-6d) {
-                return SimpleCheckRecipeResult.ofFailure("awaiting_configuration");
-            }
-        }
-
+        applyHeatPumpMetrics(plan.getMetrics());
+        long amountToProcessQ = plan.getAmountQ();
+        long totalEnergyCost = plan.getEnergyCostEu();
         long originalAmountToProcessQ = amountToProcessQ;
-        boolean targetOutputState = !passthroughMode && operatingMode != HeatPumpMode.TARGET_ENERGY;
-        double requestedOutputSpecificEnthalpy = outputSpecificEnthalpy;
-        double requestedOutputTemperature = outputTemperature;
+        boolean targetOutputState = plan.isTargetOutputState();
+        double requestedOutputSpecificEnthalpy = plan.getOutputSpecificEnthalpy();
+        double requestedOutputTemperature = plan.getOutputTemperature();
         IFNSingleOutputProcess.Result processResult = IFNSingleOutputProcess.execute(IFNSingleOutputProcess.Request.of(
             inputNetwork,
             outputNetwork,
@@ -763,7 +659,7 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         }
 
         amountToProcessQ = processResult.getAmountQ();
-        outputSpecificEnthalpy = processResult.getOutputSpecificEnthalpy();
+        double outputSpecificEnthalpy = processResult.getOutputSpecificEnthalpy();
 
         if (amountToProcessQ != originalAmountToProcessQ && totalEnergyCost > 0L) {
             totalEnergyCost = IFNMachineThermo.scaleEnergyCost(totalEnergyCost, originalAmountToProcessQ, amountToProcessQ);
@@ -781,9 +677,14 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
             this.totalEnergyCost = (int) ((totalEnergyCost + 19) / 20);
         }
 
+        currentOutputTemperature = (float) FluidThermalProperties.getTemperatureFromPH(
+            inputFluid,
+            outputNetwork.getPressure(),
+            outputSpecificEnthalpy
+        );
         currentEnergyUsage = totalEnergyCost;
 
-        if (passthroughMode) {
+        if (plan.isPassthrough()) {
             this.mMaxProgresstime = 5;
             this.mEUt = 0;
         } else {
@@ -937,6 +838,22 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
                 return IFNHeatExchangerPlanner.Mode.TARGET_COP;
             case TARGET_ENERGY:
                 return IFNHeatExchangerPlanner.Mode.TARGET_ENERGY;
+            default:
+                return null;
+        }
+    }
+
+    private static IFNNormalHeatPumpPlanner.Mode toNormalMode(HeatPumpMode mode) {
+        if (mode == null) {
+            return null;
+        }
+        switch (mode) {
+            case TARGET_TEMPERATURE:
+                return IFNNormalHeatPumpPlanner.Mode.TARGET_TEMPERATURE;
+            case TARGET_COP:
+                return IFNNormalHeatPumpPlanner.Mode.TARGET_COP;
+            case TARGET_ENERGY:
+                return IFNNormalHeatPumpPlanner.Mode.TARGET_ENERGY;
             default:
                 return null;
         }
