@@ -29,6 +29,23 @@ public final class IFNMachineBatchPlanner {
         return new BatchPlan(amountQ, specificEnthalpy, temperature, specificVolume);
     }
 
+    public static NetworkInputBatchPlan planNetworkInputBatch(IntegratedFluidNetwork network, double volumeLimit) {
+        if (network == null) {
+            return NetworkInputBatchPlan.invalid(null, 0.0d);
+        }
+
+        Fluid fluid = network.getFluid();
+        double specificEnthalpy = network.getSpecificEnthalpy();
+        long availableAmountQ = network.getAmountQ();
+        if (fluid == null || availableAmountQ <= 0L) {
+            return NetworkInputBatchPlan.invalid(fluid, specificEnthalpy);
+        }
+
+        return new NetworkInputBatchPlan(
+            fluid,
+            planInputBatch(fluid, network.getPressure(), specificEnthalpy, availableAmountQ, volumeLimit));
+    }
+
     public static long computeAmountQForVolumeLimit(long availableAmountQ, double volumeLimit,
         double specificVolume) {
         if (availableAmountQ <= 0L || volumeLimit <= 0.0d || specificVolume <= 0.0d ||
@@ -103,6 +120,37 @@ public final class IFNMachineBatchPlanner {
 
         public double specificVolume() {
             return specificVolume;
+        }
+    }
+
+    public static final class NetworkInputBatchPlan {
+
+        private final Fluid fluid;
+        private final BatchPlan batch;
+
+        private NetworkInputBatchPlan(Fluid fluid, BatchPlan batch) {
+            this.fluid = fluid;
+            this.batch = batch;
+        }
+
+        private static NetworkInputBatchPlan invalid(Fluid fluid, double specificEnthalpy) {
+            return new NetworkInputBatchPlan(fluid, BatchPlan.invalid(specificEnthalpy));
+        }
+
+        public boolean isValid() {
+            return fluid != null && batch.isValid();
+        }
+
+        public Fluid fluid() {
+            return fluid;
+        }
+
+        public BatchPlan batch() {
+            return batch;
+        }
+
+        public double specificEnthalpy() {
+            return batch.specificEnthalpy();
         }
     }
 

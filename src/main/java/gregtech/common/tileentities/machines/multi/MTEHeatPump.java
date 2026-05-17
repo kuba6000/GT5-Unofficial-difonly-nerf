@@ -247,27 +247,18 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
             return networkStatus;
         }
 
-        Fluid inputFluid = inputNetwork.getFluid();
-        if (inputFluid == null) return CheckRecipeResultRegistry.NO_RECIPE;
-
-        long availableAmountQ = inputNetwork.getAmountQ();
-        if (availableAmountQ <= 0) return CheckRecipeResultRegistry.NO_RECIPE;
-
-        double inputSpecificEnthalpy = inputNetwork.getSpecificEnthalpy();
-        IFNMachineBatchPlanner.BatchPlan inputBatch = IFNMachineBatchPlanner.planInputBatch(
-            inputFluid,
-            inputNetwork.getPressure(),
-            inputSpecificEnthalpy,
-            availableAmountQ,
+        IFNMachineBatchPlanner.NetworkInputBatchPlan inputBatch = IFNMachineBatchPlanner.planNetworkInputBatch(
+            inputNetwork,
             fluidAmountPerOperation
         );
         if (!inputBatch.isValid()) return CheckRecipeResultRegistry.NO_RECIPE;
+        Fluid inputFluid = inputBatch.fluid();
 
         IFNSplitHeatPumpPlanner.Plan plan = IFNSplitHeatPumpPlanner.plan(IFNSplitHeatPumpPlanner.Request.of(
             operatingMode.toIFNMode(),
             redNetwork,
             inputFluid,
-            inputBatch,
+            inputBatch.batch(),
             targetHeating,
             targetTemperature,
             targetCOP,
@@ -343,31 +334,17 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
             return networkStatus;
         }
 
-        Fluid redFluid = redInNet.getFluid();
-        Fluid blueFluid = blueInNet.getFluid();
-        if (redFluid == null || blueFluid == null) return CheckRecipeResultRegistry.NO_RECIPE;
-
-        long redAvailQ = redInNet.getAmountQ();
-        long blueAvailQ = blueInNet.getAmountQ();
-        if (redAvailQ <= 0 || blueAvailQ <= 0) return CheckRecipeResultRegistry.NO_RECIPE;
-
-        double redInH = redInNet.getSpecificEnthalpy();
-        double blueInH = blueInNet.getSpecificEnthalpy();
-        IFNMachineBatchPlanner.BatchPlan redInputBatch = IFNMachineBatchPlanner.planInputBatch(
-            redFluid,
-            redInNet.getPressure(),
-            redInH,
-            redAvailQ,
+        IFNMachineBatchPlanner.NetworkInputBatchPlan redInputBatch = IFNMachineBatchPlanner.planNetworkInputBatch(
+            redInNet,
             fluidAmountPerOperation
         );
-        IFNMachineBatchPlanner.BatchPlan blueInputBatch = IFNMachineBatchPlanner.planInputBatch(
-            blueFluid,
-            blueInNet.getPressure(),
-            blueInH,
-            blueAvailQ,
+        IFNMachineBatchPlanner.NetworkInputBatchPlan blueInputBatch = IFNMachineBatchPlanner.planNetworkInputBatch(
+            blueInNet,
             fluidAmountPerOperation
         );
         if (!redInputBatch.isValid() || !blueInputBatch.isValid()) return CheckRecipeResultRegistry.NO_RECIPE;
+        Fluid redFluid = redInputBatch.fluid();
+        Fluid blueFluid = blueInputBatch.fluid();
 
         IFNHeatExchangerPlanner.Plan plan = IFNHeatExchangerPlanner.plan(IFNHeatExchangerPlanner.Request.of(
             operatingMode.toIFNMode(),
@@ -375,8 +352,8 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
             blueOutNet,
             redFluid,
             blueFluid,
-            redInputBatch,
-            blueInputBatch,
+            redInputBatch.batch(),
+            blueInputBatch.batch(),
             configuringHotStream,
             targetTemperature,
             targetCOP,
@@ -458,32 +435,20 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
             return networkStatus;
         }
 
-        Fluid inputFluid = inputNetwork.getFluid();
-        if (inputFluid == null) {
-            return CheckRecipeResultRegistry.NO_RECIPE;
-        }
-
-        long availableAmountQ = inputNetwork.getAmountQ();
-        if (availableAmountQ <= 0) {
-            return CheckRecipeResultRegistry.NO_RECIPE;
-        }
-
-        double inputSpecificEnthalpy = inputNetwork.getSpecificEnthalpy();
-        IFNMachineBatchPlanner.BatchPlan inputBatch = IFNMachineBatchPlanner.planInputBatch(
-            inputFluid,
-            inputNetwork.getPressure(),
-            inputSpecificEnthalpy,
-            availableAmountQ,
+        IFNMachineBatchPlanner.NetworkInputBatchPlan inputBatch = IFNMachineBatchPlanner.planNetworkInputBatch(
+            inputNetwork,
             fluidAmountPerOperation
         );
         if (!inputBatch.isValid()) {
             return CheckRecipeResultRegistry.NO_RECIPE;
         }
+        Fluid inputFluid = inputBatch.fluid();
+        double inputSpecificEnthalpy = inputBatch.specificEnthalpy();
         IFNNormalHeatPumpPlanner.Plan plan = IFNNormalHeatPumpPlanner.plan(IFNNormalHeatPumpPlanner.Request.of(
             operatingMode.toIFNMode(),
             outputNetwork,
             inputFluid,
-            inputBatch,
+            inputBatch.batch(),
             targetHeating,
             targetTemperature,
             targetCOP,

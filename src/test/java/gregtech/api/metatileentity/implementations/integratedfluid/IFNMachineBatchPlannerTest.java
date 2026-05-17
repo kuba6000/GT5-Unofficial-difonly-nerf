@@ -2,6 +2,7 @@ package gregtech.api.metatileentity.implementations.integratedfluid;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import net.minecraftforge.fluids.Fluid;
@@ -103,5 +104,50 @@ class IFNMachineBatchPlannerTest {
 
         assertFalse(plan.isValid());
         assertEquals(0L, plan.amountQ());
+    }
+
+    @Test
+    void networkInputBatchPlanReadsNetworkFluidAndThermalState() {
+        Fluid fluid = IFNTestSupport.liquidFluid();
+        IntegratedFluidNetwork network = IFNTestSupport.newNetwork(fluid, 10_000, 0, 100.0f);
+        long availableAmountQ = 10L * IntegratedFluidNetwork.AMOUNT_SCALE;
+        double specificEnthalpy = FluidThermalProperties.getSpecificEnthalpyFromPT(fluid, 2.0d, 320.0d);
+        network.addState(
+            fluid,
+            availableAmountQ,
+            IntegratedFluidNetwork.toEnthalpyQFromSpecific(specificEnthalpy, availableAmountQ)
+        );
+        double specificVolume = IntegratedFluidThermoModel.specificVolumeFromPressureAndSpecificEnthalpy(
+            fluid,
+            network.getPressure(),
+            network.getSpecificEnthalpy()
+        );
+        double expectedTemperature = FluidThermalProperties.getTemperatureFromPH(
+            fluid,
+            network.getPressure(),
+            network.getSpecificEnthalpy()
+        );
+
+        IFNMachineBatchPlanner.NetworkInputBatchPlan plan = IFNMachineBatchPlanner.planNetworkInputBatch(
+            network,
+            specificVolume * 4.5d
+        );
+
+        assertTrue(plan.isValid());
+        assertSame(fluid, plan.fluid());
+        assertEquals(4L * IntegratedFluidNetwork.AMOUNT_SCALE, plan.batch().amountQ());
+        assertEquals(network.getSpecificEnthalpy(), plan.specificEnthalpy(), 0.001d);
+        assertEquals(expectedTemperature, plan.batch().temperature(), 0.001d);
+    }
+
+    @Test
+    void networkInputBatchPlanRejectsEmptyNetwork() {
+        IFNMachineBatchPlanner.NetworkInputBatchPlan plan = IFNMachineBatchPlanner.planNetworkInputBatch(
+            new IntegratedFluidNetwork(),
+            100.0d
+        );
+
+        assertFalse(plan.isValid());
+        assertEquals(0L, plan.batch().amountQ());
     }
 }
