@@ -1,5 +1,7 @@
 package gregtech.common.tileentities.machines.multi;
 
+import gregtech.api.metatileentity.implementations.integratedfluid.IFNHeatPumpMode;
+
 /**
  * Operating modes for Heat Pump multiblock.
  * Each mode determines which parameter is fixed and which are calculated.
@@ -52,5 +54,17 @@ public enum HeatPumpMode {
         int nextId = (this.id + 1) % values().length;
         return fromId(nextId);
     }
-}
 
+    public IFNHeatPumpMode toIFNMode() {
+        switch (this) {
+            case TARGET_TEMPERATURE:
+                return IFNHeatPumpMode.TARGET_TEMPERATURE;
+            case TARGET_COP:
+                return IFNHeatPumpMode.TARGET_COP;
+            case TARGET_ENERGY:
+                return IFNHeatPumpMode.TARGET_ENERGY;
+            default:
+                return IFNHeatPumpMode.TARGET_TEMPERATURE;
+        }
+    }
+}

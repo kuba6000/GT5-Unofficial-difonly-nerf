@@ -29,7 +29,6 @@ import gregtech.api.metatileentity.implementations.MTEEnhancedMultiBlockBase;
 import gregtech.api.metatileentity.implementations.integratedfluid.FluidThermalProperties;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNDualOutputProcess;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNHeatExchangerPlanner;
-import gregtech.api.metatileentity.implementations.integratedfluid.IFNHeatPumpMode;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNHeatPumpPlanStatus;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNMachineBatchPlanner;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNMachineResultMapper;
@@ -264,7 +263,7 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         if (!inputBatch.isValid()) return CheckRecipeResultRegistry.NO_RECIPE;
 
         IFNSplitHeatPumpPlanner.Plan plan = IFNSplitHeatPumpPlanner.plan(IFNSplitHeatPumpPlanner.Request.of(
-            toPlannerMode(operatingMode),
+            operatingMode.toIFNMode(),
             redNetwork,
             inputFluid,
             inputBatch,
@@ -382,7 +381,7 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         if (!redInputBatch.isValid() || !blueInputBatch.isValid()) return CheckRecipeResultRegistry.NO_RECIPE;
 
         IFNHeatExchangerPlanner.Plan plan = IFNHeatExchangerPlanner.plan(IFNHeatExchangerPlanner.Request.of(
-            toPlannerMode(operatingMode),
+            operatingMode.toIFNMode(),
             redOutNet,
             blueOutNet,
             redFluid,
@@ -504,7 +503,7 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
             return CheckRecipeResultRegistry.NO_RECIPE;
         }
         IFNNormalHeatPumpPlanner.Plan plan = IFNNormalHeatPumpPlanner.plan(IFNNormalHeatPumpPlanner.Request.of(
-            toPlannerMode(operatingMode),
+            operatingMode.toIFNMode(),
             outputNetwork,
             inputFluid,
             inputBatch,
@@ -707,22 +706,6 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
             network.getSpecificEnthalpy()
         );
         return (float) temperature;
-    }
-
-    private static IFNHeatPumpMode toPlannerMode(HeatPumpMode mode) {
-        if (mode == null) {
-            return null;
-        }
-        switch (mode) {
-            case TARGET_TEMPERATURE:
-                return IFNHeatPumpMode.TARGET_TEMPERATURE;
-            case TARGET_COP:
-                return IFNHeatPumpMode.TARGET_COP;
-            case TARGET_ENERGY:
-                return IFNHeatPumpMode.TARGET_ENERGY;
-            default:
-                return null;
-        }
     }
 
     private void applyHeatPumpMetrics(IFNMachineThermo.HeatPumpMetrics metrics) {
