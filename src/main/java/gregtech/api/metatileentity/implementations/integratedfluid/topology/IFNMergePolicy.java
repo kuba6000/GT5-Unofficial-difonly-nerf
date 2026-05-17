@@ -1,5 +1,6 @@
 package gregtech.api.metatileentity.implementations.integratedfluid.topology;
 
+import gregtech.api.metatileentity.implementations.integratedfluid.fluid.IFNFluidRegistry;
 import gregtech.api.metatileentity.implementations.integratedfluid.state.IFNCanonicalState;
 
 public final class IFNMergePolicy {
@@ -13,7 +14,7 @@ public final class IFNMergePolicy {
         if (a.isEmpty() || b.isEmpty()) {
             return true;
         }
-        return a.fluidId().get().equals(b.fluidId().get());
+        return IFNFluidRegistry.isSameSubstance(a.fluidId().get(), b.fluidId().get());
     }
 
     public static IFNCanonicalState merge(IFNCanonicalState first, IFNCanonicalState second) {
@@ -31,7 +32,7 @@ public final class IFNMergePolicy {
         }
 
         return IFNCanonicalState.of(
-            a.fluidId().get(),
+            IFNFluidRegistry.canonicalSubstanceId(a.fluidId().get()),
             a.substanceAmount().plus(b.substanceAmount()),
             a.internalEnergy().plus(b.internalEnergy())
         );

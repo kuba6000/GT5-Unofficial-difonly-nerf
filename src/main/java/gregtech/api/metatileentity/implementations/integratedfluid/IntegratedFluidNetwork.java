@@ -392,7 +392,7 @@ public class IntegratedFluidNetwork {
         if (!IFNFluidRegistry.isSupported(fluid)) {
             return false;
         }
-        if (amountQ > 0L && (fluidName == null || !fluid.getName().equals(fluidName))) {
+        if (amountQ > 0L && !isCompatibleFluid(fluid.getName())) {
             return false;
         }
 
@@ -531,8 +531,8 @@ public class IntegratedFluidNetwork {
             return false;
         }
         if (amountQ == 0L) {
-            fluidName = fluid.getName();
-        } else if (fluidName == null || !fluid.getName().equals(fluidName)) {
+            fluidName = IFNFluidRegistry.canonicalSubstanceId(fluid.getName());
+        } else if (!isCompatibleFluid(fluid.getName())) {
             return false;
         }
 
@@ -1182,7 +1182,7 @@ public class IntegratedFluidNetwork {
         if (!IFNFluidRegistry.isSupported(fluid)) {
             return 0L;
         }
-        if (amountQ > 0L && (fluidName == null || !fluid.getName().equals(fluidName))) {
+        if (amountQ > 0L && !isCompatibleFluid(fluid.getName())) {
             return 0L;
         }
 
@@ -1223,6 +1223,10 @@ public class IntegratedFluidNetwork {
             new IFNFluidState(fluid == null ? null : fluid.getName(), nextAmountQ, nextEnthalpyQ, currentPressure),
             currentPressureLimits());
         return result.getPressureBar();
+    }
+
+    private boolean isCompatibleFluid(String incomingFluidName) {
+        return fluidName != null && IFNFluidRegistry.isSameSubstance(fluidName, incomingFluidName);
     }
 
     /**

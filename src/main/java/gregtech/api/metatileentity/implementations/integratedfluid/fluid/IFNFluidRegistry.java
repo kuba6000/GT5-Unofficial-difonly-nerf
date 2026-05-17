@@ -33,6 +33,21 @@ public final class IFNFluidRegistry {
         return fluid != null && get(fluid.getName()) != null;
     }
 
+    public static boolean isSameSubstance(String firstFluidId, String secondFluidId) {
+        String first = canonicalSubstanceId(firstFluidId);
+        String second = canonicalSubstanceId(secondFluidId);
+        return first != null && first.equals(second);
+    }
+
+    public static String canonicalSubstanceId(String fluidId) {
+        IFNFluidDefinition definition = get(fluidId);
+        if (definition != null) {
+            return definition.substanceId();
+        }
+        String normalized = normalize(fluidId);
+        return normalized.isEmpty() ? null : normalized;
+    }
+
     public static IFNFluidDefinition get(String fluidId) {
         init();
         return DEFINITIONS.get(normalize(fluidId));
