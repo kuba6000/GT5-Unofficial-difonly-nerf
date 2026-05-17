@@ -51,6 +51,7 @@ import gregtech.api.util.MultiblockTooltipBuilder;
 import gregtech.common.blocks.BlockCasings2;
 import gregtech.common.gui.modularui.multiblock.MTEHeatPumpGui;
 import gregtech.common.gui.modularui.multiblock.base.MTEMultiBlockBaseGui;
+import gregtech.common.tileentities.machines.multi.heatpump.HeatPumpMachineProcessState;
 
 public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implements ISurvivalConstructable {
 
@@ -93,6 +94,7 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
     private float effectiveCOP = 0.0f; // Real COP including penalty (currentCOP / penalty)
     private int totalEnergyCost = 0; // Total energy cost per tick including penalty for GUI
 
+    private final HeatPumpMachineProcessState machineProcessState = new HeatPumpMachineProcessState();
 
     private static final IStructureDefinition<MTEHeatPump> STRUCTURE_DEFINITION = StructureDefinition
         .<MTEHeatPump>builder()
@@ -973,6 +975,7 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         aNBT.setBoolean("splitFlowMode", splitFlowMode);
         aNBT.setFloat("splitRatio", splitRatio);
         aNBT.setBoolean("targetHeating", targetHeating);
+        machineProcessState.save(aNBT);
 
     }
 
@@ -1031,6 +1034,7 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
             // Backward compatibility - convert old total energy to per-tick
             targetEnergyPerTick = aNBT.getInteger("targetEnergy") / 20;
         }
+        machineProcessState.load(aNBT);
     }
 
     public boolean addIntegratedInputHatch(IGregTechTileEntity aBaseMetaTileEntity, Short aColor) {
