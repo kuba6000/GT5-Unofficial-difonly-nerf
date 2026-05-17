@@ -29,7 +29,6 @@ import gregtech.api.metatileentity.implementations.MTEEnhancedMultiBlockBase;
 import gregtech.api.metatileentity.implementations.integratedfluid.FluidThermalProperties;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNDualOutputProcess;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNHeatExchangerPlanner;
-import gregtech.api.metatileentity.implementations.integratedfluid.IFNHeatPumpPlanStatus;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNMachineBatchPlanner;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNMachineProcessStatus;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNMachineResultMapper;
@@ -276,8 +275,9 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
             lowerTemperatureTolerance,
             upperTemperatureTolerance,
             COLD_RESERVOIR_TEMPERATURE));
-        if (plan.getStatus() == IFNHeatPumpPlanStatus.INVALID_CONFIGURATION) {
-            return SimpleCheckRecipeResult.ofFailure("awaiting_configuration");
+        CheckRecipeResult planStatus = IFNMachineResultMapper.toRecipeResult(plan.getStatus());
+        if (planStatus != CheckRecipeResultRegistry.SUCCESSFUL) {
+            return planStatus;
         }
 
         applyHeatPumpMetrics(plan.getMetrics());
@@ -395,8 +395,9 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
             targetEnergyPerTick,
             lowerTemperatureTolerance,
             upperTemperatureTolerance));
-        if (plan.getStatus() == IFNHeatPumpPlanStatus.INVALID_CONFIGURATION) {
-            return SimpleCheckRecipeResult.ofFailure("awaiting_configuration");
+        CheckRecipeResult planStatus = IFNMachineResultMapper.toRecipeResult(plan.getStatus());
+        if (planStatus != CheckRecipeResultRegistry.SUCCESSFUL) {
+            return planStatus;
         }
 
         applyHeatPumpMetrics(plan.getMetrics());
@@ -515,8 +516,9 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
             lowerTemperatureTolerance,
             upperTemperatureTolerance,
             COLD_RESERVOIR_TEMPERATURE));
-        if (plan.getStatus() == IFNHeatPumpPlanStatus.INVALID_CONFIGURATION) {
-            return SimpleCheckRecipeResult.ofFailure("awaiting_configuration");
+        CheckRecipeResult planStatus = IFNMachineResultMapper.toRecipeResult(plan.getStatus());
+        if (planStatus != CheckRecipeResultRegistry.SUCCESSFUL) {
+            return planStatus;
         }
 
         applyHeatPumpMetrics(plan.getMetrics());

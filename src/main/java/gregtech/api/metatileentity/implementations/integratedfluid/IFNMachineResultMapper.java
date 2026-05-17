@@ -2,6 +2,7 @@ package gregtech.api.metatileentity.implementations.integratedfluid;
 
 import gregtech.api.recipe.check.CheckRecipeResult;
 import gregtech.api.recipe.check.CheckRecipeResultRegistry;
+import gregtech.api.recipe.check.SimpleCheckRecipeResult;
 
 public final class IFNMachineResultMapper {
 
@@ -22,6 +23,16 @@ public final class IFNMachineResultMapper {
             return CheckRecipeResultRegistry.ITEM_OUTPUT_FULL;
         }
         if (status == IFNMachineProcessStatus.SUCCESS) {
+            return CheckRecipeResultRegistry.SUCCESSFUL;
+        }
+        return CheckRecipeResultRegistry.NO_RECIPE;
+    }
+
+    public static CheckRecipeResult toRecipeResult(IFNHeatPumpPlanStatus status) {
+        if (status == IFNHeatPumpPlanStatus.INVALID_CONFIGURATION) {
+            return SimpleCheckRecipeResult.ofFailure("awaiting_configuration");
+        }
+        if (status == IFNHeatPumpPlanStatus.READY || status == IFNHeatPumpPlanStatus.PASSTHROUGH) {
             return CheckRecipeResultRegistry.SUCCESSFUL;
         }
         return CheckRecipeResultRegistry.NO_RECIPE;

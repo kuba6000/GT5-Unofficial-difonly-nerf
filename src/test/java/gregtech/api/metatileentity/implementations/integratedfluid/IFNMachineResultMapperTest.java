@@ -1,10 +1,12 @@
 package gregtech.api.metatileentity.implementations.integratedfluid;
 
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import org.junit.jupiter.api.Test;
 
 import gregtech.api.recipe.check.CheckRecipeResultRegistry;
+import gregtech.api.recipe.check.SimpleCheckRecipeResult;
 
 class IFNMachineResultMapperTest {
 
@@ -34,6 +36,23 @@ class IFNMachineResultMapperTest {
         assertSame(
             CheckRecipeResultRegistry.ITEM_OUTPUT_FULL,
             IFNMachineResultMapper.toRecipeResult(IFNMachineProcessStatus.OUTPUT_BLOCKED));
+    }
+
+    @Test
+    void readyPlanStatusMapsToSuccess() {
+        assertSame(
+            CheckRecipeResultRegistry.SUCCESSFUL,
+            IFNMachineResultMapper.toRecipeResult(IFNHeatPumpPlanStatus.READY));
+        assertSame(
+            CheckRecipeResultRegistry.SUCCESSFUL,
+            IFNMachineResultMapper.toRecipeResult(IFNHeatPumpPlanStatus.PASSTHROUGH));
+    }
+
+    @Test
+    void invalidPlanStatusMapsToAwaitingConfiguration() {
+        assertEquals(
+            SimpleCheckRecipeResult.ofFailure("awaiting_configuration"),
+            IFNMachineResultMapper.toRecipeResult(IFNHeatPumpPlanStatus.INVALID_CONFIGURATION));
     }
 
     @Test
