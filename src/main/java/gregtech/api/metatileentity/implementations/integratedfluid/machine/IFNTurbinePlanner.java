@@ -11,16 +11,21 @@ public final class IFNTurbinePlanner {
 
         float pressureDrop = request.inputPressureBar - request.outputPressureBar;
         if (pressureDrop <= 0.0f) {
-            return new Plan(Status.BACKPRESSURE_BLOCKED, 0.0d, 0L, 0);
+            return new Plan(Status.BACKPRESSURE_BLOCKED, 0.0d, 0L, 0, false);
         }
 
         if (request.blade == null) {
-            return new Plan(Status.BYPASS, request.maxFlowLitersPerTick, 0L, 0);
+            return new Plan(Status.BYPASS, request.maxFlowLitersPerTick, 0L, 0, false);
+        }
+
+        if (request.blade.durability <= 0) {
+            return new Plan(Status.BYPASS, request.maxFlowLitersPerTick, 0L, 0, false);
         }
 
         long energyEu = Math.max(0L, Math.round(request.maxFlowLitersPerTick * pressureDrop * request.euPerLiterBar));
         int bladeDamage = computeBladeDamage(request);
-        return new Plan(Status.READY, request.maxFlowLitersPerTick, energyEu, bladeDamage);
+        boolean bladeBreaks = bladeDamage >= request.blade.durability;
+        return new Plan(Status.READY, request.maxFlowLitersPerTick, energyEu, bladeDamage, bladeBreaks);
     }
 
     private static int computeBladeDamage(Request request) {
@@ -116,16 +121,18 @@ public final class IFNTurbinePlanner {
         private final double flowLitersPerTick;
         private final long energyEu;
         private final int bladeDamage;
+        private final boolean bladeBreaks;
 
-        private Plan(Status status, double flowLitersPerTick, long energyEu, int bladeDamage) {
+        private Plan(Status status, double flowLitersPerTick, long energyEu, int bladeDamage, boolean bladeBreaks) {
             this.status = status;
             this.flowLitersPerTick = flowLitersPerTick;
             this.energyEu = energyEu;
             this.bladeDamage = bladeDamage;
+            this.bladeBreaks = bladeBreaks;
         }
 
         private static Plan invalid() {
-            return new Plan(Status.INVALID_REQUEST, 0.0d, 0L, 0);
+            return new Plan(Status.INVALID_REQUEST, 0.0d, 0L, 0, false);
         }
 
         public Status status() {
@@ -142,6 +149,10 @@ public final class IFNTurbinePlanner {
 
         public int bladeDamage() {
             return bladeDamage;
+        }
+
+        public boolean bladeBreaks() {
+            return bladeBreaks;
         }
     }
 }

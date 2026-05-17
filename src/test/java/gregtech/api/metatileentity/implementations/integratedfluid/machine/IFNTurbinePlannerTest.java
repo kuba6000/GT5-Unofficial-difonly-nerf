@@ -1,6 +1,8 @@
 package gregtech.api.metatileentity.implementations.integratedfluid.machine;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
@@ -69,5 +71,43 @@ class IFNTurbinePlannerTest {
             true));
 
         assertEquals(6, plan.bladeDamage());
+    }
+
+    @Test
+    void bladeBreaksWhenDamageConsumesRemainingDurability() {
+        IFNTurbinePlanner.Blade blade = IFNTurbinePlanner.Blade.of(300.0f, 900.0f, 1.0f, 8.0f, 1);
+
+        IFNTurbinePlanner.Plan plan = IFNTurbinePlanner.plan(IFNTurbinePlanner.Request.withBlade(
+            8.0f,
+            2.0f,
+            500.0f,
+            1000.0d,
+            2.0d,
+            blade,
+            false));
+
+        assertEquals(IFNTurbinePlanner.Status.READY, plan.status());
+        assertEquals(1, plan.bladeDamage());
+        assertTrue(plan.bladeBreaks());
+    }
+
+    @Test
+    void depletedBladeBehavesAsNoBladeBypass() {
+        IFNTurbinePlanner.Blade blade = IFNTurbinePlanner.Blade.of(300.0f, 900.0f, 1.0f, 8.0f, 0);
+
+        IFNTurbinePlanner.Plan plan = IFNTurbinePlanner.plan(IFNTurbinePlanner.Request.withBlade(
+            8.0f,
+            2.0f,
+            500.0f,
+            1000.0d,
+            2.0d,
+            blade,
+            false));
+
+        assertEquals(IFNTurbinePlanner.Status.BYPASS, plan.status());
+        assertEquals(1000.0d, plan.flowLitersPerTick(), 0.0001d);
+        assertEquals(0L, plan.energyEu());
+        assertEquals(0, plan.bladeDamage());
+        assertFalse(plan.bladeBreaks());
     }
 }
