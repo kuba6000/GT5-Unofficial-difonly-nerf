@@ -53,9 +53,13 @@ public final class CoverIFNDetectorGui extends CoverBaseGui<CoverIFNDetectorBase
     }
 
     private TextFieldWidget makeDoubleField() {
-        return new TextFieldWidget().setNumbersDouble(value -> Math.max(0.0d, value))
+        return new TextFieldWidget().setNumbersDouble(CoverIFNDetectorGui::sanitizeRangeValue)
             .width(80)
             .height(12);
+    }
+
+    static double sanitizeRangeValue(double value) {
+        return value;
     }
 
     private Flow makeModeRow() {
