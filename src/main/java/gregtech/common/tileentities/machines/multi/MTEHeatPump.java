@@ -297,15 +297,9 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
                     currentEfficiencyPenalty = 1.0f;
                     effectiveCOP = 0.0f;
                 } else {
-                    float tCold = (float) Math.min(inputTemperature, hotTemperature);
-                    float tHot = (float) Math.max(inputTemperature, hotTemperature);
-                    currentCOP = FluidThermalProperties.calculateHeatPumpCOP(tCold, tHot);
-
-                    double absDelta = Math.abs(temperatureDelta);
-                    double penalty = FluidThermalProperties.calculateTemperaturePenalty((float) absDelta);
-                    currentTemperatureDelta = (float) absDelta;
-                    currentEfficiencyPenalty = (float) penalty;
-                    effectiveCOP = currentCOP / currentEfficiencyPenalty;
+                    IFNMachineThermo.HeatPumpMetrics metrics =
+                        IFNMachineThermo.computeHeatPumpMetrics(inputTemperature, hotTemperature);
+                    applyHeatPumpMetrics(metrics);
 
                     double hTarget = FluidThermalProperties.getSpecificEnthalpyFromPT(inputFluid, redNetwork.getPressure(), hotTemperature);
                     energyCost = IFNMachineThermo.computeHeatPumpEnergyCost(
@@ -313,7 +307,7 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
                         hTarget,
                         hotAmountQ,
                         currentCOP,
-                        (float) penalty
+                        currentEfficiencyPenalty
                     );
                     hotSpecificEnthalpy = hTarget;
                 }
@@ -333,11 +327,7 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
                     hotTemperature = inputTemperature + (targetHeating ? absDelta : -absDelta);
                     temperatureDelta = hotTemperature - inputTemperature;
                 }
-                currentCOP = targetCOP;
-                double penalty = FluidThermalProperties.calculateTemperaturePenalty((float) Math.abs(temperatureDelta));
-                currentTemperatureDelta = (float) Math.abs(temperatureDelta);
-                currentEfficiencyPenalty = (float) penalty;
-                effectiveCOP = currentCOP / currentEfficiencyPenalty;
+                applyTargetCopMetrics(targetCOP, temperatureDelta);
 
                 double hTarget = FluidThermalProperties.getSpecificEnthalpyFromPT(inputFluid, redNetwork.getPressure(), hotTemperature);
                 energyCost = IFNMachineThermo.computeHeatPumpEnergyCost(
@@ -345,7 +335,7 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
                     hTarget,
                     hotAmountQ,
                     currentCOP,
-                    (float) penalty
+                    currentEfficiencyPenalty
                 );
                 hotSpecificEnthalpy = hTarget;
                 break;
@@ -894,7 +884,6 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         double temperatureDelta = 0.0d;
         double outputSpecificEnthalpy = inputSpecificEnthalpy;
         long totalEnergyCost = 0L;
-        double penalty;
         boolean passthroughMode = false;
         boolean heatingDirection = true;
 
@@ -916,15 +905,9 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
                     currentEfficiencyPenalty = 1.0f;
                     effectiveCOP = 0.0f;
                 } else {
-                    float tCold = (float) Math.min(inputTemperature, outputTemperature);
-                    float tHot = (float) Math.max(inputTemperature, outputTemperature);
-                    currentCOP = FluidThermalProperties.calculateHeatPumpCOP(tCold, tHot);
-
-                    double absDelta = Math.abs(temperatureDelta);
-                    penalty = FluidThermalProperties.calculateTemperaturePenalty((float) absDelta);
-                    currentTemperatureDelta = (float) absDelta;
-                    currentEfficiencyPenalty = (float) penalty;
-                    effectiveCOP = currentCOP / currentEfficiencyPenalty;
+                    IFNMachineThermo.HeatPumpMetrics metrics =
+                        IFNMachineThermo.computeHeatPumpMetrics(inputTemperature, outputTemperature);
+                    applyHeatPumpMetrics(metrics);
 
                     double hTarget = IFNMachineThermo.computeTargetSpecificEnthalpyForStateAdd(
                         outputNetwork,
@@ -937,7 +920,7 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
                         hTarget,
                         amountToProcessQ,
                         currentCOP,
-                        (float) penalty
+                        currentEfficiencyPenalty
                     );
                     this.totalEnergyCost = (int) ((totalEnergyCost + 19) / 20);
                     outputSpecificEnthalpy = hTarget;
@@ -963,11 +946,7 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
                     outputTemperature = inputTemperature + (targetHeating ? absDelta : -absDelta);
                     temperatureDelta = outputTemperature - inputTemperature;
                 }
-                currentCOP = targetCOP;
-                penalty = FluidThermalProperties.calculateTemperaturePenalty((float) Math.abs(temperatureDelta));
-                currentTemperatureDelta = (float) Math.abs(temperatureDelta);
-                currentEfficiencyPenalty = (float) penalty;
-                effectiveCOP = currentCOP / currentEfficiencyPenalty;
+                applyTargetCopMetrics(targetCOP, temperatureDelta);
 
                 double hTarget = IFNMachineThermo.computeTargetSpecificEnthalpyForStateAdd(
                     outputNetwork,
@@ -980,7 +959,7 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
                     hTarget,
                     amountToProcessQ,
                     currentCOP,
-                    (float) penalty
+                    currentEfficiencyPenalty
                 );
                 this.totalEnergyCost = (int) ((totalEnergyCost + 19) / 20);
                 outputSpecificEnthalpy = hTarget;
@@ -1258,6 +1237,20 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
             return totalEnthalpyQ;
         }
         return (long) (totalEnthalpyQ * ((double) partAmountQ / (double) totalAmountQ));
+    }
+
+    private void applyHeatPumpMetrics(IFNMachineThermo.HeatPumpMetrics metrics) {
+        currentCOP = metrics.cop();
+        currentTemperatureDelta = (float) metrics.temperatureDelta();
+        currentEfficiencyPenalty = metrics.efficiencyPenalty();
+        effectiveCOP = metrics.effectiveCop();
+    }
+
+    private void applyTargetCopMetrics(float cop, double temperatureDelta) {
+        currentCOP = cop;
+        currentTemperatureDelta = (float) Math.abs(temperatureDelta);
+        currentEfficiencyPenalty = FluidThermalProperties.calculateTemperaturePenalty(currentTemperatureDelta);
+        effectiveCOP = currentCOP / currentEfficiencyPenalty;
     }
 
     public float getCOP() {

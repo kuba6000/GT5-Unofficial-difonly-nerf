@@ -67,6 +67,15 @@ public final class IFNMachineThermo {
         return (long) Math.ceil(originalEnergyCost * ratio);
     }
 
+    public static HeatPumpMetrics computeHeatPumpMetrics(double firstTemperature, double secondTemperature) {
+        double delta = Math.abs(firstTemperature - secondTemperature);
+        float cold = (float) Math.min(firstTemperature, secondTemperature);
+        float hot = (float) Math.max(firstTemperature, secondTemperature);
+        float cop = FluidThermalProperties.calculateHeatPumpCOP(cold, hot);
+        float penalty = FluidThermalProperties.calculateTemperaturePenalty((float) delta);
+        return new HeatPumpMetrics(cop, penalty, delta, cop / penalty);
+    }
+
     private static long toEnthalpyQ(double energyEu) {
         return (long) Math.round(energyEu * IntegratedFluidNetwork.ENTHALPY_SCALE);
     }
@@ -74,5 +83,36 @@ public final class IFNMachineThermo {
     private static long toEnthalpyQ(double specificEnthalpy, long amountQ) {
         double amount = (double) amountQ / (double) IntegratedFluidNetwork.AMOUNT_SCALE;
         return toEnthalpyQ(specificEnthalpy * amount);
+    }
+
+    public static final class HeatPumpMetrics {
+
+        private final float cop;
+        private final float efficiencyPenalty;
+        private final double temperatureDelta;
+        private final float effectiveCop;
+
+        private HeatPumpMetrics(float cop, float efficiencyPenalty, double temperatureDelta, float effectiveCop) {
+            this.cop = cop;
+            this.efficiencyPenalty = efficiencyPenalty;
+            this.temperatureDelta = temperatureDelta;
+            this.effectiveCop = effectiveCop;
+        }
+
+        public float cop() {
+            return cop;
+        }
+
+        public float efficiencyPenalty() {
+            return efficiencyPenalty;
+        }
+
+        public double temperatureDelta() {
+            return temperatureDelta;
+        }
+
+        public float effectiveCop() {
+            return effectiveCop;
+        }
     }
 }
