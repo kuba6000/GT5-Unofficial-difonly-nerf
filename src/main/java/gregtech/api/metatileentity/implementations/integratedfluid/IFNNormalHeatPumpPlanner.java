@@ -139,11 +139,6 @@ public final class IFNNormalHeatPumpPlanner {
         return IFNMachineThermo.heatPumpMetrics(0.0f, 1.0f, 0.0d, 0.0f);
     }
 
-    public enum Mode {
-        TARGET_TEMPERATURE,
-        TARGET_COP,
-        TARGET_ENERGY
-    }
 
     public enum Status {
         READY,
@@ -153,7 +148,7 @@ public final class IFNNormalHeatPumpPlanner {
 
     public static final class Request {
 
-        private final Mode mode;
+        private final IFNHeatPumpMode mode;
         private final IntegratedFluidNetwork outputNetwork;
         private final Fluid fluid;
         private final IFNMachineBatchPlanner.BatchPlan inputBatch;
@@ -165,7 +160,7 @@ public final class IFNNormalHeatPumpPlanner {
         private final float upperTemperatureTolerance;
         private final float coldReservoirTemperature;
 
-        private Request(Mode mode, IntegratedFluidNetwork outputNetwork, Fluid fluid,
+        private Request(IFNHeatPumpMode mode, IntegratedFluidNetwork outputNetwork, Fluid fluid,
             IFNMachineBatchPlanner.BatchPlan inputBatch, boolean targetHeating, float targetTemperature, float targetCOP,
             int targetEnergyPerTick, float lowerTemperatureTolerance, float upperTemperatureTolerance,
             float coldReservoirTemperature) {
@@ -182,7 +177,7 @@ public final class IFNNormalHeatPumpPlanner {
             this.coldReservoirTemperature = coldReservoirTemperature;
         }
 
-        public static Request of(Mode mode, IntegratedFluidNetwork outputNetwork, Fluid fluid,
+        public static Request of(IFNHeatPumpMode mode, IntegratedFluidNetwork outputNetwork, Fluid fluid,
             IFNMachineBatchPlanner.BatchPlan inputBatch, boolean targetHeating, float targetTemperature, float targetCOP,
             int targetEnergyPerTick, float lowerTemperatureTolerance, float upperTemperatureTolerance,
             float coldReservoirTemperature) {
@@ -210,8 +205,8 @@ public final class IFNNormalHeatPumpPlanner {
                 && lowerTemperatureTolerance >= 0.0f
                 && upperTemperatureTolerance >= 0.0f
                 && coldReservoirTemperature > 0.0f
-                && (mode != Mode.TARGET_COP || targetCOP >= 1.1f)
-                && (mode != Mode.TARGET_ENERGY || targetEnergyPerTick > 0);
+                && (mode != IFNHeatPumpMode.TARGET_COP || targetCOP >= 1.1f)
+                && (mode != IFNHeatPumpMode.TARGET_ENERGY || targetEnergyPerTick > 0);
         }
     }
 

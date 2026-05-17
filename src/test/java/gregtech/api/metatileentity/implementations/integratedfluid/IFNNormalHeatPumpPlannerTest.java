@@ -17,7 +17,7 @@ class IFNNormalHeatPumpPlannerTest {
         IFNMachineBatchPlanner.BatchPlan inputBatch = batch(fluid, 1.0f, 300.0d, 5);
 
         IFNNormalHeatPumpPlanner.Plan plan = IFNNormalHeatPumpPlanner.plan(IFNNormalHeatPumpPlanner.Request.of(
-            IFNNormalHeatPumpPlanner.Mode.TARGET_TEMPERATURE,
+            IFNHeatPumpMode.TARGET_TEMPERATURE,
             outputNetwork,
             fluid,
             inputBatch,
@@ -46,7 +46,7 @@ class IFNNormalHeatPumpPlannerTest {
         IFNMachineBatchPlanner.BatchPlan inputBatch = batch(fluid, 1.0f, 300.0d, 5);
 
         IFNNormalHeatPumpPlanner.Plan plan = IFNNormalHeatPumpPlanner.plan(IFNNormalHeatPumpPlanner.Request.of(
-            IFNNormalHeatPumpPlanner.Mode.TARGET_TEMPERATURE,
+            IFNHeatPumpMode.TARGET_TEMPERATURE,
             outputNetwork,
             fluid,
             inputBatch,
@@ -74,7 +74,7 @@ class IFNNormalHeatPumpPlannerTest {
         IFNMachineBatchPlanner.BatchPlan inputBatch = batch(fluid, 1.0f, 300.0d, 5);
 
         IFNNormalHeatPumpPlanner.Plan plan = IFNNormalHeatPumpPlanner.plan(IFNNormalHeatPumpPlanner.Request.of(
-            IFNNormalHeatPumpPlanner.Mode.TARGET_COP,
+            IFNHeatPumpMode.TARGET_COP,
             outputNetwork,
             fluid,
             inputBatch,
@@ -99,7 +99,7 @@ class IFNNormalHeatPumpPlannerTest {
         IFNMachineBatchPlanner.BatchPlan inputBatch = batch(fluid, 1.0f, 360.0d, 5);
 
         IFNNormalHeatPumpPlanner.Plan plan = IFNNormalHeatPumpPlanner.plan(IFNNormalHeatPumpPlanner.Request.of(
-            IFNNormalHeatPumpPlanner.Mode.TARGET_ENERGY,
+            IFNHeatPumpMode.TARGET_ENERGY,
             outputNetwork,
             fluid,
             inputBatch,

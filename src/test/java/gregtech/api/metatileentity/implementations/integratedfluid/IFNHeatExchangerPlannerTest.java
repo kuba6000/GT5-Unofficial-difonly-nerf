@@ -19,7 +19,7 @@ class IFNHeatExchangerPlannerTest {
         IFNMachineBatchPlanner.BatchPlan blueInput = batch(fluid, 1.0f, 340.0d, 5);
 
         IFNHeatExchangerPlanner.Plan plan = IFNHeatExchangerPlanner.plan(IFNHeatExchangerPlanner.Request.of(
-            IFNHeatExchangerPlanner.Mode.TARGET_TEMPERATURE,
+            IFNHeatPumpMode.TARGET_TEMPERATURE,
             redOut,
             blueOut,
             fluid,
@@ -53,7 +53,7 @@ class IFNHeatExchangerPlannerTest {
         IFNMachineBatchPlanner.BatchPlan blueInput = batch(fluid, 1.0f, 330.0d, 5);
 
         IFNHeatExchangerPlanner.Plan plan = IFNHeatExchangerPlanner.plan(IFNHeatExchangerPlanner.Request.of(
-            IFNHeatExchangerPlanner.Mode.TARGET_COP,
+            IFNHeatPumpMode.TARGET_COP,
             redOut,
             blueOut,
             fluid,
@@ -83,7 +83,7 @@ class IFNHeatExchangerPlannerTest {
         IFNMachineBatchPlanner.BatchPlan blueInput = batch(fluid, 1.0f, 360.0d, 5);
 
         IFNHeatExchangerPlanner.Plan plan = IFNHeatExchangerPlanner.plan(IFNHeatExchangerPlanner.Request.of(
-            IFNHeatExchangerPlanner.Mode.TARGET_TEMPERATURE,
+            IFNHeatPumpMode.TARGET_TEMPERATURE,
             redOut,
             blueOut,
             fluid,
@@ -114,7 +114,7 @@ class IFNHeatExchangerPlannerTest {
         IFNMachineBatchPlanner.BatchPlan blueInput = batch(fluid, 1.0f, 360.0d, 5);
 
         IFNHeatExchangerPlanner.Plan plan = IFNHeatExchangerPlanner.plan(IFNHeatExchangerPlanner.Request.of(
-            IFNHeatExchangerPlanner.Mode.TARGET_TEMPERATURE,
+            IFNHeatPumpMode.TARGET_TEMPERATURE,
             redOut,
             blueOut,
             fluid,

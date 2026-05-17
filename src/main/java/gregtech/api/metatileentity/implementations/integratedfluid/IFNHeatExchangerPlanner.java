@@ -206,11 +206,6 @@ public final class IFNHeatExchangerPlanner {
         return IFNMachineThermo.heatPumpMetrics(0.0f, 1.0f, 0.0d, 0.0f);
     }
 
-    public enum Mode {
-        TARGET_TEMPERATURE,
-        TARGET_COP,
-        TARGET_ENERGY
-    }
 
     public enum Status {
         READY,
@@ -238,7 +233,7 @@ public final class IFNHeatExchangerPlanner {
 
     public static final class Request {
 
-        private final Mode mode;
+        private final IFNHeatPumpMode mode;
         private final IntegratedFluidNetwork redOutputNetwork;
         private final IntegratedFluidNetwork blueOutputNetwork;
         private final Fluid redFluid;
@@ -252,7 +247,7 @@ public final class IFNHeatExchangerPlanner {
         private final float lowerTemperatureTolerance;
         private final float upperTemperatureTolerance;
 
-        private Request(Mode mode, IntegratedFluidNetwork redOutputNetwork, IntegratedFluidNetwork blueOutputNetwork,
+        private Request(IFNHeatPumpMode mode, IntegratedFluidNetwork redOutputNetwork, IntegratedFluidNetwork blueOutputNetwork,
             Fluid redFluid, Fluid blueFluid, IFNMachineBatchPlanner.BatchPlan redInputBatch,
             IFNMachineBatchPlanner.BatchPlan blueInputBatch, boolean configureRed, float targetTemperature,
             float targetCOP, int targetEnergyPerTick, float lowerTemperatureTolerance, float upperTemperatureTolerance) {
@@ -271,7 +266,7 @@ public final class IFNHeatExchangerPlanner {
             this.upperTemperatureTolerance = upperTemperatureTolerance;
         }
 
-        public static Request of(Mode mode, IntegratedFluidNetwork redOutputNetwork,
+        public static Request of(IFNHeatPumpMode mode, IntegratedFluidNetwork redOutputNetwork,
             IntegratedFluidNetwork blueOutputNetwork, Fluid redFluid, Fluid blueFluid,
             IFNMachineBatchPlanner.BatchPlan redInputBatch, IFNMachineBatchPlanner.BatchPlan blueInputBatch,
             boolean configureRed, float targetTemperature, float targetCOP, int targetEnergyPerTick,
@@ -305,8 +300,8 @@ public final class IFNHeatExchangerPlanner {
                 && blueInputBatch.isValid()
                 && lowerTemperatureTolerance >= 0.0f
                 && upperTemperatureTolerance >= 0.0f
-                && (mode != Mode.TARGET_COP || targetCOP >= 1.1f)
-                && (mode != Mode.TARGET_ENERGY || targetEnergyPerTick > 0);
+                && (mode != IFNHeatPumpMode.TARGET_COP || targetCOP >= 1.1f)
+                && (mode != IFNHeatPumpMode.TARGET_ENERGY || targetEnergyPerTick > 0);
         }
     }
 

@@ -29,6 +29,7 @@ import gregtech.api.metatileentity.implementations.MTEEnhancedMultiBlockBase;
 import gregtech.api.metatileentity.implementations.integratedfluid.FluidThermalProperties;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNDualOutputProcess;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNHeatExchangerPlanner;
+import gregtech.api.metatileentity.implementations.integratedfluid.IFNHeatPumpMode;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNMachineBatchPlanner;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNMachineResultMapper;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNMachineThermo;
@@ -262,7 +263,7 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         if (!inputBatch.isValid()) return CheckRecipeResultRegistry.NO_RECIPE;
 
         IFNSplitHeatPumpPlanner.Plan plan = IFNSplitHeatPumpPlanner.plan(IFNSplitHeatPumpPlanner.Request.of(
-            toSplitMode(operatingMode),
+            toPlannerMode(operatingMode),
             redNetwork,
             inputFluid,
             inputBatch,
@@ -380,7 +381,7 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         if (!redInputBatch.isValid() || !blueInputBatch.isValid()) return CheckRecipeResultRegistry.NO_RECIPE;
 
         IFNHeatExchangerPlanner.Plan plan = IFNHeatExchangerPlanner.plan(IFNHeatExchangerPlanner.Request.of(
-            toHeatExchangerMode(operatingMode),
+            toPlannerMode(operatingMode),
             redOutNet,
             blueOutNet,
             redFluid,
@@ -502,7 +503,7 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
             return CheckRecipeResultRegistry.NO_RECIPE;
         }
         IFNNormalHeatPumpPlanner.Plan plan = IFNNormalHeatPumpPlanner.plan(IFNNormalHeatPumpPlanner.Request.of(
-            toNormalMode(operatingMode),
+            toPlannerMode(operatingMode),
             outputNetwork,
             inputFluid,
             inputBatch,
@@ -707,49 +708,17 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         return (float) temperature;
     }
 
-    private static IFNHeatExchangerPlanner.Mode toHeatExchangerMode(HeatPumpMode mode) {
+    private static IFNHeatPumpMode toPlannerMode(HeatPumpMode mode) {
         if (mode == null) {
             return null;
         }
         switch (mode) {
             case TARGET_TEMPERATURE:
-                return IFNHeatExchangerPlanner.Mode.TARGET_TEMPERATURE;
+                return IFNHeatPumpMode.TARGET_TEMPERATURE;
             case TARGET_COP:
-                return IFNHeatExchangerPlanner.Mode.TARGET_COP;
+                return IFNHeatPumpMode.TARGET_COP;
             case TARGET_ENERGY:
-                return IFNHeatExchangerPlanner.Mode.TARGET_ENERGY;
-            default:
-                return null;
-        }
-    }
-
-    private static IFNNormalHeatPumpPlanner.Mode toNormalMode(HeatPumpMode mode) {
-        if (mode == null) {
-            return null;
-        }
-        switch (mode) {
-            case TARGET_TEMPERATURE:
-                return IFNNormalHeatPumpPlanner.Mode.TARGET_TEMPERATURE;
-            case TARGET_COP:
-                return IFNNormalHeatPumpPlanner.Mode.TARGET_COP;
-            case TARGET_ENERGY:
-                return IFNNormalHeatPumpPlanner.Mode.TARGET_ENERGY;
-            default:
-                return null;
-        }
-    }
-
-    private static IFNSplitHeatPumpPlanner.Mode toSplitMode(HeatPumpMode mode) {
-        if (mode == null) {
-            return null;
-        }
-        switch (mode) {
-            case TARGET_TEMPERATURE:
-                return IFNSplitHeatPumpPlanner.Mode.TARGET_TEMPERATURE;
-            case TARGET_COP:
-                return IFNSplitHeatPumpPlanner.Mode.TARGET_COP;
-            case TARGET_ENERGY:
-                return IFNSplitHeatPumpPlanner.Mode.TARGET_ENERGY;
+                return IFNHeatPumpMode.TARGET_ENERGY;
             default:
                 return null;
         }
