@@ -884,8 +884,9 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
             return false; // In HX or Split Flow mode, multiple hatches are expected
         }
 
-        int totalHatches = mIntegratedInputHatches.size() + mIntegratedOutputHatches.size();
-        return totalHatches > 2;
+        return IFNHeatPumpHatchLayout.hasTooManyNormalModeHatches(
+            mIntegratedInputHatches.size(),
+            mIntegratedOutputHatches.size());
     }
 
     /**

@@ -49,4 +49,17 @@ class IFNHeatPumpHatchLayoutTest {
             new int[] { 0, IFNHeatPumpHatchLayout.RED },
             new int[] { IFNHeatPumpHatchLayout.BLUE, IFNHeatPumpHatchLayout.RED }));
     }
+
+    @Test
+    void normalModeAllowsAtMostOneInputAndOneOutput() {
+        assertFalse(IFNHeatPumpHatchLayout.hasTooManyNormalModeHatches(0, 0));
+        assertFalse(IFNHeatPumpHatchLayout.hasTooManyNormalModeHatches(1, 0));
+        assertFalse(IFNHeatPumpHatchLayout.hasTooManyNormalModeHatches(0, 1));
+        assertFalse(IFNHeatPumpHatchLayout.hasTooManyNormalModeHatches(1, 1));
+
+        assertTrue(IFNHeatPumpHatchLayout.hasTooManyNormalModeHatches(2, 0));
+        assertTrue(IFNHeatPumpHatchLayout.hasTooManyNormalModeHatches(0, 2));
+        assertTrue(IFNHeatPumpHatchLayout.hasTooManyNormalModeHatches(1, 2));
+        assertTrue(IFNHeatPumpHatchLayout.hasTooManyNormalModeHatches(2, 1));
+    }
 }

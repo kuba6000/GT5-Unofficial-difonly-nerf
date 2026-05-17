@@ -21,6 +21,10 @@ public final class IFNHeatPumpHatchLayout {
             && hasAtLeastOne(outputColors, BLUE);
     }
 
+    public static boolean hasTooManyNormalModeHatches(int inputCount, int outputCount) {
+        return inputCount > 1 || outputCount > 1;
+    }
+
     private static boolean hasExactlyOne(int[] colors, int targetColor) {
         return count(colors, targetColor) == 1;
     }
