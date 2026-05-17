@@ -221,14 +221,9 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
     }
 
     private @NotNull CheckRecipeResult processSplitFlow() {
-        if (!hasValidSplitFlowHatches()) {
-            return CheckRecipeResultRegistry.NO_RECIPE;
-        }
-
-        // Validate configuration
-        CheckRecipeResult configResult = validateConfiguration();
-        if (configResult != CheckRecipeResultRegistry.SUCCESSFUL) {
-            return configResult;
+        CheckRecipeResult startResult = validateProcessStart(hasValidSplitFlowHatches());
+        if (startResult != CheckRecipeResultRegistry.SUCCESSFUL) {
+            return startResult;
         }
 
         SplitFlowContext context = selectSplitFlowContext();
@@ -298,13 +293,9 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
     }
 
     private @NotNull CheckRecipeResult processHeatExchanger() {
-        if (!hasValidHeatExchangerHatches()) {
-            return CheckRecipeResultRegistry.NO_RECIPE;
-        }
-
-        CheckRecipeResult configResult = validateConfiguration();
-        if (configResult != CheckRecipeResultRegistry.SUCCESSFUL) {
-            return configResult;
+        CheckRecipeResult startResult = validateProcessStart(hasValidHeatExchangerHatches());
+        if (startResult != CheckRecipeResultRegistry.SUCCESSFUL) {
+            return startResult;
         }
 
         HeatExchangerContext context = selectHeatExchangerContext();
@@ -395,13 +386,9 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
     }
 
     private @NotNull CheckRecipeResult processNormalMode() {
-        if (hasTooManyHatchesForNormalMode()) {
-            return CheckRecipeResultRegistry.NO_RECIPE;
-        }
-
-        CheckRecipeResult configResult = validateConfiguration();
-        if (configResult != CheckRecipeResultRegistry.SUCCESSFUL) {
-            return configResult;
+        CheckRecipeResult startResult = validateProcessStart(!hasTooManyHatchesForNormalMode());
+        if (startResult != CheckRecipeResultRegistry.SUCCESSFUL) {
+            return startResult;
         }
 
         NormalModeContext context = selectNormalModeContext();
@@ -497,6 +484,13 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
             return SimpleCheckRecipeResult.ofFailure("awaiting_configuration");
         }
         return CheckRecipeResultRegistry.SUCCESSFUL;
+    }
+
+    private CheckRecipeResult validateProcessStart(boolean hasValidHatchLayout) {
+        if (!hasValidHatchLayout) {
+            return CheckRecipeResultRegistry.NO_RECIPE;
+        }
+        return validateConfiguration();
     }
 
     private MTEIntegratedFluidInputHatch getInputHatchByColor(int color) {
