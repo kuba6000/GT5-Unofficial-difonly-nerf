@@ -113,6 +113,50 @@ class IFNMachineThermoTest {
     }
 
     @Test
+    void heatExchangerTargetEnergyOutputStateMovesConfiguredStreamInRequestedDirection() {
+        Fluid fluid = IFNTestSupport.liquidFluid();
+        long amountQ = 5L * IntegratedFluidNetwork.AMOUNT_SCALE;
+        double redInputH = FluidThermalProperties.getSpecificEnthalpyFromPT(fluid, 1.0f, 360.0d);
+        double blueInputH = FluidThermalProperties.getSpecificEnthalpyFromPT(fluid, 1.0f, 300.0d);
+
+        IFNMachineThermo.TargetEnergyState redHeating = IFNMachineThermo.computeHeatExchangerTargetEnergyOutputState(
+            fluid,
+            1.0f,
+            360.0d,
+            300.0d,
+            true,
+            360.0d,
+            redInputH,
+            amountQ,
+            2_000L,
+            true
+        );
+        IFNMachineThermo.TargetEnergyState blueCooling = IFNMachineThermo.computeHeatExchangerTargetEnergyOutputState(
+            fluid,
+            1.0f,
+            360.0d,
+            300.0d,
+            false,
+            300.0d,
+            blueInputH,
+            amountQ,
+            2_000L,
+            false
+        );
+
+        assertTrue(redHeating.specificEnthalpy() > redInputH);
+        assertTrue(redHeating.temperature() > 360.0d);
+        assertTrue(blueCooling.specificEnthalpy() < blueInputH);
+        assertTrue(blueCooling.temperature() < 300.0d);
+        assertEquals(
+            IFNMachineThermo.computeHeatExchangerMetrics(360.0d, 300.0d, true, 360.0d, redHeating.temperature())
+                .effectiveCop(),
+            redHeating.metrics().effectiveCop(),
+            0.001d
+        );
+    }
+
+    @Test
     void targetEnergyOutputStateMovesSpecificEnthalpyInRequestedDirection() {
         Fluid fluid = IFNTestSupport.liquidFluid();
         double inputSpecificEnthalpy = FluidThermalProperties.getSpecificEnthalpyFromPT(fluid, 1.0f, 300.0d);

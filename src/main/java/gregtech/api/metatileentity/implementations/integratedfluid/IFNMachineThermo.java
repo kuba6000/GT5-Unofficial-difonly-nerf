@@ -113,6 +113,57 @@ public final class IFNMachineThermo {
         return new HeatPumpMetrics(cop, penalty, delta, cop / penalty);
     }
 
+    public static TargetEnergyState computeHeatExchangerTargetEnergyOutputState(Fluid fluid, float outputPressure,
+        double redInputTemperature, double blueInputTemperature, boolean configureRed, double targetInputTemperature,
+        double targetInputSpecificEnthalpy, long amountQ, long targetTotalEnergy, boolean heating) {
+        HeatPumpMetrics metrics = computeHeatExchangerMetrics(
+            redInputTemperature,
+            blueInputTemperature,
+            configureRed,
+            targetInputTemperature,
+            targetInputTemperature
+        );
+        if (fluid == null || amountQ <= 0L || targetTotalEnergy <= 0L) {
+            return new TargetEnergyState(targetInputSpecificEnthalpy, targetInputTemperature, metrics);
+        }
+
+        double amount = amountQ / (double) IntegratedFluidNetwork.AMOUNT_SCALE;
+        double tempEstimate = targetInputTemperature;
+        double outputSpecificEnthalpy = targetInputSpecificEnthalpy;
+
+        for (int i = 0; i < 10; i++) {
+            double lastTempEstimate = tempEstimate;
+            metrics = computeHeatExchangerMetrics(
+                redInputTemperature,
+                blueInputTemperature,
+                configureRed,
+                targetInputTemperature,
+                tempEstimate
+            );
+            double transferredHeat = metrics.effectiveCop() * targetTotalEnergy;
+            outputSpecificEnthalpy = targetInputSpecificEnthalpy + (heating ? transferredHeat : -transferredHeat)
+                / amount;
+            tempEstimate = FluidThermalProperties.getTemperatureFromPH(fluid, outputPressure, outputSpecificEnthalpy);
+
+            if (Double.isNaN(tempEstimate) || Double.isInfinite(tempEstimate)) {
+                tempEstimate = lastTempEstimate;
+                break;
+            }
+            if (Math.abs(tempEstimate - lastTempEstimate) < 1e-3) {
+                break;
+            }
+        }
+
+        metrics = computeHeatExchangerMetrics(
+            redInputTemperature,
+            blueInputTemperature,
+            configureRed,
+            targetInputTemperature,
+            tempEstimate
+        );
+        return new TargetEnergyState(outputSpecificEnthalpy, tempEstimate, metrics);
+    }
+
     public static TargetEnergyState computeTargetEnergyOutputState(Fluid fluid, float outputPressure,
         double inputTemperature, double inputSpecificEnthalpy, long amountQ, long targetTotalEnergy, boolean heating) {
         if (fluid == null || amountQ <= 0L || targetTotalEnergy <= 0L) {

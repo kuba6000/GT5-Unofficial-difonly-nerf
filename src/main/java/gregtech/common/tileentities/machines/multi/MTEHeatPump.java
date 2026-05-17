@@ -648,39 +648,23 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
                 long targetTotalEnergy = (long) targetEnergyPerTick * 20L;
                 energyCost = targetTotalEnergy;
 
-                double tempEstimate = targetInTemp;
-                double lastTempEstimate;
-                for (int i = 0; i < 10; i++) {
-                    lastTempEstimate = tempEstimate;
-
-                    IFNMachineThermo.HeatPumpMetrics metrics = IFNMachineThermo.computeHeatExchangerMetrics(
+                IFNMachineThermo.TargetEnergyState targetEnergyState = IFNMachineThermo
+                    .computeHeatExchangerTargetEnergyOutputState(
+                        targetFluid,
+                        targetOutNet.getPressure(),
                         redInTemp,
                         blueInTemp,
                         configureRed,
                         targetInTemp,
-                        tempEstimate
+                        targetInH,
+                        targetProcessQ,
+                        targetTotalEnergy,
+                        actualTargetHeating
                     );
-                    double qTransferred = metrics.effectiveCop() * targetTotalEnergy;
-
-                    targetOutH = targetInH + (actualTargetHeating ? qTransferred : -qTransferred) / targetProcessAmt;
-                    tempEstimate = FluidThermalProperties.getTemperatureFromPH(targetFluid, targetOutNet.getPressure(), targetOutH);
-
-                    if (Double.isNaN(tempEstimate) || Double.isInfinite(tempEstimate)) {
-                        tempEstimate = lastTempEstimate;
-                        break;
-                    }
-                    if (Math.abs(tempEstimate - lastTempEstimate) < 1e-3) break;
-                }
-
-                targetOutTemp = tempEstimate;
+                targetOutH = targetEnergyState.specificEnthalpy();
+                targetOutTemp = targetEnergyState.temperature();
                 temperatureDelta = targetOutTemp - targetInTemp;
-                applyHeatPumpMetrics(IFNMachineThermo.computeHeatExchangerMetrics(
-                    redInTemp,
-                    blueInTemp,
-                    configureRed,
-                    targetInTemp,
-                    targetOutTemp
-                ));
+                applyHeatPumpMetrics(targetEnergyState.metrics());
                 break;
         }
 
