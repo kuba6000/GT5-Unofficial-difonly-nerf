@@ -11,6 +11,7 @@ import gregtech.api.interfaces.ITexture;
 import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
 import gregtech.api.metatileentity.MetaTileEntity;
 import gregtech.api.metatileentity.implementations.MTEHatch;
+import gregtech.api.metatileentity.implementations.integratedfluid.state.IFNNetworkStatus;
 import gregtech.api.render.TextureFactory;
 
 /**
@@ -147,7 +148,7 @@ public class MTEIntegratedFluidExtractor extends MTEHatch implements IIntegrated
 
     @Override
     public FluidStack drain(int maxDrain, boolean doDrain) {
-        if (network == null) {
+        if (!canExtractFromNetwork(network)) {
             return null;
         }
 
@@ -171,6 +172,10 @@ public class MTEIntegratedFluidExtractor extends MTEHatch implements IIntegrated
 
         // Drain from network
         return network.drainFluid(actualAmount, simulate);
+    }
+
+    static boolean canExtractFromNetwork(IntegratedFluidNetwork network) {
+        return network != null && network.getNetworkStatus() == IFNNetworkStatus.NORMAL;
     }
 
     @Override
