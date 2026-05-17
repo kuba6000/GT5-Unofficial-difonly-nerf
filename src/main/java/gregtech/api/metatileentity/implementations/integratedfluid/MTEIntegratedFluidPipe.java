@@ -27,6 +27,7 @@ import gregtech.api.interfaces.metatileentity.IMetaTileEntity;
 import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
 import gregtech.api.metatileentity.MetaPipeEntity;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNAmbientTemperature;
+import gregtech.api.metatileentity.implementations.integratedfluid.topology.IFNPipeConnectionPolicy;
 import gregtech.api.render.TextureFactory;
 import gregtech.api.util.GTUtility;
 import gregtech.common.covers.Cover;
@@ -223,9 +224,9 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
         if (tileEntity instanceof IGregTechTileEntity gtTile) {
             IMetaTileEntity mte = gtTile.getMetaTileEntity();
             if (mte instanceof IIntegratedFluidMember) {
-                // If it's a pipe, always allow connection
                 if (mte instanceof MetaPipeEntity) {
-                    return true;
+                    IIntegratedFluidMember pipeMember = (IIntegratedFluidMember) mte;
+                    return IFNPipeConnectionPolicy.canConnectPipeNetworks(getNetwork(), pipeMember.getNetwork());
                 }
                 // If it's a hatch, only allow connection through its front facing (dot side)
                 else {
