@@ -25,6 +25,7 @@ public abstract class CoverIFNDetectorBase extends Cover {
     private double minValue;
     private double maxValue;
     private IFNDetectorCoverLogic.Mode mode = IFNDetectorCoverLogic.Mode.BINARY;
+    private IFNDetectorCoverLogic.SourceMode sourceMode = IFNDetectorCoverLogic.SourceMode.ABSOLUTE;
 
     protected CoverIFNDetectorBase(CoverContext context, ITexture coverTexture, double minValue, double maxValue) {
         super(context, coverTexture);
@@ -73,6 +74,24 @@ public abstract class CoverIFNDetectorBase extends Cover {
         return setMode(linearMode ? IFNDetectorCoverLogic.Mode.LINEAR : IFNDetectorCoverLogic.Mode.BINARY);
     }
 
+    public IFNDetectorCoverLogic.SourceMode getSourceMode() {
+        return sourceMode;
+    }
+
+    public CoverIFNDetectorBase setSourceMode(IFNDetectorCoverLogic.SourceMode sourceMode) {
+        this.sourceMode = sourceMode == null ? IFNDetectorCoverLogic.SourceMode.ABSOLUTE : sourceMode;
+        return this;
+    }
+
+    public boolean isDeltaSourceMode() {
+        return sourceMode == IFNDetectorCoverLogic.SourceMode.DELTA;
+    }
+
+    public CoverIFNDetectorBase setDeltaSourceMode(boolean deltaSourceMode) {
+        return setSourceMode(
+            deltaSourceMode ? IFNDetectorCoverLogic.SourceMode.DELTA : IFNDetectorCoverLogic.SourceMode.ABSOLUTE);
+    }
+
     @Override
     public void doCoverThings(byte aInputRedstone, long aTimer) {
         ICoverable coverable = coveredTile.get();
@@ -86,7 +105,13 @@ public abstract class CoverIFNDetectorBase extends Cover {
         if (network == null) {
             return 0;
         }
-        return (byte) IFNDetectorCoverLogic.evaluate(readValue(network), minValue, maxValue, mode);
+        return (byte) IFNDetectorCoverLogic.evaluate(
+            readValue(network),
+            readReferenceValue(coverable, network),
+            minValue,
+            maxValue,
+            mode,
+            sourceMode);
     }
 
     private static IntegratedFluidNetwork resolveNetwork(ICoverable coverable) {
@@ -102,6 +127,10 @@ public abstract class CoverIFNDetectorBase extends Cover {
 
     protected abstract double readValue(IntegratedFluidNetwork network);
 
+    protected double readReferenceValue(ICoverable coverable, IntegratedFluidNetwork network) {
+        return 0.0d;
+    }
+
     @Override
     protected void readDataFromNbt(NBTBase nbt) {
         NBTTagCompound tag = (NBTTagCompound) nbt;
@@ -110,6 +139,11 @@ public abstract class CoverIFNDetectorBase extends Cover {
         int modeOrdinal = tag.getInteger("mode");
         IFNDetectorCoverLogic.Mode[] modes = IFNDetectorCoverLogic.Mode.values();
         mode = modeOrdinal >= 0 && modeOrdinal < modes.length ? modes[modeOrdinal] : IFNDetectorCoverLogic.Mode.BINARY;
+        int sourceModeOrdinal = tag.getInteger("sourceMode");
+        IFNDetectorCoverLogic.SourceMode[] sourceModes = IFNDetectorCoverLogic.SourceMode.values();
+        sourceMode = sourceModeOrdinal >= 0 && sourceModeOrdinal < sourceModes.length
+            ? sourceModes[sourceModeOrdinal]
+            : IFNDetectorCoverLogic.SourceMode.ABSOLUTE;
     }
 
     @Override
@@ -119,6 +153,11 @@ public abstract class CoverIFNDetectorBase extends Cover {
         int modeOrdinal = byteData.readInt();
         IFNDetectorCoverLogic.Mode[] modes = IFNDetectorCoverLogic.Mode.values();
         mode = modeOrdinal >= 0 && modeOrdinal < modes.length ? modes[modeOrdinal] : IFNDetectorCoverLogic.Mode.BINARY;
+        int sourceModeOrdinal = byteData.readInt();
+        IFNDetectorCoverLogic.SourceMode[] sourceModes = IFNDetectorCoverLogic.SourceMode.values();
+        sourceMode = sourceModeOrdinal >= 0 && sourceModeOrdinal < sourceModes.length
+            ? sourceModes[sourceModeOrdinal]
+            : IFNDetectorCoverLogic.SourceMode.ABSOLUTE;
     }
 
     @Override
@@ -127,6 +166,7 @@ public abstract class CoverIFNDetectorBase extends Cover {
         tag.setDouble("minValue", minValue);
         tag.setDouble("maxValue", maxValue);
         tag.setInteger("mode", mode.ordinal());
+        tag.setInteger("sourceMode", sourceMode.ordinal());
         return tag;
     }
 
@@ -135,6 +175,7 @@ public abstract class CoverIFNDetectorBase extends Cover {
         byteBuf.writeDouble(minValue);
         byteBuf.writeDouble(maxValue);
         byteBuf.writeInt(mode.ordinal());
+        byteBuf.writeInt(sourceMode.ordinal());
     }
 
     @Override

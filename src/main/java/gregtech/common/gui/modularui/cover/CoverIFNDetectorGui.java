@@ -27,7 +27,8 @@ public final class CoverIFNDetectorGui extends CoverBaseGui<CoverIFNDetectorBase
             makeRowLayout()
                 .child(positionRow(makeMinValueRow()))
                 .child(positionRow(makeMaxValueRow()))
-                .child(positionRow(makeModeRow())));
+                .child(positionRow(makeModeRow()))
+                .child(positionRow(makeSourceModeRow())));
     }
 
     private Flow makeMinValueRow() {
@@ -72,6 +73,24 @@ public final class CoverIFNDetectorGui extends CoverBaseGui<CoverIFNDetectorBase
                         linearMode.getValue()
                             ? "gt.interact.desc.ifn_detector.mode.linear"
                             : "gt.interact.desc.ifn_detector.mode.binary"))
+                    .asWidget());
+    }
+
+    private Flow makeSourceModeRow() {
+        BooleanSyncValue deltaSourceMode = new BooleanSyncValue(cover::isDeltaSourceMode, cover::setDeltaSourceMode);
+        return Flow.row()
+            .name("ifn_detector_source_mode")
+            .child(
+                new ToggleButton().value(deltaSourceMode)
+                    .overlay(true, GTGuiTextures.OVERLAY_BUTTON_CHECKMARK)
+                    .overlay(false, GTGuiTextures.OVERLAY_BUTTON_CROSS)
+                    .size(16, 16))
+            .child(
+                IKey.dynamic(
+                    () -> translateToLocal(
+                        deltaSourceMode.getValue()
+                            ? "gt.interact.desc.ifn_detector.source.delta"
+                            : "gt.interact.desc.ifn_detector.source.absolute"))
                     .asWidget());
     }
 }
