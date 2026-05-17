@@ -16,6 +16,8 @@ import gregtech.api.metatileentity.BaseMetaTileEntity;
 import gregtech.api.metatileentity.implementations.integratedfluid.IIntegratedFluidMember;
 import gregtech.api.metatileentity.implementations.integratedfluid.IntegratedFluidNetwork;
 import gregtech.api.metatileentity.implementations.integratedfluid.covers.IFNDetectorCoverLogic;
+import gregtech.common.gui.modularui.cover.CoverIFNDetectorGui;
+import gregtech.common.gui.modularui.cover.base.CoverBaseGui;
 import io.netty.buffer.ByteBuf;
 
 public abstract class CoverIFNDetectorBase extends Cover {
@@ -36,9 +38,39 @@ public abstract class CoverIFNDetectorBase extends Cover {
         return this;
     }
 
+    public double getMinValue() {
+        return minValue;
+    }
+
+    public CoverIFNDetectorBase setMinValue(double minValue) {
+        this.minValue = minValue;
+        return this;
+    }
+
+    public double getMaxValue() {
+        return maxValue;
+    }
+
+    public CoverIFNDetectorBase setMaxValue(double maxValue) {
+        this.maxValue = maxValue;
+        return this;
+    }
+
+    public IFNDetectorCoverLogic.Mode getMode() {
+        return mode;
+    }
+
     public CoverIFNDetectorBase setMode(IFNDetectorCoverLogic.Mode mode) {
         this.mode = mode == null ? IFNDetectorCoverLogic.Mode.BINARY : mode;
         return this;
+    }
+
+    public boolean isLinearMode() {
+        return mode == IFNDetectorCoverLogic.Mode.LINEAR;
+    }
+
+    public CoverIFNDetectorBase setLinearMode(boolean linearMode) {
+        return setMode(linearMode ? IFNDetectorCoverLogic.Mode.LINEAR : IFNDetectorCoverLogic.Mode.BINARY);
     }
 
     @Override
@@ -108,6 +140,16 @@ public abstract class CoverIFNDetectorBase extends Cover {
     @Override
     public boolean manipulatesSidedRedstoneOutput() {
         return true;
+    }
+
+    @Override
+    public boolean hasCoverGUI() {
+        return true;
+    }
+
+    @Override
+    protected CoverBaseGui<? extends CoverIFNDetectorBase> getCoverGui() {
+        return new CoverIFNDetectorGui(this);
     }
 
     @Override
