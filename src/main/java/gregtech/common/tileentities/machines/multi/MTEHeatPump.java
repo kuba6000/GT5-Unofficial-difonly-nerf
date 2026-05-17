@@ -28,6 +28,7 @@ import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
 import gregtech.api.metatileentity.implementations.MTEEnhancedMultiBlockBase;
 import gregtech.api.metatileentity.implementations.integratedfluid.FluidThermalProperties;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNDualOutputProcess;
+import gregtech.api.metatileentity.implementations.integratedfluid.IFNHeatExchangerPlanner;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNMachineBatchPlanner;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNMachineResultMapper;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNMachineThermo;
@@ -493,211 +494,40 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         );
         if (!redInputBatch.isValid() || !blueInputBatch.isValid()) return CheckRecipeResultRegistry.NO_RECIPE;
 
-        double redInTemp = redInputBatch.temperature();
-        double blueInTemp = blueInputBatch.temperature();
-
-        // HEAT FLOW DIRECTION: ALWAYS BLUE (Source) -> RED (Target)
-        // This means we extract heat from Blue (cooling it down) and pump it into Red (heating it up).
-        // GUI settings (targetTemp, targetCOP) apply to the Red (Target) stream.
-        // If configuringHotStream is true, it means we are actively configuring the Target (Red) to reach a specific heat.
-        // If configuringHotStream is false, we are theoretically configuring the Source (Blue) to reach a specific coldness,
-        // BUT to keep logic simple and consistent with the physical heat flow, we will evaluate the GUI settings
-        // on the Target (Red) by default, and just flip the target direction if configuringHotStream is false.
-
-        // Actually, let's make it intuitive:
-        // configuringHotStream = true  -> We want to hit a specific property on the RED stream.
-        // configuringHotStream = false -> We want to hit a specific property on the BLUE stream.
-        // Heat STILL flows from Blue to Red.
-
-        boolean configureRed = configuringHotStream;
-
-        var targetOutNet = configureRed ? redOutNet : blueOutNet;
-        Fluid targetFluid = configureRed ? redFluid : blueFluid;
-        double targetInH = configureRed ? redInH : blueInH;
-        double targetInTemp = configureRed ? redInTemp : blueInTemp;
-        IFNMachineBatchPlanner.BatchPlan targetInputBatch = configureRed ? redInputBatch : blueInputBatch;
-
-        var sourceOutNet = !configureRed ? redOutNet : blueOutNet;
-        Fluid sourceFluid = !configureRed ? redFluid : blueFluid;
-        double sourceInH = !configureRed ? redInH : blueInH;
-        double sourceInTemp = !configureRed ? redInTemp : blueInTemp;
-        IFNMachineBatchPlanner.BatchPlan sourceInputBatch = !configureRed ? redInputBatch : blueInputBatch;
-
-        long targetProcessQ = targetInputBatch.amountQ();
-        long sourceProcessQ = sourceInputBatch.amountQ();
-
-        double targetProcessAmt = toAmount(targetProcessQ);
-        double sourceProcessAmt = toAmount(sourceProcessQ);
-
-        double targetOutTemp = targetInTemp;
-        double targetOutH = targetInH;
-        double temperatureDelta = 0.0d;
-        long energyCost = 0L;
-        boolean passthroughMode = false;
-
-        // The "Cold" reservoir for Carnot COP is ALWAYS the Blue stream,
-        // and the "Hot" reservoir is ALWAYS the Red stream, regardless of actual temps.
-        // Wait, Carnot efficiency depends on actual temperatures: COP = T_hot / (T_hot - T_cold).
-        // To pump heat from Blue to Red, we must do work.
-        // Let's define the Source Temp for COP calculation as the starting temp of the stream we are extracting from (Blue).
-        double copSourceTemp = blueInTemp;
-
-        // If configuringRed == true, targetHeating MUST be true (we are heating Red by pumping from Blue).
-        // If configuringRed == false, targetHeating MUST be false (we are cooling Blue by pumping to Red).
-        // We will override user's targetHeating flag to match physical reality to prevent weird bugs.
-        boolean actualTargetHeating = configureRed;
-
-
-        switch (operatingMode) {
-            case TARGET_TEMPERATURE:
-                targetOutTemp = targetTemperature;
-                temperatureDelta = targetOutTemp - targetInTemp;
-
-                // Check if target is physically possible with current direction
-                if ((actualTargetHeating && targetOutTemp < targetInTemp) ||
-                    (!actualTargetHeating && targetOutTemp > targetInTemp)) {
-                    return SimpleCheckRecipeResult.ofFailure("awaiting_configuration");
-                }
-
-                if (Math.abs(temperatureDelta) <= (actualTargetHeating ? lowerTemperatureTolerance : upperTemperatureTolerance)) {
-                    passthroughMode = true;
-                    currentCOP = 0.0f;
-                    energyCost = 0;
-                    targetOutTemp = targetInTemp;
-                    temperatureDelta = 0.0d;
-                    currentTemperatureDelta = 0.0f;
-                    currentEfficiencyPenalty = 1.0f;
-                    effectiveCOP = 0.0f;
-                } else {
-                    applyHeatPumpMetrics(IFNMachineThermo.computeHeatExchangerMetrics(
-                        redInTemp,
-                        blueInTemp,
-                        configureRed,
-                        targetInTemp,
-                        targetOutTemp
-                    ));
-
-                    double hTarget = IFNMachineThermo.computeTargetSpecificEnthalpyForStateAdd(
-                        targetOutNet,
-                        targetFluid,
-                        targetOutTemp,
-                        targetProcessQ
-                    );
-                    energyCost = IFNMachineThermo.computeHeatPumpEnergyCost(
-                        targetInH,
-                        hTarget,
-                        targetProcessQ,
-                        currentCOP,
-                        currentEfficiencyPenalty
-                    );
-                    targetOutH = hTarget;
-                }
-                break;
-            case TARGET_COP:
-                targetOutTemp = IFNMachineThermo.computeHeatExchangerTargetCopOutputTemperature(
-                    redInTemp,
-                    blueInTemp,
-                    targetCOP,
-                    configureRed
-                );
-                temperatureDelta = targetOutTemp - targetInTemp;
-                applyHeatPumpMetrics(IFNMachineThermo.computeHeatExchangerMetrics(
-                    redInTemp,
-                    blueInTemp,
-                    configureRed,
-                    targetInTemp,
-                    targetOutTemp
-                ));
-                currentCOP = targetCOP <= 1.0f ? 1.1f : targetCOP;
-                effectiveCOP = currentCOP / currentEfficiencyPenalty;
-
-                double hTarget = IFNMachineThermo.computeTargetSpecificEnthalpyForStateAdd(
-                    targetOutNet,
-                    targetFluid,
-                    targetOutTemp,
-                    targetProcessQ
-                );
-                energyCost = IFNMachineThermo.computeHeatPumpEnergyCost(
-                    targetInH,
-                    hTarget,
-                    targetProcessQ,
-                    currentCOP,
-                    currentEfficiencyPenalty
-                );
-                targetOutH = hTarget;
-                break;
-            case TARGET_ENERGY:
-                long targetTotalEnergy = (long) targetEnergyPerTick * 20L;
-                energyCost = targetTotalEnergy;
-
-                IFNMachineThermo.TargetEnergyState targetEnergyState = IFNMachineThermo
-                    .computeHeatExchangerTargetEnergyOutputState(
-                        targetFluid,
-                        targetOutNet.getPressure(),
-                        redInTemp,
-                        blueInTemp,
-                        configureRed,
-                        targetInTemp,
-                        targetInH,
-                        targetProcessQ,
-                        targetTotalEnergy,
-                        actualTargetHeating
-                    );
-                targetOutH = targetEnergyState.specificEnthalpy();
-                targetOutTemp = targetEnergyState.temperature();
-                temperatureDelta = targetOutTemp - targetInTemp;
-                applyHeatPumpMetrics(targetEnergyState.metrics());
-                break;
+        IFNHeatExchangerPlanner.Plan plan = IFNHeatExchangerPlanner.plan(IFNHeatExchangerPlanner.Request.of(
+            toHeatExchangerMode(operatingMode),
+            redOutNet,
+            blueOutNet,
+            redFluid,
+            blueFluid,
+            redInputBatch,
+            blueInputBatch,
+            configuringHotStream,
+            targetTemperature,
+            targetCOP,
+            targetEnergyPerTick,
+            lowerTemperatureTolerance,
+            upperTemperatureTolerance));
+        if (plan.getStatus() == IFNHeatExchangerPlanner.Status.INVALID_CONFIGURATION) {
+            return SimpleCheckRecipeResult.ofFailure("awaiting_configuration");
         }
 
-        if (!passthroughMode) {
-            if (actualTargetHeating && targetOutH < targetInH - 1e-6d) return SimpleCheckRecipeResult.ofFailure("awaiting_configuration");
-            if (!actualTargetHeating && targetOutH > targetInH + 1e-6d) return SimpleCheckRecipeResult.ofFailure("awaiting_configuration");
-        }
-
-        // Heat flow logic: Q_delivered_to_Red = Q_extracted_from_Blue + W
-        // We know the Q change for our Target stream.
-        double qTargetTotal = Math.abs(targetOutH - targetInH) * targetProcessAmt;
-        double wTotal = energyCost;
-
-        double qSourceTotal;
-        double sourceOutH;
-
-        if (configureRed) {
-            // We configured Red (Target). We know how much heat went INTO Red (qTargetTotal).
-            // Q_extracted_from_Blue = Q_delivered_to_Red - W
-            qSourceTotal = qTargetTotal - wTotal;
-            if (qSourceTotal < 0) qSourceTotal = 0;
-            // Blue loses heat
-            sourceOutH = sourceInH - (qSourceTotal / sourceProcessAmt);
-        } else {
-            // We configured Blue (Target). We know how much heat came OUT OF Blue (qTargetTotal).
-            // Q_delivered_to_Red = Q_extracted_from_Blue + W
-            qSourceTotal = qTargetTotal + wTotal;
-            // Red gains heat
-            sourceOutH = sourceInH + (qSourceTotal / sourceProcessAmt);
-        }
-
-        // Map Target/Source back to Red/Blue for output logic
-        double redOutH = configureRed ? targetOutH : sourceOutH;
-        double blueOutH = configureRed ? sourceOutH : targetOutH;
-        long redBaseQ = configureRed ? targetProcessQ : sourceProcessQ;
-        long blueBaseQ = configureRed ? sourceProcessQ : targetProcessQ;
-
-        long originalRedProcessQ = redBaseQ;
-        long originalBlueProcessQ = blueBaseQ;
+        applyHeatPumpMetrics(plan.getMetrics());
+        long energyCost = plan.getEnergyCostEu();
+        long originalRedProcessQ = plan.getRedAmountQ();
+        long originalBlueProcessQ = plan.getBlueAmountQ();
         long originalEnergyCost = energyCost;
-        final double requestedRedOutH = redOutH;
-        final double requestedBlueOutH = blueOutH;
+        final double requestedRedOutH = plan.getRedOutputSpecificEnthalpy();
+        final double requestedBlueOutH = plan.getBlueOutputSpecificEnthalpy();
         IFNDualOutputProcess.Result processResult = IFNDualOutputProcess.execute(IFNDualOutputProcess.Request.of(
             redInNet,
             redOutNet,
             redFluid,
-            redBaseQ,
+            originalRedProcessQ,
             blueInNet,
             blueOutNet,
             blueFluid,
-            blueBaseQ,
+            originalBlueProcessQ,
             ignored -> requestedRedOutH,
             ignored -> requestedBlueOutH,
             IFNPressurePolicy.MACHINE_OUTPUT_TO_INPUT_PRESSURE_RATIO));
@@ -705,7 +535,6 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
             return IFNMachineResultMapper.toRecipeResult(processResult.getStatus());
         }
 
-        // Adjust if extraction was partial OR if we scaled down due to pressure
         double ratioRed = processResult.getFirstAmountQ() / (double) originalRedProcessQ;
         double ratioBlue = processResult.getSecondAmountQ() / (double) originalBlueProcessQ;
         double finalRatio = Math.min(ratioRed, ratioBlue);
@@ -726,10 +555,9 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
 
         currentEnergyUsage = energyCost;
         this.totalEnergyCost = (int) ((energyCost + 19) / 20);
+        currentOutputTemperature = (float) plan.getTargetOutputTemperature();
 
-        currentOutputTemperature = (float) targetOutTemp;
-
-        if (passthroughMode) {
+        if (plan.isPassthrough()) {
             this.mMaxProgresstime = 5;
             this.mEUt = 0;
         } else {
@@ -1096,6 +924,22 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
 
     private static double toAmount(long amountQ) {
         return amountQ / (double) IntegratedFluidNetwork.AMOUNT_SCALE;
+    }
+
+    private static IFNHeatExchangerPlanner.Mode toHeatExchangerMode(HeatPumpMode mode) {
+        if (mode == null) {
+            return null;
+        }
+        switch (mode) {
+            case TARGET_TEMPERATURE:
+                return IFNHeatExchangerPlanner.Mode.TARGET_TEMPERATURE;
+            case TARGET_COP:
+                return IFNHeatExchangerPlanner.Mode.TARGET_COP;
+            case TARGET_ENERGY:
+                return IFNHeatExchangerPlanner.Mode.TARGET_ENERGY;
+            default:
+                return null;
+        }
     }
 
     private void applyHeatPumpMetrics(IFNMachineThermo.HeatPumpMetrics metrics) {
