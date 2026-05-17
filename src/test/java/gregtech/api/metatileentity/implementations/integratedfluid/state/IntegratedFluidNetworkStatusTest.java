@@ -3,6 +3,7 @@ package gregtech.api.metatileentity.implementations.integratedfluid.state;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -48,7 +49,7 @@ class IntegratedFluidNetworkStatusTest {
         );
 
         network.freeze("test freeze");
-        network.addState(fluid, amountQ, energyQ);
+        assertFalse(network.addState(fluid, amountQ, energyQ));
 
         assertEquals(0L, network.getAmountQ());
         assertNull(network.drainFluid(1, false));
@@ -83,7 +84,7 @@ class IntegratedFluidNetworkStatusTest {
         );
 
         network.setPending(true);
-        network.addState(fluid, amountQ, energyQ);
+        assertFalse(network.addState(fluid, amountQ, energyQ));
 
         assertEquals(0L, network.getAmountQ());
         assertNull(network.drainFluid(1, false));
@@ -98,8 +99,8 @@ class IntegratedFluidNetworkStatusTest {
         long liquidAmountQ = 2L * IntegratedFluidNetwork.AMOUNT_SCALE;
         long vaporAmountQ = 3L * IntegratedFluidNetwork.AMOUNT_SCALE;
 
-        liquidNetwork.addState(liquid, liquidAmountQ, IntegratedFluidNetwork.toEnthalpyQFromSpecific(300.0d, liquidAmountQ));
-        vaporNetwork.addState(vapor, vaporAmountQ, IntegratedFluidNetwork.toEnthalpyQFromSpecific(350.0d, vaporAmountQ));
+        assertTrue(liquidNetwork.addState(liquid, liquidAmountQ, IntegratedFluidNetwork.toEnthalpyQFromSpecific(300.0d, liquidAmountQ)));
+        assertTrue(vaporNetwork.addState(vapor, vaporAmountQ, IntegratedFluidNetwork.toEnthalpyQFromSpecific(350.0d, vaporAmountQ)));
 
         liquidNetwork.merge(vaporNetwork);
 

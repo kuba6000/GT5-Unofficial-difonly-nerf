@@ -321,8 +321,8 @@ public class IntegratedFluidNetwork {
             return 0;
         }
 
-        if (!simulate) {
-            add(fluid.getFluid(), addAmountQ, addEnthalpyQ);
+        if (!simulate && !add(fluid.getFluid(), addAmountQ, addEnthalpyQ)) {
+            return 0;
         }
 
         return fluid.amount;
@@ -514,25 +514,25 @@ public class IntegratedFluidNetwork {
         return computePressureForState(fluid, pAmountQ, pEnthalpyQ, rawP);
     }
 
-    public void add(Fluid fluid, long addAmountQ, long addEnthalpyQ) {
-        addInternal(fluid, addAmountQ, addEnthalpyQ, true);
+    public boolean add(Fluid fluid, long addAmountQ, long addEnthalpyQ) {
+        return addInternal(fluid, addAmountQ, addEnthalpyQ, true);
     }
 
-    public void addState(Fluid fluid, long addAmountQ, long addEnthalpyQ) {
-        addInternal(fluid, addAmountQ, addEnthalpyQ, false);
+    public boolean addState(Fluid fluid, long addAmountQ, long addEnthalpyQ) {
+        return addInternal(fluid, addAmountQ, addEnthalpyQ, false);
     }
 
-    private void addInternal(Fluid fluid, long addAmountQ, long addEnthalpyQ, boolean applyGasFlowWork) {
+    private boolean addInternal(Fluid fluid, long addAmountQ, long addEnthalpyQ, boolean applyGasFlowWork) {
         if (isTransferBlocked()) {
-            return;
+            return false;
         }
         if (fluid == null || addAmountQ <= 0L) {
-            return;
+            return false;
         }
         if (amountQ == 0L) {
             fluidName = fluid.getName();
         } else if (fluidName == null || !fluid.getName().equals(fluidName)) {
-            return;
+            return false;
         }
 
         float oldTemp = amountQ > 0 ? getDerivedTemperature() : 0;
@@ -567,6 +567,7 @@ public class IntegratedFluidNetwork {
             enthalpyQ = toEnthalpyQFromSpecific(newSpecificEnthalpy, amountQ);
             updatePressure();
         }
+        return true;
     }
 
     public ExtractedPayload extractProportional(long requestAmountQ, boolean simulate) {

@@ -59,7 +59,10 @@ public final class IFNSingleOutputProcess {
 
         outputSpecificEnthalpy = request.outputStateProvider.getOutputSpecificEnthalpy(extracted.amountQ);
         long outputEnthalpyQ = IntegratedFluidNetwork.toEnthalpyQFromSpecific(outputSpecificEnthalpy, extracted.amountQ);
-        request.outputNetwork.addState(request.fluid, extracted.amountQ, outputEnthalpyQ);
+        if (!request.outputNetwork.addState(request.fluid, extracted.amountQ, outputEnthalpyQ)) {
+            request.inputNetwork.addState(request.fluid, extracted.amountQ, extracted.enthalpyQ);
+            return Result.failure(Status.OUTPUT_BLOCKED);
+        }
 
         if (request.outputNetwork == request.inputNetwork) {
             return Result.success(
