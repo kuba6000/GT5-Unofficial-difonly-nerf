@@ -68,6 +68,39 @@ class IFNCanonicalStatePersistenceTest {
         assertEquals(5, state.expectedMemberCount);
     }
 
+    @Test
+    void legacyFluidStackFieldsMigrateToCanonicalSubstanceAndEnergy() {
+        Fluid fluid = IFNTestSupport.liquidFluid();
+        UUID id = new UUID(5L, 6L);
+        int legacyAmount = 3;
+        float legacyTemperature = 330.0f;
+        NBTTagCompound legacyFluid = new NBTTagCompound();
+        legacyFluid.setString("FluidName", fluid.getName());
+        legacyFluid.setInteger("Amount", legacyAmount);
+        NBTTagCompound entry = new NBTTagCompound();
+        entry.setLong("IdMost", id.getMostSignificantBits());
+        entry.setLong("IdLeast", id.getLeastSignificantBits());
+        entry.setInteger("ExpectedMembers", 2);
+        entry.setTag("Fluid", legacyFluid);
+        entry.setFloat("Temperature", legacyTemperature);
+        NBTTagList networks = new NBTTagList();
+        networks.appendTag(entry);
+        NBTTagCompound root = new NBTTagCompound();
+        root.setTag("Networks", networks);
+
+        IntegratedFluidNetworkSavedData data = new IntegratedFluidNetworkSavedData();
+        data.readFromNBT(root);
+
+        IntegratedFluidNetworkSavedData.NetworkState state = data.getState(id);
+        assertNotNull(state);
+        assertEquals(fluid.getName(), state.fluidName);
+        assertEquals(legacyAmount * IntegratedFluidNetwork.AMOUNT_SCALE, state.amountQ);
+        double specific = IntegratedFluidThermoModel.specificEnthalpyFromTemperature(fluid, legacyTemperature);
+        assertEquals((long) Math.round(specific * legacyAmount * IntegratedFluidNetwork.ENTHALPY_SCALE),
+            state.enthalpyQ);
+        assertEquals(2, state.expectedMemberCount);
+    }
+
     private static NBTTagCompound onlyNetworkEntry(NBTTagCompound root) {
         NBTTagList networks = root.getTagList("Networks", 10);
         assertEquals(1, networks.tagCount());

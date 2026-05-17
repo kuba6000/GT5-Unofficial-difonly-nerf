@@ -9,7 +9,7 @@ import net.minecraft.nbt.NBTTagList;
 import net.minecraft.world.World;
 import net.minecraft.world.WorldSavedData;
 import net.minecraft.world.storage.MapStorage;
-import net.minecraftforge.fluids.FluidStack;
+import net.minecraftforge.fluids.Fluid;
 
 public class IntegratedFluidNetworkSavedData extends WorldSavedData {
 
@@ -80,22 +80,29 @@ public class IntegratedFluidNetworkSavedData extends WorldSavedData {
             state.amountQ = entry.getLong(TAG_AMOUNT_Q);
             state.enthalpyQ = entry.getLong(TAG_ENTHALPY_Q);
             if (state.fluidName == null && entry.hasKey(TAG_FLUID_OLD)) {
-                FluidStack legacy = FluidStack.loadFluidStackFromNBT(entry.getCompoundTag(TAG_FLUID_OLD));
-                if (legacy != null && legacy.amount > 0) {
-                    state.fluidName = legacy.getFluid().getName();
-                    state.amountQ = legacy.amount * IntegratedFluidNetwork.AMOUNT_SCALE;
-                    float temperature = entry.hasKey(TAG_TEMPERATURE_OLD)
-                        ? entry.getFloat(TAG_TEMPERATURE_OLD)
-                        : IntegratedFluidNetwork.DEFAULT_TEMPERATURE;
-                    double specific = IntegratedFluidThermoModel
-                        .specificEnthalpyFromTemperature(legacy.getFluid(), temperature);
-                    double amount = state.amountQ / (double) IntegratedFluidNetwork.AMOUNT_SCALE;
-                    long energyQ = (long) Math.round(specific * amount * IntegratedFluidNetwork.ENTHALPY_SCALE);
-                    state.enthalpyQ = energyQ;
-                }
+                migrateLegacyFluidStack(entry, state);
             }
             networks.put(id, state);
         }
+    }
+
+    private static void migrateLegacyFluidStack(NBTTagCompound entry, NetworkState state) {
+        NBTTagCompound legacy = entry.getCompoundTag(TAG_FLUID_OLD);
+        String fluidName = legacy.getString(TAG_FLUID_NAME);
+        int amount = legacy.getInteger("Amount");
+        if (fluidName == null || fluidName.trim().isEmpty() || amount <= 0) {
+            return;
+        }
+
+        state.fluidName = fluidName;
+        state.amountQ = (long) amount * IntegratedFluidNetwork.AMOUNT_SCALE;
+        float temperature = entry.hasKey(TAG_TEMPERATURE_OLD)
+            ? entry.getFloat(TAG_TEMPERATURE_OLD)
+            : IntegratedFluidNetwork.DEFAULT_TEMPERATURE;
+        Fluid legacyFluid = new Fluid(fluidName);
+        double specific = IntegratedFluidThermoModel.specificEnthalpyFromTemperature(legacyFluid, temperature);
+        long energyQ = (long) Math.round(specific * amount * IntegratedFluidNetwork.ENTHALPY_SCALE);
+        state.enthalpyQ = energyQ;
     }
 
     @Override
