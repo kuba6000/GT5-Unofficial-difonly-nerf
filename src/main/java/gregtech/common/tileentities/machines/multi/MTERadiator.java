@@ -30,6 +30,7 @@ import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
 import gregtech.api.metatileentity.implementations.MTEEnhancedMultiBlockBase;
 import gregtech.api.metatileentity.implementations.integratedfluid.FluidThermalProperties;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNMachineResultMapper;
+import gregtech.api.metatileentity.implementations.integratedfluid.IFNStateMutationApplier;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNStateTransferPlanner;
 import gregtech.api.metatileentity.implementations.integratedfluid.IntegratedFluidNetwork;
 import gregtech.api.metatileentity.implementations.integratedfluid.MTEIntegratedFluidInputHatch;
@@ -337,9 +338,13 @@ public class MTERadiator extends MTEEnhancedMultiBlockBase<MTERadiator> implemen
 
         long drainedAmountQ = drainedFluid.amount * IntegratedFluidNetwork.AMOUNT_SCALE;
         long outputEnthalpyQ = IntegratedFluidNetwork.toEnthalpyQFromSpecific(outputSpecificEnthalpy, drainedAmountQ);
-        if (!outputNetwork.addState(fluid, drainedAmountQ, outputEnthalpyQ)) {
-            long rollbackEnthalpyQ = IntegratedFluidNetwork.toEnthalpyQFromSpecific(rollbackSpecificEnthalpy, drainedAmountQ);
-            inputNetwork.addState(fluid, drainedAmountQ, rollbackEnthalpyQ);
+        long rollbackEnthalpyQ = IntegratedFluidNetwork.toEnthalpyQFromSpecific(rollbackSpecificEnthalpy, drainedAmountQ);
+        if (!IFNStateMutationApplier.addOutputOrRestoreInput(
+            inputNetwork,
+            outputNetwork,
+            fluid,
+            IntegratedFluidNetwork.ExtractedPayload.of(drainedAmountQ, rollbackEnthalpyQ),
+            outputEnthalpyQ)) {
             return CheckRecipeResultRegistry.ITEM_OUTPUT_FULL;
         }
 
