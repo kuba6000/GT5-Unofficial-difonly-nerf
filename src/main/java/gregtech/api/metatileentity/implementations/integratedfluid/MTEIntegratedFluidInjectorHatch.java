@@ -278,6 +278,9 @@ public class MTEIntegratedFluidInjectorHatch extends MTEHatch implements IIntegr
             if (resource.amount <= 0 || resource.getFluid() == null) {
                 return 0;
             }
+            if (!canInjectFluid(resource.getFluid())) {
+                return 0;
+            }
 
             double pInBar = 1.0d;
             float ambientK = IFNAmbientTemperature.getAmbientTemperature(getBaseMetaTileEntity().getWorld());
@@ -343,6 +346,10 @@ public class MTEIntegratedFluidInjectorHatch extends MTEHatch implements IIntegr
 
     static boolean canInjectIntoNetwork(IntegratedFluidNetwork network) {
         return IFNNetworkTransferGate.canInjectFromGtPipe(network);
+    }
+
+    static boolean canInjectFluid(net.minecraftforge.fluids.Fluid fluid) {
+        return IFNFluidThermalRegistry.isRegistered(fluid);
     }
 
     static long clampAcceptedPhysicalAddToInjectorPressure(IntegratedFluidNetwork network, net.minecraftforge.fluids.Fluid fluid,

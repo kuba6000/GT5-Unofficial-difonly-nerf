@@ -34,6 +34,13 @@ class MTEIntegratedFluidInjectorHatchTest {
     }
 
     @Test
+    void injectorOnlyAcceptsRegisteredThermalFluids() {
+        assertTrue(MTEIntegratedFluidInjectorHatch.canInjectFluid(IFNTestSupport.vaporFluid()));
+        assertFalse(MTEIntegratedFluidInjectorHatch.canInjectFluid(new Fluid("unregistered_ifn_test_fluid")));
+        assertFalse(MTEIntegratedFluidInjectorHatch.canInjectFluid(null));
+    }
+
+    @Test
     void injectorClampKeepsPhysicalGasFillAtOrBelowOneBar() {
         Fluid vapor = IFNTestSupport.vaporFluid();
         IntegratedFluidNetwork network = IFNTestSupport.newNetwork(vapor, 1_000, 0, 10.0f);
