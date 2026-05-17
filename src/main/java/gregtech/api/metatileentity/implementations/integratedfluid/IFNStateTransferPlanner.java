@@ -2,8 +2,6 @@ package gregtech.api.metatileentity.implementations.integratedfluid;
 
 import net.minecraftforge.fluids.Fluid;
 
-import gregtech.api.metatileentity.implementations.integratedfluid.state.IFNNetworkStatus;
-
 /**
  * Shared planning helpers for common IFN state transfers.
  *
@@ -275,12 +273,12 @@ public final class IFNStateTransferPlanner {
 
     private static Status blockedStatus(IntegratedFluidNetwork[] inputNetworks, IntegratedFluidNetwork[] outputNetworks) {
         for (IntegratedFluidNetwork network : inputNetworks) {
-            if (network == null || network.getNetworkStatus() != IFNNetworkStatus.NORMAL) {
+            if (!IFNNetworkTransferGate.isOperational(network)) {
                 return Status.INPUT_BLOCKED;
             }
         }
         for (IntegratedFluidNetwork network : outputNetworks) {
-            if (network == null || network.getNetworkStatus() != IFNNetworkStatus.NORMAL) {
+            if (!IFNNetworkTransferGate.isOperational(network)) {
                 return Status.OUTPUT_BLOCKED;
             }
         }
