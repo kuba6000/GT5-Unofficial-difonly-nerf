@@ -513,21 +513,8 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
     }
 
     private CheckRecipeResult validateConfiguration() {
-        switch (operatingMode) {
-            case TARGET_TEMPERATURE:
-                break;
-            case TARGET_COP:
-                if (targetCOP <= 0 || targetCOP < 1.1f) {
-                    return SimpleCheckRecipeResult.ofFailure("awaiting_configuration");
-                }
-                break;
-            case TARGET_ENERGY:
-                if (targetEnergyPerTick <= 0) {
-                    return SimpleCheckRecipeResult.ofFailure("awaiting_configuration");
-                }
-                break;
-            default:
-                return SimpleCheckRecipeResult.ofFailure("awaiting_configuration");
+        if (!operatingMode.isConfigurationValid(targetCOP, targetEnergyPerTick)) {
+            return SimpleCheckRecipeResult.ofFailure("awaiting_configuration");
         }
         return CheckRecipeResultRegistry.SUCCESSFUL;
     }

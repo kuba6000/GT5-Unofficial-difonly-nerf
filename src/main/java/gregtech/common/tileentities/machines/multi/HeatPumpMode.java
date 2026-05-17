@@ -67,4 +67,17 @@ public enum HeatPumpMode {
                 return IFNHeatPumpMode.TARGET_TEMPERATURE;
         }
     }
+
+    public boolean isConfigurationValid(float targetCOP, int targetEnergyPerTick) {
+        switch (this) {
+            case TARGET_TEMPERATURE:
+                return true;
+            case TARGET_COP:
+                return !(targetCOP <= 0 || targetCOP < 1.1f);
+            case TARGET_ENERGY:
+                return targetEnergyPerTick > 0;
+            default:
+                return false;
+        }
+    }
 }
