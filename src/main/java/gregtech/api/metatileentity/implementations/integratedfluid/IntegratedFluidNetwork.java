@@ -28,6 +28,7 @@ import gregtech.api.metatileentity.implementations.integratedfluid.safety.IFNTem
 import gregtech.api.metatileentity.implementations.integratedfluid.safety.IFNTemperatureLimitStatus;
 import gregtech.api.metatileentity.implementations.integratedfluid.state.IFNCanonicalState;
 import gregtech.api.metatileentity.implementations.integratedfluid.state.IFNNetworkStatus;
+import gregtech.api.metatileentity.implementations.integratedfluid.thermal.IFNHeatExchangeRuntime;
 import gregtech.api.metatileentity.implementations.integratedfluid.topology.IFNMergePolicy;
 import gregtech.api.metatileentity.implementations.integratedfluid.topology.IFNTopologyRebuilder;
 import gregtech.api.metatileentity.implementations.integratedfluid.topology.IFNTopologySnapshot;
@@ -1039,12 +1040,16 @@ public class IntegratedFluidNetwork {
             return;
         }
 
-        int pipeCount = getPipeCount();
-        if (pipeCount <= 0) {
+        double conductance = IFNHeatExchangeRuntime.computePassiveConductance(members);
+        if (conductance <= 0.0d) {
             return;
         }
 
-        float energyDelta = -pipeCount * HEAT_LOSS_PER_PIPE_PER_SECOND * temperatureDelta;
+        Fluid fluid = getFluid();
+        double amount = toAmount(amountQ);
+        double heatCapacity = FluidThermalProperties.getSpecificHeatCapacity(fluid) * amount;
+        double energyDelta = IFNHeatExchangeRuntime.computeEnergyDelta(temperature, ambientTemperature, heatCapacity,
+            conductance);
         enthalpyQ += toEnthalpyQ(energyDelta);
         updatePressure();
     }

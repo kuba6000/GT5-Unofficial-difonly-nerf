@@ -410,6 +410,11 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
     }
 
     @Override
+    public double getPassiveHeatConductanceEuPerKelvinPerSecond() {
+        return IntegratedFluidNetwork.HEAT_LOSS_PER_PIPE_PER_SECOND;
+    }
+
+    @Override
     public boolean isOperationalFailureCandidate() {
         return true;
     }

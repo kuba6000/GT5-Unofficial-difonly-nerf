@@ -262,6 +262,11 @@ public class MTEIntegratedFluidOutputHatch extends MTEHatch implements IIntegrat
     }
 
     @Override
+    public double getPassiveHeatConductanceEuPerKelvinPerSecond() {
+        return IntegratedFluidNetwork.HEAT_LOSS_PER_PIPE_PER_SECOND;
+    }
+
+    @Override
     public float getAccumulatorMaxPressureBar() {
         return IFNPressurePolicy.DEFAULT_MAX_PRESSURE_BAR;
     }

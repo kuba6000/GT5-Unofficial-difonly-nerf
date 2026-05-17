@@ -74,4 +74,11 @@ public interface IIntegratedFluidMember {
     default float getMaxPressureDifferentialBar() {
         return IFNPressurePolicy.DEFAULT_MAX_PRESSURE_BAR;
     }
+
+    /**
+     * Returns this member's passive heat exchange conductance in EU/(K*s).
+     */
+    default double getPassiveHeatConductanceEuPerKelvinPerSecond() {
+        return 0.0d;
+    }
 }

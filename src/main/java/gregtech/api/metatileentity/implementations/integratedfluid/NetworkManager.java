@@ -9,9 +9,10 @@ import net.minecraftforge.common.util.ForgeDirection;
 import gregtech.api.interfaces.metatileentity.IMetaTileEntity;
 import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
 import gregtech.api.metatileentity.MetaPipeEntity;
-import gregtech.api.metatileentity.implementations.integratedfluid.IFNAmbientTemperature;
 import gregtech.api.metatileentity.implementations.integratedfluid.safety.IFNNetworkSafetyTicker;
 import gregtech.api.metatileentity.implementations.integratedfluid.state.IFNCanonicalState;
+import gregtech.api.metatileentity.implementations.integratedfluid.thermal.IFNAmbientContext;
+import gregtech.api.metatileentity.implementations.integratedfluid.thermal.IFNHeatExchangeRuntime;
 import gregtech.api.metatileentity.implementations.integratedfluid.topology.IFNMergePolicy;
 import gregtech.api.metatileentity.implementations.integratedfluid.topology.IFNStateDistributor;
 import gregtech.api.metatileentity.implementations.integratedfluid.topology.IFNTopologyRebuilder;
@@ -295,12 +296,10 @@ public class NetworkManager {
             lastHeatLossTick = worldTick;
 
             // Apply heat loss to all networks
+            IFNAmbientContext ambientContext = IFNAmbientContext.forWorld(world);
             for (IntegratedFluidNetwork network : new HashSet<>(allNetworks)) {
                 if (network != null) {
-                    if (!network.isPending()) {
-                        float ambientTemperature = IFNAmbientTemperature.getAmbientTemperature(world);
-                        network.applyHeatLoss(ambientTemperature);
-                    }
+                    IFNHeatExchangeRuntime.apply(network, ambientContext);
                     persistNetwork(network);
                 }
             }
