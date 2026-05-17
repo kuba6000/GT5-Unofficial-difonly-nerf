@@ -76,6 +76,11 @@ public final class IFNMachineThermo {
         return new HeatPumpMetrics(cop, penalty, delta, cop / penalty);
     }
 
+    public static HeatPumpMetrics heatPumpMetrics(float cop, float efficiencyPenalty, double temperatureDelta,
+        float effectiveCop) {
+        return new HeatPumpMetrics(cop, efficiencyPenalty, temperatureDelta, effectiveCop);
+    }
+
     public static double computeTargetCopOutputTemperature(double inputTemperature, float targetCop, boolean heating) {
         float effectiveCop = targetCop <= 1.0f ? 1.1f : targetCop;
         double outputTemperature = heating
