@@ -35,6 +35,28 @@ class IFNMachineBatchPlannerTest {
     }
 
     @Test
+    void splitAmountsPreserveTotalWithFloorOnFirstSide() {
+        IFNMachineBatchPlanner.SplitAmounts split = IFNMachineBatchPlanner.computeSplitAmounts(
+            11L * IntegratedFluidNetwork.AMOUNT_SCALE,
+            0.35d
+        );
+
+        assertTrue(split.isValid());
+        assertEquals(3L * IntegratedFluidNetwork.AMOUNT_SCALE + 849_999L, split.firstAmountQ());
+        assertEquals(7L * IntegratedFluidNetwork.AMOUNT_SCALE + 150_001L, split.secondAmountQ());
+        assertEquals(11L * IntegratedFluidNetwork.AMOUNT_SCALE, split.totalAmountQ());
+    }
+
+    @Test
+    void splitAmountsRejectWhenEitherSideIsEmpty() {
+        assertFalse(IFNMachineBatchPlanner.computeSplitAmounts(10L, 0.5d).isValid());
+        assertFalse(IFNMachineBatchPlanner.computeSplitAmounts(10L * IntegratedFluidNetwork.AMOUNT_SCALE, 0.0d)
+            .isValid());
+        assertFalse(IFNMachineBatchPlanner.computeSplitAmounts(10L * IntegratedFluidNetwork.AMOUNT_SCALE, 1.0d)
+            .isValid());
+    }
+
+    @Test
     void inputBatchPlanCarriesThermalStateAndSizedAmount() {
         Fluid fluid = IFNTestSupport.liquidFluid();
         float pressure = 2.0f;

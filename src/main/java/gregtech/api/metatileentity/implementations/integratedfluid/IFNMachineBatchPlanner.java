@@ -48,6 +48,21 @@ public final class IFNMachineBatchPlanner {
         return Math.min(availableAmountQ, limitedAmountQ);
     }
 
+    public static SplitAmounts computeSplitAmounts(long totalAmountQ, double firstRatio) {
+        if (totalAmountQ <= 0L || firstRatio <= 0.0d || firstRatio >= 1.0d ||
+            Double.isNaN(firstRatio) || Double.isInfinite(firstRatio)) {
+            return SplitAmounts.invalid(totalAmountQ);
+        }
+
+        long firstAmountQ = (long) (totalAmountQ * firstRatio);
+        long secondAmountQ = totalAmountQ - firstAmountQ;
+        if (firstAmountQ < IntegratedFluidNetwork.AMOUNT_SCALE ||
+            secondAmountQ < IntegratedFluidNetwork.AMOUNT_SCALE) {
+            return SplitAmounts.invalid(totalAmountQ);
+        }
+        return new SplitAmounts(firstAmountQ, secondAmountQ);
+    }
+
     public static final class BatchPlan {
 
         private final long amountQ;
@@ -88,6 +103,38 @@ public final class IFNMachineBatchPlanner {
 
         public double specificVolume() {
             return specificVolume;
+        }
+    }
+
+    public static final class SplitAmounts {
+
+        private final long firstAmountQ;
+        private final long secondAmountQ;
+
+        private SplitAmounts(long firstAmountQ, long secondAmountQ) {
+            this.firstAmountQ = firstAmountQ;
+            this.secondAmountQ = secondAmountQ;
+        }
+
+        private static SplitAmounts invalid(long totalAmountQ) {
+            return new SplitAmounts(0L, Math.max(0L, totalAmountQ));
+        }
+
+        public boolean isValid() {
+            return firstAmountQ >= IntegratedFluidNetwork.AMOUNT_SCALE &&
+                secondAmountQ >= IntegratedFluidNetwork.AMOUNT_SCALE;
+        }
+
+        public long firstAmountQ() {
+            return firstAmountQ;
+        }
+
+        public long secondAmountQ() {
+            return secondAmountQ;
+        }
+
+        public long totalAmountQ() {
+            return firstAmountQ + secondAmountQ;
         }
     }
 }

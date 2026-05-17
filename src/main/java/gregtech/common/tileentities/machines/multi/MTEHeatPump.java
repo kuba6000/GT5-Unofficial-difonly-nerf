@@ -264,10 +264,13 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         if (inputTemperature <= 0.0d) inputTemperature = COLD_RESERVOIR_TEMPERATURE;
 
         // Split amounts based on ratio
-        long hotAmountQ = (long) (amountToProcessQ * splitRatio);
-        long coldAmountQ = amountToProcessQ - hotAmountQ;
-
-        if (hotAmountQ <= 0 || coldAmountQ <= 0) return CheckRecipeResultRegistry.NO_RECIPE;
+        IFNMachineBatchPlanner.SplitAmounts requestedSplit = IFNMachineBatchPlanner.computeSplitAmounts(
+            amountToProcessQ,
+            splitRatio
+        );
+        if (!requestedSplit.isValid()) return CheckRecipeResultRegistry.NO_RECIPE;
+        long hotAmountQ = requestedSplit.firstAmountQ();
+        long coldAmountQ = requestedSplit.secondAmountQ();
 
         double hotAmount = toAmount(hotAmountQ);
         double coldAmount = toAmount(coldAmountQ);
@@ -418,8 +421,13 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
             }
         }
 
-        hotAmountQ = (long) (extracted.amountQ * splitRatio);
-        coldAmountQ = extracted.amountQ - hotAmountQ;
+        IFNMachineBatchPlanner.SplitAmounts extractedSplit = IFNMachineBatchPlanner.computeSplitAmounts(
+            extracted.amountQ,
+            splitRatio
+        );
+        if (!extractedSplit.isValid()) return CheckRecipeResultRegistry.NO_RECIPE;
+        hotAmountQ = extractedSplit.firstAmountQ();
+        coldAmountQ = extractedSplit.secondAmountQ();
 
         currentEnergyUsage = energyCost;
         this.totalEnergyCost = (int) ((energyCost + 19) / 20);

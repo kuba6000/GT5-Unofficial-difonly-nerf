@@ -108,11 +108,15 @@ public final class IFNStateTransferPlanner {
             return PlannedSplitTransfer.failure(blockedStatus);
         }
 
-        long requestedRedQ = (long) (requestedAmountQ * splitRatio);
-        long requestedBlueQ = requestedAmountQ - requestedRedQ;
-        if (requestedRedQ < IntegratedFluidNetwork.AMOUNT_SCALE || requestedBlueQ < IntegratedFluidNetwork.AMOUNT_SCALE) {
+        IFNMachineBatchPlanner.SplitAmounts requestedSplit = IFNMachineBatchPlanner.computeSplitAmounts(
+            requestedAmountQ,
+            splitRatio
+        );
+        if (!requestedSplit.isValid()) {
             return PlannedSplitTransfer.failure(Status.INVALID_REQUEST);
         }
+        long requestedRedQ = requestedSplit.firstAmountQ();
+        long requestedBlueQ = requestedSplit.secondAmountQ();
 
         long maxRedAddableQ = redOutputNetwork != inputNetwork
             ? redOutputNetwork.getMaxAddableAmountQ(redFluid, redSpecificEnthalpy, requestedRedQ)
@@ -143,12 +147,16 @@ public final class IFNStateTransferPlanner {
                 continue;
             }
 
-            long testRedQ = (long) (mid * splitRatio);
-            long testBlueQ = mid - testRedQ;
-            if (testRedQ < IntegratedFluidNetwork.AMOUNT_SCALE || testBlueQ < IntegratedFluidNetwork.AMOUNT_SCALE) {
+            IFNMachineBatchPlanner.SplitAmounts testSplit = IFNMachineBatchPlanner.computeSplitAmounts(
+                mid,
+                splitRatio
+            );
+            if (!testSplit.isValid()) {
                 high = mid - 1L;
                 continue;
             }
+            long testRedQ = testSplit.firstAmountQ();
+            long testBlueQ = testSplit.secondAmountQ();
 
             boolean ok = true;
             if (redOutputNetwork != inputNetwork && testRedQ > maxRedAddableQ) ok = false;
