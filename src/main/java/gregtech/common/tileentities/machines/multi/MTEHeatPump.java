@@ -29,6 +29,7 @@ import gregtech.api.metatileentity.implementations.MTEEnhancedMultiBlockBase;
 import gregtech.api.metatileentity.implementations.integratedfluid.FluidThermalProperties;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNDualOutputProcess;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNHeatExchangerPlanner;
+import gregtech.api.metatileentity.implementations.integratedfluid.IFNHeatPumpHatchLayout;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNHeatPumpMachineWorkPlan;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNMachineBatchPlanner;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNMachineProcessStatus;
@@ -857,22 +858,9 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
             return true; // Not in Split Flow mode, so don't show warning
         }
 
-        // Check input count
-        if (mIntegratedInputHatches.size() != 1) {
-            return false; // Need exactly 1 input
-        }
-
-        // Check output count
-        if (mIntegratedOutputHatches.size() != 2) {
-            return false; // Need exactly 2 outputs
-        }
-
-        // Check that one output is Red (1) and one is Blue (4)
-        int color1 = mIntegratedOutputHatches.get(0).getBaseMetaTileEntity().getColorization();
-        int color2 = mIntegratedOutputHatches.get(1).getBaseMetaTileEntity().getColorization();
-
-        // Must have exactly one Red (1) and one Blue (4)
-        return ((color1 == 1 && color2 == 4) || (color1 == 4 && color2 == 1));
+        return IFNHeatPumpHatchLayout.isValidSplitFlowLayout(
+            mIntegratedInputHatches.size(),
+            outputHatchColors());
     }
 
     /**
@@ -897,27 +885,28 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
             return cachedHatchValidation;
         }
 
-        // Perform actual validation
-        int redInputs = 0, blueInputs = 0;
-        int redOutputs = 0, blueOutputs = 0;
-
-        for (MTEIntegratedFluidInputHatch hatch : mIntegratedInputHatches) {
-            int color = hatch.getBaseMetaTileEntity().getColorization();
-            if (color == 1) redInputs++; // Red spray (MC metadata 1)
-            else if (color == 4) blueInputs++; // Blue spray (MC metadata 4)
-        }
-
-        for (MTEIntegratedFluidOutputHatch hatch : mIntegratedOutputHatches) {
-            int color = hatch.getBaseMetaTileEntity().getColorization();
-            if (color == 1) redOutputs++; // Red spray (MC metadata 1)
-            else if (color == 4) blueOutputs++; // Blue spray (MC metadata 4)
-        }
-
-        // Cache the result
-        cachedHatchValidation = (redInputs >= 1 && blueInputs >= 1 && redOutputs >= 1 && blueOutputs >= 1);
+        cachedHatchValidation = IFNHeatPumpHatchLayout.isValidHeatExchangerLayout(
+            inputHatchColors(),
+            outputHatchColors());
         lastValidationCheck = currentTick;
 
         return cachedHatchValidation;
+    }
+
+    private int[] inputHatchColors() {
+        int[] colors = new int[mIntegratedInputHatches.size()];
+        for (int i = 0; i < mIntegratedInputHatches.size(); i++) {
+            colors[i] = mIntegratedInputHatches.get(i).getBaseMetaTileEntity().getColorization();
+        }
+        return colors;
+    }
+
+    private int[] outputHatchColors() {
+        int[] colors = new int[mIntegratedOutputHatches.size()];
+        for (int i = 0; i < mIntegratedOutputHatches.size(); i++) {
+            colors[i] = mIntegratedOutputHatches.get(i).getBaseMetaTileEntity().getColorization();
+        }
+        return colors;
     }
 
     // ===== NBT Methods =====
