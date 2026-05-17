@@ -232,8 +232,8 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         }
 
         MTEIntegratedFluidInputHatch inputHatch = mIntegratedInputHatches.get(0);
-        MTEIntegratedFluidOutputHatch redOutput = getOutputHatchByColor(1); // Red
-        MTEIntegratedFluidOutputHatch blueOutput = getOutputHatchByColor(4); // Blue
+        MTEIntegratedFluidOutputHatch redOutput = getOutputHatchByColor(IFNHeatPumpHatchLayout.RED);
+        MTEIntegratedFluidOutputHatch blueOutput = getOutputHatchByColor(IFNHeatPumpHatchLayout.BLUE);
 
         if (redOutput == null || blueOutput == null) return CheckRecipeResultRegistry.NO_RECIPE;
 
@@ -314,10 +314,10 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
             return configResult;
         }
 
-        MTEIntegratedFluidInputHatch redInput = getInputHatchByColor(1);
-        MTEIntegratedFluidInputHatch blueInput = getInputHatchByColor(4);
-        MTEIntegratedFluidOutputHatch redOutput = getOutputHatchByColor(1);
-        MTEIntegratedFluidOutputHatch blueOutput = getOutputHatchByColor(4);
+        MTEIntegratedFluidInputHatch redInput = getInputHatchByColor(IFNHeatPumpHatchLayout.RED);
+        MTEIntegratedFluidInputHatch blueInput = getInputHatchByColor(IFNHeatPumpHatchLayout.BLUE);
+        MTEIntegratedFluidOutputHatch redOutput = getOutputHatchByColor(IFNHeatPumpHatchLayout.RED);
+        MTEIntegratedFluidOutputHatch blueOutput = getOutputHatchByColor(IFNHeatPumpHatchLayout.BLUE);
 
         if (redInput == null || blueInput == null || redOutput == null || blueOutput == null) {
             return CheckRecipeResultRegistry.NO_RECIPE;

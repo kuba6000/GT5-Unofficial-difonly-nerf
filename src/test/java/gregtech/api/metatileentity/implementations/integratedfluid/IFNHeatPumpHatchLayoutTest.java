@@ -9,32 +9,44 @@ class IFNHeatPumpHatchLayoutTest {
 
     @Test
     void splitFlowRequiresOneInputAndRedBlueOutputs() {
-        assertTrue(IFNHeatPumpHatchLayout.isValidSplitFlowLayout(1, new int[] { 1, 4 }));
-        assertTrue(IFNHeatPumpHatchLayout.isValidSplitFlowLayout(1, new int[] { 4, 1 }));
+        assertTrue(IFNHeatPumpHatchLayout.isValidSplitFlowLayout(
+            1,
+            new int[] { IFNHeatPumpHatchLayout.RED, IFNHeatPumpHatchLayout.BLUE }));
+        assertTrue(IFNHeatPumpHatchLayout.isValidSplitFlowLayout(
+            1,
+            new int[] { IFNHeatPumpHatchLayout.BLUE, IFNHeatPumpHatchLayout.RED }));
 
-        assertFalse(IFNHeatPumpHatchLayout.isValidSplitFlowLayout(0, new int[] { 1, 4 }));
-        assertFalse(IFNHeatPumpHatchLayout.isValidSplitFlowLayout(2, new int[] { 1, 4 }));
-        assertFalse(IFNHeatPumpHatchLayout.isValidSplitFlowLayout(1, new int[] { 1, 1 }));
-        assertFalse(IFNHeatPumpHatchLayout.isValidSplitFlowLayout(1, new int[] { 1, 4, 4 }));
+        assertFalse(IFNHeatPumpHatchLayout.isValidSplitFlowLayout(
+            0,
+            new int[] { IFNHeatPumpHatchLayout.RED, IFNHeatPumpHatchLayout.BLUE }));
+        assertFalse(IFNHeatPumpHatchLayout.isValidSplitFlowLayout(
+            2,
+            new int[] { IFNHeatPumpHatchLayout.RED, IFNHeatPumpHatchLayout.BLUE }));
+        assertFalse(IFNHeatPumpHatchLayout.isValidSplitFlowLayout(
+            1,
+            new int[] { IFNHeatPumpHatchLayout.RED, IFNHeatPumpHatchLayout.RED }));
+        assertFalse(IFNHeatPumpHatchLayout.isValidSplitFlowLayout(
+            1,
+            new int[] { IFNHeatPumpHatchLayout.RED, IFNHeatPumpHatchLayout.BLUE, IFNHeatPumpHatchLayout.BLUE }));
     }
 
     @Test
     void heatExchangerRequiresRedAndBlueInputsAndOutputs() {
         assertTrue(IFNHeatPumpHatchLayout.isValidHeatExchangerLayout(
-            new int[] { 1, 4 },
-            new int[] { 4, 1 }));
+            new int[] { IFNHeatPumpHatchLayout.RED, IFNHeatPumpHatchLayout.BLUE },
+            new int[] { IFNHeatPumpHatchLayout.BLUE, IFNHeatPumpHatchLayout.RED }));
         assertTrue(IFNHeatPumpHatchLayout.isValidHeatExchangerLayout(
-            new int[] { 1, 4, 1 },
-            new int[] { 4, 1, 4 }));
+            new int[] { IFNHeatPumpHatchLayout.RED, IFNHeatPumpHatchLayout.BLUE, IFNHeatPumpHatchLayout.RED },
+            new int[] { IFNHeatPumpHatchLayout.BLUE, IFNHeatPumpHatchLayout.RED, IFNHeatPumpHatchLayout.BLUE }));
 
         assertFalse(IFNHeatPumpHatchLayout.isValidHeatExchangerLayout(
-            new int[] { 1 },
-            new int[] { 1, 4 }));
+            new int[] { IFNHeatPumpHatchLayout.RED },
+            new int[] { IFNHeatPumpHatchLayout.RED, IFNHeatPumpHatchLayout.BLUE }));
         assertFalse(IFNHeatPumpHatchLayout.isValidHeatExchangerLayout(
-            new int[] { 1, 4 },
-            new int[] { 4 }));
+            new int[] { IFNHeatPumpHatchLayout.RED, IFNHeatPumpHatchLayout.BLUE },
+            new int[] { IFNHeatPumpHatchLayout.BLUE }));
         assertFalse(IFNHeatPumpHatchLayout.isValidHeatExchangerLayout(
-            new int[] { 0, 1 },
-            new int[] { 4, 1 }));
+            new int[] { 0, IFNHeatPumpHatchLayout.RED },
+            new int[] { IFNHeatPumpHatchLayout.BLUE, IFNHeatPumpHatchLayout.RED }));
     }
 }
