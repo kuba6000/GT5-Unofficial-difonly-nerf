@@ -14,6 +14,7 @@ import gregtech.api.metatileentity.implementations.integratedfluid.safety.IFNNet
 import gregtech.api.metatileentity.implementations.integratedfluid.state.IFNCanonicalState;
 import gregtech.api.metatileentity.implementations.integratedfluid.topology.IFNMergePolicy;
 import gregtech.api.metatileentity.implementations.integratedfluid.topology.IFNStateDistributor;
+import gregtech.api.metatileentity.implementations.integratedfluid.topology.IFNTopologyRebuilder;
 
 /**
  * Centralized network manager for integrated fluid networks.
@@ -531,14 +532,10 @@ public class NetworkManager {
 
     private void updatePending(IntegratedFluidNetwork network) {
         if (network == null) return;
-        int current = network.getMemberCount();
-        int expected = network.getExpectedMemberCount();
-        if (current > expected) {
-            network.setExpectedMemberCount(current);
-            expected = current;
-        }
-        boolean pending = current < expected;
-        network.setPending(pending);
+        IFNTopologyRebuilder.Result rebuild =
+            IFNTopologyRebuilder.rebuild(network.getMembers(), network.getExpectedMemberCount());
+        network.setExpectedMemberCount(rebuild.expectedMemberCount());
+        network.setPending(rebuild.pending());
     }
 
     private UUID chooseNetworkId(IIntegratedFluidMember member, Set<IIntegratedFluidMember> component) {

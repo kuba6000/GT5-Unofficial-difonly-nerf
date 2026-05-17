@@ -29,6 +29,7 @@ import gregtech.api.metatileentity.implementations.integratedfluid.safety.IFNTem
 import gregtech.api.metatileentity.implementations.integratedfluid.state.IFNCanonicalState;
 import gregtech.api.metatileentity.implementations.integratedfluid.state.IFNNetworkStatus;
 import gregtech.api.metatileentity.implementations.integratedfluid.topology.IFNMergePolicy;
+import gregtech.api.metatileentity.implementations.integratedfluid.topology.IFNTopologyRebuilder;
 import gregtech.api.metatileentity.implementations.integratedfluid.topology.IFNTopologySnapshot;
 
 /**
@@ -727,7 +728,7 @@ public class IntegratedFluidNetwork {
     }
 
     public IFNTopologySnapshot getTopologySnapshot() {
-        return IFNTopologySnapshot.fromMembers(members, expectedMemberCount);
+        return IFNTopologyRebuilder.rebuild(members, expectedMemberCount).snapshot();
     }
 
     public long getAmountQ() {
