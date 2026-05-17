@@ -11,16 +11,16 @@ public final class IFNSplitOutputProcess {
 
     public static Result execute(Request request) {
         if (request == null || !request.isValid()) {
-            return Result.failure(Status.INVALID_REQUEST);
+            return Result.failure(IFNMachineProcessStatus.INVALID_REQUEST);
         }
         if (!IFNNetworkTransferGate.isOperational(request.inputNetwork)) {
-            return Result.failure(Status.INPUT_BLOCKED);
+            return Result.failure(IFNMachineProcessStatus.INPUT_BLOCKED);
         }
         if (!IFNNetworkTransferGate.areOperational(new IntegratedFluidNetwork[] {
             request.firstOutputNetwork,
             request.secondOutputNetwork
         })) {
-            return Result.failure(Status.OUTPUT_BLOCKED);
+            return Result.failure(IFNMachineProcessStatus.OUTPUT_BLOCKED);
         }
 
         long amountToProcessQ = request.requestedAmountQ;
@@ -29,7 +29,7 @@ public final class IFNSplitOutputProcess {
             request.splitRatio
         );
         if (!split.isValid()) {
-            return Result.failure(Status.INVALID_REQUEST);
+            return Result.failure(IFNMachineProcessStatus.INVALID_REQUEST);
         }
 
         double firstSpecificEnthalpy = request.firstOutputStateProvider
@@ -52,7 +52,7 @@ public final class IFNSplitOutputProcess {
                 request.maxOutputToInputPressureRatio
             );
             if (plan.acceptedTotalAmountQ < IntegratedFluidNetwork.AMOUNT_SCALE) {
-                return Result.failure(Status.OUTPUT_BLOCKED);
+                return Result.failure(IFNMachineProcessStatus.OUTPUT_BLOCKED);
             }
             amountToProcessQ = plan.acceptedTotalAmountQ;
         }
@@ -62,13 +62,13 @@ public final class IFNSplitOutputProcess {
             false
         );
         if (extracted.amountQ <= 0L) {
-            return Result.failure(Status.NO_INPUT);
+            return Result.failure(IFNMachineProcessStatus.NO_INPUT);
         }
 
         split = IFNMachineBatchPlanner.computeSplitAmounts(extracted.amountQ, request.splitRatio);
         if (!split.isValid()) {
             request.inputNetwork.addState(request.firstFluid, extracted.amountQ, extracted.enthalpyQ);
-            return Result.failure(Status.NO_INPUT);
+            return Result.failure(IFNMachineProcessStatus.NO_INPUT);
         }
 
         firstSpecificEnthalpy = request.firstOutputStateProvider.getOutputSpecificEnthalpy(split.firstAmountQ());
@@ -92,7 +92,7 @@ public final class IFNSplitOutputProcess {
             request.secondFluid,
             IntegratedFluidNetwork.ExtractedPayload.of(split.secondAmountQ(), secondExtractedEnthalpyQ),
             secondOutputEnthalpyQ)) {
-            return Result.failure(Status.OUTPUT_BLOCKED);
+            return Result.failure(IFNMachineProcessStatus.OUTPUT_BLOCKED);
         }
 
         return Result.success(
@@ -112,13 +112,6 @@ public final class IFNSplitOutputProcess {
         return Math.round(totalEnthalpyQ * (partAmountQ / (double) totalAmountQ));
     }
 
-    public enum Status {
-        SUCCESS,
-        INVALID_REQUEST,
-        INPUT_BLOCKED,
-        NO_INPUT,
-        OUTPUT_BLOCKED
-    }
 
     @FunctionalInterface
     public interface OutputStateProvider {
@@ -187,7 +180,7 @@ public final class IFNSplitOutputProcess {
 
     public static final class Result {
 
-        private final Status status;
+        private final IFNMachineProcessStatus status;
         private final long amountQ;
         private final long firstAmountQ;
         private final long secondAmountQ;
@@ -196,7 +189,7 @@ public final class IFNSplitOutputProcess {
         private final float predictedInputPressureBar;
         private final float predictedOutputPressureBar;
 
-        private Result(Status status, long amountQ, long firstAmountQ, long secondAmountQ,
+        private Result(IFNMachineProcessStatus status, long amountQ, long firstAmountQ, long secondAmountQ,
             double firstOutputSpecificEnthalpy, double secondOutputSpecificEnthalpy, float predictedInputPressureBar,
             float predictedOutputPressureBar) {
             this.status = status;
@@ -213,7 +206,7 @@ public final class IFNSplitOutputProcess {
             double firstOutputSpecificEnthalpy, double secondOutputSpecificEnthalpy, float predictedInputPressureBar,
             float predictedOutputPressureBar) {
             return new Result(
-                Status.SUCCESS,
+                IFNMachineProcessStatus.SUCCESS,
                 amountQ,
                 firstAmountQ,
                 secondAmountQ,
@@ -223,11 +216,11 @@ public final class IFNSplitOutputProcess {
                 predictedOutputPressureBar);
         }
 
-        private static Result failure(Status status) {
+        private static Result failure(IFNMachineProcessStatus status) {
             return new Result(status, 0L, 0L, 0L, 0.0d, 0.0d, 0.0f, 0.0f);
         }
 
-        public Status getStatus() {
+        public IFNMachineProcessStatus getStatus() {
             return status;
         }
 

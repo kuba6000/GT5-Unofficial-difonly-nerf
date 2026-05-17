@@ -16,13 +16,13 @@ public final class IFNSingleOutputProcess {
 
     public static Result execute(Request request) {
         if (request == null || !request.isValid()) {
-            return Result.failure(Status.INVALID_REQUEST);
+            return Result.failure(IFNMachineProcessStatus.INVALID_REQUEST);
         }
         if (!IFNNetworkTransferGate.isOperational(request.inputNetwork)) {
-            return Result.failure(Status.INPUT_BLOCKED);
+            return Result.failure(IFNMachineProcessStatus.INPUT_BLOCKED);
         }
         if (!IFNNetworkTransferGate.isOperational(request.outputNetwork)) {
-            return Result.failure(Status.OUTPUT_BLOCKED);
+            return Result.failure(IFNMachineProcessStatus.OUTPUT_BLOCKED);
         }
 
         long amountToProcessQ = request.requestedAmountQ;
@@ -41,7 +41,7 @@ public final class IFNSingleOutputProcess {
                     plannedAmountQ,
                     request.maxOutputToInputPressureRatio);
                 if (plan.acceptedAmountQ < IntegratedFluidNetwork.AMOUNT_SCALE) {
-                    return Result.failure(Status.OUTPUT_BLOCKED);
+                    return Result.failure(IFNMachineProcessStatus.OUTPUT_BLOCKED);
                 }
                 amountToProcessQ = plan.acceptedAmountQ;
                 if (plan.acceptedAmountQ >= plannedAmountQ) {
@@ -54,7 +54,7 @@ public final class IFNSingleOutputProcess {
         IntegratedFluidNetwork.ExtractedPayload extracted =
             request.inputNetwork.extractProportional(amountToProcessQ, false);
         if (extracted.amountQ <= 0L) {
-            return Result.failure(Status.NO_INPUT);
+            return Result.failure(IFNMachineProcessStatus.NO_INPUT);
         }
 
         outputSpecificEnthalpy = request.outputStateProvider.getOutputSpecificEnthalpy(extracted.amountQ);
@@ -65,7 +65,7 @@ public final class IFNSingleOutputProcess {
             request.fluid,
             extracted,
             outputEnthalpyQ)) {
-            return Result.failure(Status.OUTPUT_BLOCKED);
+            return Result.failure(IFNMachineProcessStatus.OUTPUT_BLOCKED);
         }
 
         if (request.outputNetwork == request.inputNetwork) {
@@ -83,13 +83,6 @@ public final class IFNSingleOutputProcess {
             plan.predictedOutputPressure);
     }
 
-    public enum Status {
-        SUCCESS,
-        INVALID_REQUEST,
-        INPUT_BLOCKED,
-        NO_INPUT,
-        OUTPUT_BLOCKED
-    }
 
     @FunctionalInterface
     public interface OutputStateProvider {
@@ -139,13 +132,13 @@ public final class IFNSingleOutputProcess {
 
     public static final class Result {
 
-        private final Status status;
+        private final IFNMachineProcessStatus status;
         private final long amountQ;
         private final double outputSpecificEnthalpy;
         private final float predictedInputPressureBar;
         private final float predictedOutputPressureBar;
 
-        private Result(Status status, long amountQ, double outputSpecificEnthalpy, float predictedInputPressureBar,
+        private Result(IFNMachineProcessStatus status, long amountQ, double outputSpecificEnthalpy, float predictedInputPressureBar,
             float predictedOutputPressureBar) {
             this.status = status;
             this.amountQ = amountQ;
@@ -157,18 +150,18 @@ public final class IFNSingleOutputProcess {
         private static Result success(long amountQ, double outputSpecificEnthalpy, float predictedInputPressureBar,
             float predictedOutputPressureBar) {
             return new Result(
-                Status.SUCCESS,
+                IFNMachineProcessStatus.SUCCESS,
                 amountQ,
                 outputSpecificEnthalpy,
                 predictedInputPressureBar,
                 predictedOutputPressureBar);
         }
 
-        private static Result failure(Status status) {
+        private static Result failure(IFNMachineProcessStatus status) {
             return new Result(status, 0L, 0.0d, 0.0f, 0.0f);
         }
 
-        public Status getStatus() {
+        public IFNMachineProcessStatus getStatus() {
             return status;
         }
 

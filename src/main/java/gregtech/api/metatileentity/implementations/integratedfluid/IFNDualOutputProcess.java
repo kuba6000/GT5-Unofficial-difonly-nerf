@@ -11,19 +11,19 @@ public final class IFNDualOutputProcess {
 
     public static Result execute(Request request) {
         if (request == null || !request.isValid()) {
-            return Result.failure(Status.INVALID_REQUEST);
+            return Result.failure(IFNMachineProcessStatus.INVALID_REQUEST);
         }
         if (!IFNNetworkTransferGate.areOperational(new IntegratedFluidNetwork[] {
             request.firstInputNetwork,
             request.secondInputNetwork
         })) {
-            return Result.failure(Status.INPUT_BLOCKED);
+            return Result.failure(IFNMachineProcessStatus.INPUT_BLOCKED);
         }
         if (!IFNNetworkTransferGate.areOperational(new IntegratedFluidNetwork[] {
             request.firstOutputNetwork,
             request.secondOutputNetwork
         })) {
-            return Result.failure(Status.OUTPUT_BLOCKED);
+            return Result.failure(IFNMachineProcessStatus.OUTPUT_BLOCKED);
         }
 
         long firstAmountQ = request.requestedFirstAmountQ;
@@ -50,7 +50,7 @@ public final class IFNDualOutputProcess {
             if (plan.acceptedRatio <= 0.0d
                 || plan.acceptedRedAmountQ < IntegratedFluidNetwork.AMOUNT_SCALE
                 || plan.acceptedBlueAmountQ < IntegratedFluidNetwork.AMOUNT_SCALE) {
-                return Result.failure(Status.OUTPUT_BLOCKED);
+                return Result.failure(IFNMachineProcessStatus.OUTPUT_BLOCKED);
             }
             firstAmountQ = plan.acceptedRedAmountQ;
             secondAmountQ = plan.acceptedBlueAmountQ;
@@ -64,7 +64,7 @@ public final class IFNDualOutputProcess {
             request.secondFluid,
             secondAmountQ);
         if (!extraction.isSuccess()) {
-            return Result.failure(Status.NO_INPUT);
+            return Result.failure(IFNMachineProcessStatus.NO_INPUT);
         }
 
         IntegratedFluidNetwork.ExtractedPayload firstExtracted = extraction.getFirst();
@@ -88,7 +88,7 @@ public final class IFNDualOutputProcess {
             request.secondFluid,
             secondExtracted,
             secondOutputEnthalpyQ)) {
-            return Result.failure(Status.OUTPUT_BLOCKED);
+            return Result.failure(IFNMachineProcessStatus.OUTPUT_BLOCKED);
         }
 
         return Result.success(
@@ -98,13 +98,6 @@ public final class IFNDualOutputProcess {
             secondSpecificEnthalpy);
     }
 
-    public enum Status {
-        SUCCESS,
-        INVALID_REQUEST,
-        INPUT_BLOCKED,
-        NO_INPUT,
-        OUTPUT_BLOCKED
-    }
 
     @FunctionalInterface
     public interface OutputStateProvider {
@@ -180,13 +173,13 @@ public final class IFNDualOutputProcess {
 
     public static final class Result {
 
-        private final Status status;
+        private final IFNMachineProcessStatus status;
         private final long firstAmountQ;
         private final long secondAmountQ;
         private final double firstOutputSpecificEnthalpy;
         private final double secondOutputSpecificEnthalpy;
 
-        private Result(Status status, long firstAmountQ, long secondAmountQ, double firstOutputSpecificEnthalpy,
+        private Result(IFNMachineProcessStatus status, long firstAmountQ, long secondAmountQ, double firstOutputSpecificEnthalpy,
             double secondOutputSpecificEnthalpy) {
             this.status = status;
             this.firstAmountQ = firstAmountQ;
@@ -198,18 +191,18 @@ public final class IFNDualOutputProcess {
         private static Result success(long firstAmountQ, long secondAmountQ, double firstOutputSpecificEnthalpy,
             double secondOutputSpecificEnthalpy) {
             return new Result(
-                Status.SUCCESS,
+                IFNMachineProcessStatus.SUCCESS,
                 firstAmountQ,
                 secondAmountQ,
                 firstOutputSpecificEnthalpy,
                 secondOutputSpecificEnthalpy);
         }
 
-        private static Result failure(Status status) {
+        private static Result failure(IFNMachineProcessStatus status) {
             return new Result(status, 0L, 0L, 0.0d, 0.0d);
         }
 
-        public Status getStatus() {
+        public IFNMachineProcessStatus getStatus() {
             return status;
         }
 

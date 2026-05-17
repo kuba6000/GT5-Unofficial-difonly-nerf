@@ -31,6 +31,7 @@ import gregtech.api.metatileentity.implementations.integratedfluid.IFNDualOutput
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNHeatExchangerPlanner;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNHeatPumpPlanStatus;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNMachineBatchPlanner;
+import gregtech.api.metatileentity.implementations.integratedfluid.IFNMachineProcessStatus;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNMachineResultMapper;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNMachineThermo;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNNormalHeatPumpPlanner;
@@ -298,7 +299,7 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
             ignored -> requestedColdSpecificEnthalpy,
             IFNPressurePolicy.MACHINE_OUTPUT_TO_INPUT_PRESSURE_RATIO));
 
-        if (processResult.getStatus() != IFNSplitOutputProcess.Status.SUCCESS) {
+        if (processResult.getStatus() != IFNMachineProcessStatus.SUCCESS) {
             return IFNMachineResultMapper.toRecipeResult(processResult.getStatus());
         }
 
@@ -417,7 +418,7 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
             ignored -> requestedRedOutH,
             ignored -> requestedBlueOutH,
             IFNPressurePolicy.MACHINE_OUTPUT_TO_INPUT_PRESSURE_RATIO));
-        if (processResult.getStatus() != IFNDualOutputProcess.Status.SUCCESS) {
+        if (processResult.getStatus() != IFNMachineProcessStatus.SUCCESS) {
             return IFNMachineResultMapper.toRecipeResult(processResult.getStatus());
         }
 
@@ -539,7 +540,7 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
                 : requestedOutputSpecificEnthalpy,
             IFNPressurePolicy.MACHINE_OUTPUT_TO_INPUT_PRESSURE_RATIO));
 
-        if (processResult.getStatus() != IFNSingleOutputProcess.Status.SUCCESS) {
+        if (processResult.getStatus() != IFNMachineProcessStatus.SUCCESS) {
             return IFNMachineResultMapper.toRecipeResult(processResult.getStatus());
         }
 

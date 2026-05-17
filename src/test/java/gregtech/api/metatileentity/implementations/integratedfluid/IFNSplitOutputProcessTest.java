@@ -39,7 +39,7 @@ class IFNSplitOutputProcessTest {
             ignored -> 250.0d,
             1.0f));
 
-        assertEquals(IFNSplitOutputProcess.Status.INPUT_BLOCKED, result.getStatus());
+        assertEquals(IFNMachineProcessStatus.INPUT_BLOCKED, result.getStatus());
         assertFalse(providerCalled.get());
         assertEquals(amountQ, input.getAmountQ());
         assertEquals(0L, firstOutput.getAmountQ());
@@ -68,7 +68,7 @@ class IFNSplitOutputProcessTest {
             ignored -> 250.0d,
             1.0f));
 
-        assertEquals(IFNSplitOutputProcess.Status.OUTPUT_BLOCKED, result.getStatus());
+        assertEquals(IFNMachineProcessStatus.OUTPUT_BLOCKED, result.getStatus());
         assertEquals(amountQ, input.getAmountQ());
         assertEquals(0L, firstOutput.getAmountQ());
         assertEquals(0L, secondOutput.getAmountQ());

@@ -42,7 +42,7 @@ class IFNDualOutputProcessTest {
             ignored -> 250.0d,
             1.0f));
 
-        assertEquals(IFNDualOutputProcess.Status.INPUT_BLOCKED, result.getStatus());
+        assertEquals(IFNMachineProcessStatus.INPUT_BLOCKED, result.getStatus());
         assertFalse(providerCalled.get());
         assertEquals(amountQ, firstInput.getAmountQ());
         assertEquals(amountQ, secondInput.getAmountQ());
@@ -76,7 +76,7 @@ class IFNDualOutputProcessTest {
             ignored -> 250.0d,
             100.0f));
 
-        assertEquals(IFNDualOutputProcess.Status.OUTPUT_BLOCKED, result.getStatus());
+        assertEquals(IFNMachineProcessStatus.OUTPUT_BLOCKED, result.getStatus());
         assertEquals(storedAmountQ, firstInput.getAmountQ());
         assertEquals(storedAmountQ, secondInput.getAmountQ());
         assertEquals(0L, firstOutput.getAmountQ());

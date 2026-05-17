@@ -34,7 +34,7 @@ class IFNSingleOutputProcessTest {
             },
             1.0f));
 
-        assertEquals(IFNSingleOutputProcess.Status.INPUT_BLOCKED, result.getStatus());
+        assertEquals(IFNMachineProcessStatus.INPUT_BLOCKED, result.getStatus());
         assertFalse(providerCalled.get());
         assertEquals(amountQ, input.getAmountQ());
         assertEquals(0L, output.getAmountQ());
@@ -58,7 +58,7 @@ class IFNSingleOutputProcessTest {
             ignored -> 350.0d,
             1.0f));
 
-        assertEquals(IFNSingleOutputProcess.Status.OUTPUT_BLOCKED, result.getStatus());
+        assertEquals(IFNMachineProcessStatus.OUTPUT_BLOCKED, result.getStatus());
         assertEquals(amountQ, input.getAmountQ());
         assertEquals(0L, output.getAmountQ());
     }
@@ -80,7 +80,7 @@ class IFNSingleOutputProcessTest {
             ignored -> 350.0d,
             1.0f));
 
-        assertEquals(IFNSingleOutputProcess.Status.OUTPUT_BLOCKED, result.getStatus());
+        assertEquals(IFNMachineProcessStatus.OUTPUT_BLOCKED, result.getStatus());
         assertEquals(amountQ, input.getAmountQ());
         assertEquals(0L, output.getAmountQ());
     }

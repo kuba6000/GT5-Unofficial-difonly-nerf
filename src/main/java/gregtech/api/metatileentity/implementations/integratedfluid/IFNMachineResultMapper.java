@@ -17,31 +17,11 @@ public final class IFNMachineResultMapper {
         return CheckRecipeResultRegistry.NO_RECIPE;
     }
 
-    public static CheckRecipeResult toRecipeResult(IFNSingleOutputProcess.Status status) {
-        if (status == IFNSingleOutputProcess.Status.OUTPUT_BLOCKED) {
+    public static CheckRecipeResult toRecipeResult(IFNMachineProcessStatus status) {
+        if (status == IFNMachineProcessStatus.OUTPUT_BLOCKED) {
             return CheckRecipeResultRegistry.ITEM_OUTPUT_FULL;
         }
-        if (status == IFNSingleOutputProcess.Status.SUCCESS) {
-            return CheckRecipeResultRegistry.SUCCESSFUL;
-        }
-        return CheckRecipeResultRegistry.NO_RECIPE;
-    }
-
-    public static CheckRecipeResult toRecipeResult(IFNSplitOutputProcess.Status status) {
-        if (status == IFNSplitOutputProcess.Status.OUTPUT_BLOCKED) {
-            return CheckRecipeResultRegistry.ITEM_OUTPUT_FULL;
-        }
-        if (status == IFNSplitOutputProcess.Status.SUCCESS) {
-            return CheckRecipeResultRegistry.SUCCESSFUL;
-        }
-        return CheckRecipeResultRegistry.NO_RECIPE;
-    }
-
-    public static CheckRecipeResult toRecipeResult(IFNDualOutputProcess.Status status) {
-        if (status == IFNDualOutputProcess.Status.OUTPUT_BLOCKED) {
-            return CheckRecipeResultRegistry.ITEM_OUTPUT_FULL;
-        }
-        if (status == IFNDualOutputProcess.Status.SUCCESS) {
+        if (status == IFNMachineProcessStatus.SUCCESS) {
             return CheckRecipeResultRegistry.SUCCESSFUL;
         }
         return CheckRecipeResultRegistry.NO_RECIPE;
