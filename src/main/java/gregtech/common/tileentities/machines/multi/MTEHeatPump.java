@@ -231,25 +231,18 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
             return configResult;
         }
 
-        MTEIntegratedFluidInputHatch inputHatch = mIntegratedInputHatches.get(0);
-        MTEIntegratedFluidOutputHatch redOutput = getOutputHatchByColor(IFNHeatPumpHatchLayout.RED);
-        MTEIntegratedFluidOutputHatch blueOutput = getOutputHatchByColor(IFNHeatPumpHatchLayout.BLUE);
-
-        if (redOutput == null || blueOutput == null) return CheckRecipeResultRegistry.NO_RECIPE;
-
-        var inputNetwork = inputHatch.getNetwork();
-        var redNetwork = redOutput.getNetwork();
-        var blueNetwork = blueOutput.getNetwork();
+        SplitFlowContext context = selectSplitFlowContext();
+        if (context == null) return CheckRecipeResultRegistry.NO_RECIPE;
 
         CheckRecipeResult networkStatus = IFNMachineResultMapper.requireOperationalNetworks(
-            new IntegratedFluidNetwork[] { inputNetwork },
-            new IntegratedFluidNetwork[] { redNetwork, blueNetwork });
+            new IntegratedFluidNetwork[] { context.inputNetwork },
+            new IntegratedFluidNetwork[] { context.redOutputNetwork, context.blueOutputNetwork });
         if (networkStatus != CheckRecipeResultRegistry.SUCCESSFUL) {
             return networkStatus;
         }
 
         IFNMachineBatchPlanner.NetworkInputBatchPlan inputBatch = IFNMachineBatchPlanner.planNetworkInputBatch(
-            inputNetwork,
+            context.inputNetwork,
             fluidAmountPerOperation
         );
         if (!inputBatch.isValid()) return CheckRecipeResultRegistry.NO_RECIPE;
@@ -257,7 +250,7 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
 
         IFNSplitHeatPumpPlanner.Plan plan = IFNSplitHeatPumpPlanner.plan(IFNSplitHeatPumpPlanner.Request.of(
             operatingMode.toIFNMode(),
-            redNetwork,
+            context.redOutputNetwork,
             inputFluid,
             inputBatch.batch(),
             targetHeating,
@@ -281,10 +274,10 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         final double requestedHotSpecificEnthalpy = plan.getHotOutputSpecificEnthalpy();
         final double requestedColdSpecificEnthalpy = plan.getColdOutputSpecificEnthalpy();
         IFNSplitOutputProcess.Result processResult = IFNSplitOutputProcess.execute(IFNSplitOutputProcess.Request.of(
-            inputNetwork,
-            redNetwork,
+            context.inputNetwork,
+            context.redOutputNetwork,
             inputFluid,
-            blueNetwork,
+            context.blueOutputNetwork,
             inputFluid,
             amountToProcessQ,
             splitRatio,
@@ -314,33 +307,24 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
             return configResult;
         }
 
-        MTEIntegratedFluidInputHatch redInput = getInputHatchByColor(IFNHeatPumpHatchLayout.RED);
-        MTEIntegratedFluidInputHatch blueInput = getInputHatchByColor(IFNHeatPumpHatchLayout.BLUE);
-        MTEIntegratedFluidOutputHatch redOutput = getOutputHatchByColor(IFNHeatPumpHatchLayout.RED);
-        MTEIntegratedFluidOutputHatch blueOutput = getOutputHatchByColor(IFNHeatPumpHatchLayout.BLUE);
-
-        if (redInput == null || blueInput == null || redOutput == null || blueOutput == null) {
+        HeatExchangerContext context = selectHeatExchangerContext();
+        if (context == null) {
             return CheckRecipeResultRegistry.NO_RECIPE;
         }
 
-        var redInNet = redInput.getNetwork();
-        var blueInNet = blueInput.getNetwork();
-        var redOutNet = redOutput.getNetwork();
-        var blueOutNet = blueOutput.getNetwork();
-
         CheckRecipeResult networkStatus = IFNMachineResultMapper.requireOperationalNetworks(
-            new IntegratedFluidNetwork[] { redInNet, blueInNet },
-            new IntegratedFluidNetwork[] { redOutNet, blueOutNet });
+            new IntegratedFluidNetwork[] { context.redInputNetwork, context.blueInputNetwork },
+            new IntegratedFluidNetwork[] { context.redOutputNetwork, context.blueOutputNetwork });
         if (networkStatus != CheckRecipeResultRegistry.SUCCESSFUL) {
             return networkStatus;
         }
 
         IFNMachineBatchPlanner.NetworkInputBatchPlan redInputBatch = IFNMachineBatchPlanner.planNetworkInputBatch(
-            redInNet,
+            context.redInputNetwork,
             fluidAmountPerOperation
         );
         IFNMachineBatchPlanner.NetworkInputBatchPlan blueInputBatch = IFNMachineBatchPlanner.planNetworkInputBatch(
-            blueInNet,
+            context.blueInputNetwork,
             fluidAmountPerOperation
         );
         if (!redInputBatch.isValid() || !blueInputBatch.isValid()) return CheckRecipeResultRegistry.NO_RECIPE;
@@ -349,8 +333,8 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
 
         IFNHeatExchangerPlanner.Plan plan = IFNHeatExchangerPlanner.plan(IFNHeatExchangerPlanner.Request.of(
             operatingMode.toIFNMode(),
-            redOutNet,
-            blueOutNet,
+            context.redOutputNetwork,
+            context.blueOutputNetwork,
             redFluid,
             blueFluid,
             redInputBatch.batch(),
@@ -374,12 +358,12 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         final double requestedRedOutH = plan.getRedOutputSpecificEnthalpy();
         final double requestedBlueOutH = plan.getBlueOutputSpecificEnthalpy();
         IFNDualOutputProcess.Result processResult = IFNDualOutputProcess.execute(IFNDualOutputProcess.Request.of(
-            redInNet,
-            redOutNet,
+            context.redInputNetwork,
+            context.redOutputNetwork,
             redFluid,
             originalRedProcessQ,
-            blueInNet,
-            blueOutNet,
+            context.blueInputNetwork,
+            context.blueOutputNetwork,
             blueFluid,
             originalBlueProcessQ,
             ignored -> requestedRedOutH,
@@ -420,24 +404,20 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
             return configResult;
         }
 
-        if (mIntegratedInputHatches.isEmpty() || mIntegratedOutputHatches.isEmpty()) {
+        NormalModeContext context = selectNormalModeContext();
+        if (context == null) {
             return CheckRecipeResultRegistry.NO_RECIPE;
         }
 
-        MTEIntegratedFluidInputHatch inputHatch = mIntegratedInputHatches.get(0);
-        MTEIntegratedFluidOutputHatch outputHatch = mIntegratedOutputHatches.get(0);
-
-        var inputNetwork = inputHatch.getNetwork();
-        var outputNetwork = outputHatch.getNetwork();
         CheckRecipeResult networkStatus = IFNMachineResultMapper.requireOperationalNetworks(
-            new IntegratedFluidNetwork[] { inputNetwork },
-            new IntegratedFluidNetwork[] { outputNetwork });
+            new IntegratedFluidNetwork[] { context.inputNetwork },
+            new IntegratedFluidNetwork[] { context.outputNetwork });
         if (networkStatus != CheckRecipeResultRegistry.SUCCESSFUL) {
             return networkStatus;
         }
 
         IFNMachineBatchPlanner.NetworkInputBatchPlan inputBatch = IFNMachineBatchPlanner.planNetworkInputBatch(
-            inputNetwork,
+            context.inputNetwork,
             fluidAmountPerOperation
         );
         if (!inputBatch.isValid()) {
@@ -447,7 +427,7 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         double inputSpecificEnthalpy = inputBatch.specificEnthalpy();
         IFNNormalHeatPumpPlanner.Plan plan = IFNNormalHeatPumpPlanner.plan(IFNNormalHeatPumpPlanner.Request.of(
             operatingMode.toIFNMode(),
-            outputNetwork,
+            context.outputNetwork,
             inputFluid,
             inputBatch.batch(),
             targetHeating,
@@ -470,13 +450,13 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         double requestedOutputSpecificEnthalpy = plan.getOutputSpecificEnthalpy();
         double requestedOutputTemperature = plan.getOutputTemperature();
         IFNSingleOutputProcess.Result processResult = IFNSingleOutputProcess.execute(IFNSingleOutputProcess.Request.of(
-            inputNetwork,
-            outputNetwork,
+            context.inputNetwork,
+            context.outputNetwork,
             inputFluid,
             amountToProcessQ,
             amountQ -> targetOutputState
                 ? IFNMachineThermo.computeTargetSpecificEnthalpyForStateAdd(
-                    outputNetwork,
+                    context.outputNetwork,
                     inputFluid,
                     requestedOutputTemperature,
                     amountQ)
@@ -506,7 +486,7 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
 
         float outputTemperature = (float) FluidThermalProperties.getTemperatureFromPH(
             inputFluid,
-            outputNetwork.getPressure(),
+            context.outputNetwork.getPressure(),
             outputSpecificEnthalpy
         );
         return finishSuccessfulProcess(totalEnergyCost, plan.isPassthrough(), outputTemperature);
@@ -531,6 +511,88 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
             if (hatch.getBaseMetaTileEntity().getColorization() == color) return hatch;
         }
         return null;
+    }
+
+    private NormalModeContext selectNormalModeContext() {
+        if (mIntegratedInputHatches.isEmpty() || mIntegratedOutputHatches.isEmpty()) {
+            return null;
+        }
+        return new NormalModeContext(
+            mIntegratedInputHatches.get(0).getNetwork(),
+            mIntegratedOutputHatches.get(0).getNetwork());
+    }
+
+    private SplitFlowContext selectSplitFlowContext() {
+        MTEIntegratedFluidOutputHatch redOutput = getOutputHatchByColor(IFNHeatPumpHatchLayout.RED);
+        MTEIntegratedFluidOutputHatch blueOutput = getOutputHatchByColor(IFNHeatPumpHatchLayout.BLUE);
+        if (redOutput == null || blueOutput == null) {
+            return null;
+        }
+        return new SplitFlowContext(
+            mIntegratedInputHatches.get(0).getNetwork(),
+            redOutput.getNetwork(),
+            blueOutput.getNetwork());
+    }
+
+    private HeatExchangerContext selectHeatExchangerContext() {
+        MTEIntegratedFluidInputHatch redInput = getInputHatchByColor(IFNHeatPumpHatchLayout.RED);
+        MTEIntegratedFluidInputHatch blueInput = getInputHatchByColor(IFNHeatPumpHatchLayout.BLUE);
+        MTEIntegratedFluidOutputHatch redOutput = getOutputHatchByColor(IFNHeatPumpHatchLayout.RED);
+        MTEIntegratedFluidOutputHatch blueOutput = getOutputHatchByColor(IFNHeatPumpHatchLayout.BLUE);
+        if (redInput == null || blueInput == null || redOutput == null || blueOutput == null) {
+            return null;
+        }
+        return new HeatExchangerContext(
+            redInput.getNetwork(),
+            blueInput.getNetwork(),
+            redOutput.getNetwork(),
+            blueOutput.getNetwork());
+    }
+
+    private static final class NormalModeContext {
+
+        private final IntegratedFluidNetwork inputNetwork;
+        private final IntegratedFluidNetwork outputNetwork;
+
+        private NormalModeContext(IntegratedFluidNetwork inputNetwork, IntegratedFluidNetwork outputNetwork) {
+            this.inputNetwork = inputNetwork;
+            this.outputNetwork = outputNetwork;
+        }
+    }
+
+    private static final class SplitFlowContext {
+
+        private final IntegratedFluidNetwork inputNetwork;
+        private final IntegratedFluidNetwork redOutputNetwork;
+        private final IntegratedFluidNetwork blueOutputNetwork;
+
+        private SplitFlowContext(
+            IntegratedFluidNetwork inputNetwork,
+            IntegratedFluidNetwork redOutputNetwork,
+            IntegratedFluidNetwork blueOutputNetwork) {
+            this.inputNetwork = inputNetwork;
+            this.redOutputNetwork = redOutputNetwork;
+            this.blueOutputNetwork = blueOutputNetwork;
+        }
+    }
+
+    private static final class HeatExchangerContext {
+
+        private final IntegratedFluidNetwork redInputNetwork;
+        private final IntegratedFluidNetwork blueInputNetwork;
+        private final IntegratedFluidNetwork redOutputNetwork;
+        private final IntegratedFluidNetwork blueOutputNetwork;
+
+        private HeatExchangerContext(
+            IntegratedFluidNetwork redInputNetwork,
+            IntegratedFluidNetwork blueInputNetwork,
+            IntegratedFluidNetwork redOutputNetwork,
+            IntegratedFluidNetwork blueOutputNetwork) {
+            this.redInputNetwork = redInputNetwork;
+            this.blueInputNetwork = blueInputNetwork;
+            this.redOutputNetwork = redOutputNetwork;
+            this.blueOutputNetwork = blueOutputNetwork;
+        }
     }
 
 
