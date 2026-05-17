@@ -35,7 +35,6 @@ import gregtech.api.metatileentity.implementations.integratedfluid.IFNSingleOutp
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNStateExtractionApplier;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNStateMutationApplier;
 import gregtech.api.metatileentity.implementations.integratedfluid.IntegratedFluidNetwork;
-import gregtech.api.metatileentity.implementations.integratedfluid.IntegratedFluidThermoModel;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNStateTransferPlanner;
 import gregtech.api.metatileentity.implementations.integratedfluid.MTEIntegratedFluidInputHatch;
 import gregtech.api.metatileentity.implementations.integratedfluid.MTEIntegratedFluidOutputHatch;
@@ -251,18 +250,17 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         if (availableAmountQ <= 0) return CheckRecipeResultRegistry.NO_RECIPE;
 
         double inputSpecificEnthalpy = inputNetwork.getSpecificEnthalpy();
-        double vFactor = IntegratedFluidThermoModel
-            .specificVolumeFromPressureAndSpecificEnthalpy(inputFluid, inputNetwork.getPressure(), inputSpecificEnthalpy);
-        long amountToProcessQ = IFNMachineBatchPlanner.computeAmountQForVolumeLimit(
+        IFNMachineBatchPlanner.BatchPlan inputBatch = IFNMachineBatchPlanner.planInputBatch(
+            inputFluid,
+            inputNetwork.getPressure(),
+            inputSpecificEnthalpy,
             availableAmountQ,
-            fluidAmountPerOperation,
-            vFactor
+            fluidAmountPerOperation
         );
-        if (amountToProcessQ <= 0) return CheckRecipeResultRegistry.NO_RECIPE;
+        if (!inputBatch.isValid()) return CheckRecipeResultRegistry.NO_RECIPE;
 
-        double inputTemperature = FluidThermalProperties.getTemperatureFromPH(
-            inputFluid, inputNetwork.getPressure(), inputSpecificEnthalpy
-        );
+        long amountToProcessQ = inputBatch.amountQ();
+        double inputTemperature = inputBatch.temperature();
         if (inputTemperature <= 0.0d) inputTemperature = COLD_RESERVOIR_TEMPERATURE;
 
         // Split amounts based on ratio
@@ -500,9 +498,24 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
 
         double redInH = redInNet.getSpecificEnthalpy();
         double blueInH = blueInNet.getSpecificEnthalpy();
+        IFNMachineBatchPlanner.BatchPlan redInputBatch = IFNMachineBatchPlanner.planInputBatch(
+            redFluid,
+            redInNet.getPressure(),
+            redInH,
+            redAvailQ,
+            fluidAmountPerOperation
+        );
+        IFNMachineBatchPlanner.BatchPlan blueInputBatch = IFNMachineBatchPlanner.planInputBatch(
+            blueFluid,
+            blueInNet.getPressure(),
+            blueInH,
+            blueAvailQ,
+            fluidAmountPerOperation
+        );
+        if (!redInputBatch.isValid() || !blueInputBatch.isValid()) return CheckRecipeResultRegistry.NO_RECIPE;
 
-        double redInTemp = FluidThermalProperties.getTemperatureFromPH(redFluid, redInNet.getPressure(), redInH);
-        double blueInTemp = FluidThermalProperties.getTemperatureFromPH(blueFluid, blueInNet.getPressure(), blueInH);
+        double redInTemp = redInputBatch.temperature();
+        double blueInTemp = blueInputBatch.temperature();
 
         // HEAT FLOW DIRECTION: ALWAYS BLUE (Source) -> RED (Target)
         // This means we extract heat from Blue (cooling it down) and pump it into Red (heating it up).
@@ -519,37 +532,20 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
 
         boolean configureRed = configuringHotStream;
 
-        var targetInNet = configureRed ? redInNet : blueInNet;
         var targetOutNet = configureRed ? redOutNet : blueOutNet;
         Fluid targetFluid = configureRed ? redFluid : blueFluid;
-        long targetAvailQ = configureRed ? redAvailQ : blueAvailQ;
         double targetInH = configureRed ? redInH : blueInH;
         double targetInTemp = configureRed ? redInTemp : blueInTemp;
+        IFNMachineBatchPlanner.BatchPlan targetInputBatch = configureRed ? redInputBatch : blueInputBatch;
 
-        var sourceInNet = !configureRed ? redInNet : blueInNet;
         var sourceOutNet = !configureRed ? redOutNet : blueOutNet;
         Fluid sourceFluid = !configureRed ? redFluid : blueFluid;
-        long sourceAvailQ = !configureRed ? redAvailQ : blueAvailQ;
         double sourceInH = !configureRed ? redInH : blueInH;
         double sourceInTemp = !configureRed ? redInTemp : blueInTemp;
+        IFNMachineBatchPlanner.BatchPlan sourceInputBatch = !configureRed ? redInputBatch : blueInputBatch;
 
-
-        // Calculate max amount to process
-        double tVFactor = IntegratedFluidThermoModel.specificVolumeFromPressureAndSpecificEnthalpy(targetFluid, targetInNet.getPressure(), targetInH);
-        long targetProcessQ = IFNMachineBatchPlanner.computeAmountQForVolumeLimit(
-            targetAvailQ,
-            fluidAmountPerOperation,
-            tVFactor
-        );
-        if (targetProcessQ <= 0) return CheckRecipeResultRegistry.NO_RECIPE;
-
-        double sVFactor = IntegratedFluidThermoModel.specificVolumeFromPressureAndSpecificEnthalpy(sourceFluid, sourceInNet.getPressure(), sourceInH);
-        long sourceProcessQ = IFNMachineBatchPlanner.computeAmountQForVolumeLimit(
-            sourceAvailQ,
-            fluidAmountPerOperation,
-            sVFactor
-        );
-        if (sourceProcessQ <= 0) return CheckRecipeResultRegistry.NO_RECIPE;
+        long targetProcessQ = targetInputBatch.amountQ();
+        long sourceProcessQ = sourceInputBatch.amountQ();
 
         double targetProcessAmt = toAmount(targetProcessQ);
         double sourceProcessAmt = toAmount(sourceProcessQ);
@@ -834,21 +830,18 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
         }
 
         double inputSpecificEnthalpy = inputNetwork.getSpecificEnthalpy();
-        double vFactor = IntegratedFluidThermoModel
-            .specificVolumeFromPressureAndSpecificEnthalpy(inputFluid, inputNetwork.getPressure(), inputSpecificEnthalpy);
-        long amountToProcessQ = IFNMachineBatchPlanner.computeAmountQForVolumeLimit(
-            availableAmountQ,
-            fluidAmountPerOperation,
-            vFactor
-        );
-        if (amountToProcessQ <= 0) {
-            return CheckRecipeResultRegistry.NO_RECIPE;
-        }
-        double inputTemperature = FluidThermalProperties.getTemperatureFromPH(
+        IFNMachineBatchPlanner.BatchPlan inputBatch = IFNMachineBatchPlanner.planInputBatch(
             inputFluid,
             inputNetwork.getPressure(),
-            inputSpecificEnthalpy
+            inputSpecificEnthalpy,
+            availableAmountQ,
+            fluidAmountPerOperation
         );
+        if (!inputBatch.isValid()) {
+            return CheckRecipeResultRegistry.NO_RECIPE;
+        }
+        long amountToProcessQ = inputBatch.amountQ();
+        double inputTemperature = inputBatch.temperature();
         if (inputTemperature <= 0.0d) {
             inputTemperature = COLD_RESERVOIR_TEMPERATURE;
         }

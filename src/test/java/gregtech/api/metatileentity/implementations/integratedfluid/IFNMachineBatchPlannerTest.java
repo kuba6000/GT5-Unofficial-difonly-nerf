@@ -1,6 +1,10 @@
 package gregtech.api.metatileentity.implementations.integratedfluid;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import net.minecraftforge.fluids.Fluid;
 
 import org.junit.jupiter.api.Test;
 
@@ -28,5 +32,54 @@ class IFNMachineBatchPlannerTest {
         assertEquals(0L, IFNMachineBatchPlanner.computeAmountQForVolumeLimit(10L, 12.0d, 0.0d));
         assertEquals(0L, IFNMachineBatchPlanner.computeAmountQForVolumeLimit(10L, 12.0d, Double.NaN));
         assertEquals(0L, IFNMachineBatchPlanner.computeAmountQForVolumeLimit(10L, 1.0d, 2.0d));
+    }
+
+    @Test
+    void inputBatchPlanCarriesThermalStateAndSizedAmount() {
+        Fluid fluid = IFNTestSupport.liquidFluid();
+        float pressure = 2.0f;
+        double specificEnthalpy = FluidThermalProperties.getSpecificEnthalpyFromPT(fluid, pressure, 320.0d);
+        double specificVolume = IntegratedFluidThermoModel.specificVolumeFromPressureAndSpecificEnthalpy(
+            fluid,
+            pressure,
+            specificEnthalpy
+        );
+
+        IFNMachineBatchPlanner.BatchPlan plan = IFNMachineBatchPlanner.planInputBatch(
+            fluid,
+            pressure,
+            specificEnthalpy,
+            10L * IntegratedFluidNetwork.AMOUNT_SCALE,
+            specificVolume * 4.5d
+        );
+
+        assertTrue(plan.isValid());
+        assertEquals(4L * IntegratedFluidNetwork.AMOUNT_SCALE, plan.amountQ());
+        assertEquals(specificEnthalpy, plan.specificEnthalpy(), 0.001d);
+        assertEquals(320.0d, plan.temperature(), 0.001d);
+        assertEquals(specificVolume, plan.specificVolume(), 0.001d);
+    }
+
+    @Test
+    void inputBatchPlanIsInvalidWhenNoWholeReferenceAmountFits() {
+        Fluid fluid = IFNTestSupport.liquidFluid();
+        float pressure = 2.0f;
+        double specificEnthalpy = FluidThermalProperties.getSpecificEnthalpyFromPT(fluid, pressure, 320.0d);
+        double specificVolume = IntegratedFluidThermoModel.specificVolumeFromPressureAndSpecificEnthalpy(
+            fluid,
+            pressure,
+            specificEnthalpy
+        );
+
+        IFNMachineBatchPlanner.BatchPlan plan = IFNMachineBatchPlanner.planInputBatch(
+            fluid,
+            pressure,
+            specificEnthalpy,
+            10L * IntegratedFluidNetwork.AMOUNT_SCALE,
+            specificVolume * 0.5d
+        );
+
+        assertFalse(plan.isValid());
+        assertEquals(0L, plan.amountQ());
     }
 }
