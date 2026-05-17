@@ -27,6 +27,16 @@ public final class IFNMachineResultMapper {
         return CheckRecipeResultRegistry.NO_RECIPE;
     }
 
+    public static CheckRecipeResult toRecipeResult(IFNSplitOutputProcess.Status status) {
+        if (status == IFNSplitOutputProcess.Status.OUTPUT_BLOCKED) {
+            return CheckRecipeResultRegistry.ITEM_OUTPUT_FULL;
+        }
+        if (status == IFNSplitOutputProcess.Status.SUCCESS) {
+            return CheckRecipeResultRegistry.SUCCESSFUL;
+        }
+        return CheckRecipeResultRegistry.NO_RECIPE;
+    }
+
     public static CheckRecipeResult requireOperationalNetworks(IntegratedFluidNetwork[] inputNetworks,
         IntegratedFluidNetwork[] outputNetworks) {
         if (!IFNNetworkTransferGate.areOperational(inputNetworks)) {

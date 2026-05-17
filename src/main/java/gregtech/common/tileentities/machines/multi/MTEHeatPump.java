@@ -32,6 +32,7 @@ import gregtech.api.metatileentity.implementations.integratedfluid.IFNMachineRes
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNMachineThermo;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNPressurePolicy;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNSingleOutputProcess;
+import gregtech.api.metatileentity.implementations.integratedfluid.IFNSplitOutputProcess;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNStateExtractionApplier;
 import gregtech.api.metatileentity.implementations.integratedfluid.IFNStateMutationApplier;
 import gregtech.api.metatileentity.implementations.integratedfluid.IntegratedFluidNetwork;
@@ -390,66 +391,38 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
 
         long originalAmountToProcessQ = amountToProcessQ;
         long originalEnergyCost = energyCost;
-        if (redNetwork != inputNetwork || blueNetwork != inputNetwork) {
-            var plan = IFNStateTransferPlanner.planSplitStateAdd(
-                inputNetwork,
-                redNetwork,
-                inputFluid,
-                hotSpecificEnthalpy,
-                blueNetwork,
-                inputFluid,
-                coldSpecificEnthalpy,
-                amountToProcessQ,
-                splitRatio,
-                IFNPressurePolicy.MACHINE_OUTPUT_TO_INPUT_PRESSURE_RATIO
-            );
-            if (plan.acceptedTotalAmountQ < IntegratedFluidNetwork.AMOUNT_SCALE) {
-                return IFNMachineResultMapper.toRecipeResult(plan.status);
-            }
-            amountToProcessQ = plan.acceptedTotalAmountQ;
-        }
-
-        // Extract from input
-        IntegratedFluidNetwork.ExtractedPayload extracted = inputNetwork.extractProportional(amountToProcessQ, false);
-        if (extracted.amountQ <= 0L) return CheckRecipeResultRegistry.NO_RECIPE;
-
-        // Adjust if extraction was partial OR if we scaled down due to pressure
-        if (extracted.amountQ != originalAmountToProcessQ) {
-            double ratio = extracted.amountQ / (double) originalAmountToProcessQ;
-            if (energyCost > 0L) {
-                energyCost = IFNMachineThermo.scaleEnergyCost(originalEnergyCost, originalAmountToProcessQ, extracted.amountQ);
-            }
-        }
-
-        IFNMachineBatchPlanner.SplitAmounts extractedSplit = IFNMachineBatchPlanner.computeSplitAmounts(
-            extracted.amountQ,
-            splitRatio
-        );
-        if (!extractedSplit.isValid()) return CheckRecipeResultRegistry.NO_RECIPE;
-        hotAmountQ = extractedSplit.firstAmountQ();
-        coldAmountQ = extractedSplit.secondAmountQ();
-
-        currentEnergyUsage = energyCost;
-        this.totalEnergyCost = (int) ((energyCost + 19) / 20);
-
-        long outHotEnthalpyQ = toEnthalpyQ(hotSpecificEnthalpy, hotAmountQ);
-        long outColdEnthalpyQ = toEnthalpyQ(coldSpecificEnthalpy, coldAmountQ);
-        long hotExtractedEnthalpyQ = splitEnthalpyQ(extracted.enthalpyQ, hotAmountQ, extracted.amountQ);
-        long coldExtractedEnthalpyQ = extracted.enthalpyQ - hotExtractedEnthalpyQ;
-
-        if (!IFNStateMutationApplier.addTwoOutputsOrRestoreInputs(
+        final double requestedHotSpecificEnthalpy = hotSpecificEnthalpy;
+        final double requestedColdSpecificEnthalpy = coldSpecificEnthalpy;
+        IFNSplitOutputProcess.Result processResult = IFNSplitOutputProcess.execute(IFNSplitOutputProcess.Request.of(
             inputNetwork,
             redNetwork,
             inputFluid,
-            IntegratedFluidNetwork.ExtractedPayload.of(hotAmountQ, hotExtractedEnthalpyQ),
-            outHotEnthalpyQ,
-            inputNetwork,
             blueNetwork,
             inputFluid,
-            IntegratedFluidNetwork.ExtractedPayload.of(coldAmountQ, coldExtractedEnthalpyQ),
-            outColdEnthalpyQ)) {
-            return CheckRecipeResultRegistry.ITEM_OUTPUT_FULL;
+            amountToProcessQ,
+            splitRatio,
+            ignored -> requestedHotSpecificEnthalpy,
+            ignored -> requestedColdSpecificEnthalpy,
+            IFNPressurePolicy.MACHINE_OUTPUT_TO_INPUT_PRESSURE_RATIO));
+
+        if (processResult.getStatus() != IFNSplitOutputProcess.Status.SUCCESS) {
+            return IFNMachineResultMapper.toRecipeResult(processResult.getStatus());
         }
+
+        // Adjust if extraction was partial OR if we scaled down due to pressure.
+        if (processResult.getAmountQ() != originalAmountToProcessQ) {
+            if (energyCost > 0L) {
+                energyCost = IFNMachineThermo
+                    .scaleEnergyCost(originalEnergyCost, originalAmountToProcessQ, processResult.getAmountQ());
+            }
+        }
+
+        amountToProcessQ = processResult.getAmountQ();
+        hotAmountQ = processResult.getFirstAmountQ();
+        coldAmountQ = processResult.getSecondAmountQ();
+
+        currentEnergyUsage = energyCost;
+        this.totalEnergyCost = (int) ((energyCost + 19) / 20);
 
         currentOutputTemperature = (float) hotTemperature;
 
@@ -1168,16 +1141,6 @@ public class MTEHeatPump extends MTEEnhancedMultiBlockBase<MTEHeatPump> implemen
 
     private static long toEnthalpyQ(double specificEnthalpy, long amountQ) {
         return toEnthalpyQ(specificEnthalpy * toAmount(amountQ));
-    }
-
-    private static long splitEnthalpyQ(long totalEnthalpyQ, long partAmountQ, long totalAmountQ) {
-        if (totalEnthalpyQ <= 0L || partAmountQ <= 0L || totalAmountQ <= 0L) {
-            return 0L;
-        }
-        if (partAmountQ >= totalAmountQ) {
-            return totalEnthalpyQ;
-        }
-        return (long) (totalEnthalpyQ * ((double) partAmountQ / (double) totalAmountQ));
     }
 
     private void applyHeatPumpMetrics(IFNMachineThermo.HeatPumpMetrics metrics) {
