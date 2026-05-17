@@ -988,6 +988,11 @@ public class IntegratedFluidNetwork {
     }
 
     public void loadState(String fluidName, long amountQ, long enthalpyQ, float pressure, int expectedMembers) {
+        loadState(fluidName, amountQ, enthalpyQ, pressure, expectedMembers, null);
+    }
+
+    public void loadState(String fluidName, long amountQ, long enthalpyQ, float pressure, int expectedMembers,
+        String frozenReason) {
         this.amountQ = Math.max(0L, amountQ);
         this.enthalpyQ = Math.max(0L, enthalpyQ);
         if (this.amountQ == 0L || fluidName == null || fluidName.trim().isEmpty()) {
@@ -997,6 +1002,7 @@ public class IntegratedFluidNetwork {
         }
         this.pressure = DEFAULT_PRESSURE;
         this.expectedMemberCount = expectedMembers;
+        this.frozenReason = frozenReason == null || frozenReason.trim().isEmpty() ? null : frozenReason;
         updatePressure();
     }
 

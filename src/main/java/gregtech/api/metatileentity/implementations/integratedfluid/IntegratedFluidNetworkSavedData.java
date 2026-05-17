@@ -21,6 +21,7 @@ public class IntegratedFluidNetworkSavedData extends WorldSavedData {
     private static final String TAG_FLUID_NAME = "FluidName";
     private static final String TAG_AMOUNT_Q = "AmountQ";
     private static final String TAG_ENTHALPY_Q = "EnthalpyQ";
+    private static final String TAG_FROZEN_REASON = "FrozenReason";
     private static final String TAG_TEMPERATURE_OLD = "Temperature";
     private static final String TAG_FLUID_OLD = "Fluid";
 
@@ -56,6 +57,7 @@ public class IntegratedFluidNetworkSavedData extends WorldSavedData {
         state.fluidName = network.getFluidName();
         state.amountQ = network.getAmountQ();
         state.enthalpyQ = network.getEnthalpyQ();
+        state.frozenReason = network.getFrozenReason();
         markDirty();
     }
 
@@ -79,6 +81,7 @@ public class IntegratedFluidNetworkSavedData extends WorldSavedData {
             state.fluidName = entry.hasKey(TAG_FLUID_NAME) ? entry.getString(TAG_FLUID_NAME) : null;
             state.amountQ = entry.getLong(TAG_AMOUNT_Q);
             state.enthalpyQ = entry.getLong(TAG_ENTHALPY_Q);
+            state.frozenReason = entry.hasKey(TAG_FROZEN_REASON) ? entry.getString(TAG_FROZEN_REASON) : null;
             if (state.fluidName == null && entry.hasKey(TAG_FLUID_OLD)) {
                 migrateLegacyFluidStack(entry, state);
             }
@@ -120,6 +123,9 @@ public class IntegratedFluidNetworkSavedData extends WorldSavedData {
             }
             tag.setLong(TAG_AMOUNT_Q, state.amountQ);
             tag.setLong(TAG_ENTHALPY_Q, state.enthalpyQ);
+            if (state.frozenReason != null && !state.frozenReason.trim().isEmpty()) {
+                tag.setString(TAG_FROZEN_REASON, state.frozenReason);
+            }
             list.appendTag(tag);
         }
         nbt.setTag(TAG_NETWORKS, list);
@@ -129,6 +135,7 @@ public class IntegratedFluidNetworkSavedData extends WorldSavedData {
         String fluidName;
         long amountQ = 0L;
         long enthalpyQ = 0L;
+        String frozenReason;
         int expectedMemberCount = 0;
     }
 }

@@ -493,7 +493,8 @@ public class NetworkManager {
                 state.amountQ,
                 state.enthalpyQ,
                 IntegratedFluidNetwork.DEFAULT_PRESSURE,
-                state.expectedMemberCount
+                state.expectedMemberCount,
+                state.frozenReason
             );
         }
         return network;
