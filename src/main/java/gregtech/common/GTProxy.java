@@ -138,6 +138,7 @@ import gregtech.api.items.MetaGeneratedTool;
 import gregtech.api.items.armor.ArmorActionManager;
 import gregtech.api.items.armor.ArmorEventHandlers;
 import gregtech.api.metatileentity.implementations.integratedfluid.IntegratedFluidNetworkEventHandlerRegistration;
+import gregtech.api.metatileentity.implementations.integratedfluid.NetworkManager;
 import gregtech.api.net.GTPacketMusicSystemData;
 import gregtech.api.objects.GTChunkManager;
 import gregtech.api.objects.GTUODimensionList;
@@ -2125,6 +2126,7 @@ public class GTProxy implements IFuelHandler {
                 tileEntity.onChunkUnload();
             }
         }
+        NetworkManager.clearInstance(event.world);
     }
 
     @SubscribeEvent

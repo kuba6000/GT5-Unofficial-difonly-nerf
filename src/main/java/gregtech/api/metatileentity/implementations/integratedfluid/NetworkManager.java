@@ -54,6 +54,16 @@ public class NetworkManager {
         return INSTANCES.computeIfAbsent(world, NetworkManager::new);
     }
 
+    public static void clearInstance(World world) {
+        if (world == null) {
+            return;
+        }
+        NetworkManager manager = INSTANCES.remove(world);
+        if (manager != null) {
+            manager.cleanup();
+        }
+    }
+
     /**
      * Gets the network for a member, or null if not networked.
      */
