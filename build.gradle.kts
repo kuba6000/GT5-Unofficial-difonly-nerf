@@ -18,6 +18,7 @@ tasks.test.configure {
 }
 
 val horizonsQaTestPatterns = listOf(
+    "*HorizonQAVfnTopologyMatrixTest*",
     "*HorizonQAVfnTopologyScenarioTest*",
     "*NetworkManagerPersistenceTest*",
     "*NetworkManagerLifecycleTest*",
