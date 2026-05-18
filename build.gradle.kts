@@ -20,6 +20,7 @@ tasks.test.configure {
 val horizonsQaTestPatterns = listOf(
     "*HorizonQAVfnDeterministicStressTest*",
     "*HorizonQAVfnFailureMatrixTest*",
+    "*HorizonQAVfnTransferStressTest*",
     "*HorizonQAVfnLongCycleTest*",
     "*HorizonQAVfnHeatSystemTest*",
     "*HorizonQAVfnHatchMatrixTest*",
