@@ -228,6 +228,7 @@ public class NetworkManager {
             return;
         }
 
+        String inheritedFrozenReason = frozenReasonOf(affectedNetworks);
         IFNCanonicalState combinedState = IFNCanonicalState.empty();
         UUID splitPrimaryId = null;
         if (affectedNetworks.size() == 1) {
@@ -286,12 +287,28 @@ public class NetworkManager {
             newNetwork.setExpectedMemberCount(newNetwork.getMemberCount());
             newNetwork.setPending(false);
             newNetwork.capFluidToCapacity();
+            if (inheritedFrozenReason != null) {
+                newNetwork.freeze(inheritedFrozenReason);
+            }
             persistNetwork(newNetwork);
 
             for (IIntegratedFluidMember componentMember : component) {
                 componentMember.onNetworkUpdate();
             }
         }
+    }
+
+    private String frozenReasonOf(Set<IntegratedFluidNetwork> networks) {
+        if (networks == null) {
+            return null;
+        }
+        for (IntegratedFluidNetwork network : networks) {
+            if (network != null && network.isFrozen()) {
+                String reason = network.getFrozenReason();
+                return reason == null || reason.trim().isEmpty() ? "frozen" : reason;
+            }
+        }
+        return null;
     }
 
     /**
