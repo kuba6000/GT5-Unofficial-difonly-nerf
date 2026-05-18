@@ -489,9 +489,13 @@ public class NetworkManager {
      * Creates a new isolated network with a single member.
      */
     private IntegratedFluidNetwork createEmptyNetwork(UUID networkId) {
-        IntegratedFluidNetwork network = new IntegratedFluidNetwork(networkId);
+        IntegratedFluidNetwork network = newNetwork(networkId);
         allNetworks.add(network);
         return network;
+    }
+
+    protected IntegratedFluidNetwork newNetwork(UUID networkId) {
+        return new IntegratedFluidNetwork(networkId);
     }
 
     private IntegratedFluidNetwork createNewNetwork(UUID networkId) {
