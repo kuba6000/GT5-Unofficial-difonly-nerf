@@ -12,25 +12,25 @@ import gregtech.api.metatileentity.implementations.integratedfluid.state.IFNCano
 class IFNStateDistributorTest {
 
     @Test
-    void substanceSplitIsProportionalAndLossy() {
+    void substanceSplitIsProportionalAndConservesRemainder() {
         SubstanceAmount[] shares = IFNStateDistributor.splitSubstanceByWeights(
             SubstanceAmount.fromRawUnits(10),
             new long[] { 1, 2 }
         );
 
-        assertArrayEquals(new long[] { 3, 6 }, rawSubstance(shares));
-        assertEquals(9, shares[0].plus(shares[1]).rawUnits());
+        assertArrayEquals(new long[] { 3, 7 }, rawSubstance(shares));
+        assertEquals(10, shares[0].plus(shares[1]).rawUnits());
     }
 
     @Test
-    void energySplitUsesSameLossyRoundingRule() {
+    void energySplitUsesSameConservingRoundingRule() {
         EnergyAmount[] shares = IFNStateDistributor.splitEnergyByWeights(
             EnergyAmount.fromRawUnits(10),
             new long[] { 1, 2 }
         );
 
-        assertArrayEquals(new long[] { 3, 6 }, rawEnergy(shares));
-        assertEquals(9, shares[0].plus(shares[1]).rawUnits());
+        assertArrayEquals(new long[] { 3, 7 }, rawEnergy(shares));
+        assertEquals(10, shares[0].plus(shares[1]).rawUnits());
     }
 
     @Test
@@ -44,7 +44,7 @@ class IFNStateDistributorTest {
     }
 
     @Test
-    void canonicalStateSplitKeepsFluidAndUsesSameLossyRounding() {
+    void canonicalStateSplitKeepsFluidAndUsesSameConservingRounding() {
         IFNCanonicalState[] shares = IFNStateDistributor.splitStateByWeights(
             IFNCanonicalState.of("water", SubstanceAmount.fromRawUnits(10), EnergyAmount.fromRawUnits(100)),
             new long[] { 1, 2 }
@@ -52,8 +52,8 @@ class IFNStateDistributorTest {
 
         assertEquals("water", shares[0].fluidId().get());
         assertEquals("water", shares[1].fluidId().get());
-        assertArrayEquals(new long[] { 3, 6 }, rawSubstance(shares));
-        assertArrayEquals(new long[] { 33, 66 }, rawEnergy(shares));
+        assertArrayEquals(new long[] { 3, 7 }, rawSubstance(shares));
+        assertArrayEquals(new long[] { 33, 67 }, rawEnergy(shares));
     }
 
     private static long[] rawSubstance(SubstanceAmount[] shares) {

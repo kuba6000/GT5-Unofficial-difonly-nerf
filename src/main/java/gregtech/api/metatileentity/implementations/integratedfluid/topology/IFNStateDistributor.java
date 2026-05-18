@@ -1,6 +1,7 @@
 package gregtech.api.metatileentity.implementations.integratedfluid.topology;
 
 import java.math.BigInteger;
+import java.util.Arrays;
 
 import gregtech.api.metatileentity.implementations.integratedfluid.amount.EnergyAmount;
 import gregtech.api.metatileentity.implementations.integratedfluid.amount.SubstanceAmount;
@@ -65,11 +66,41 @@ public final class IFNStateDistributor {
         }
 
         BigInteger totalValue = BigInteger.valueOf(total);
+        BigInteger[] remainders = new BigInteger[weights.length];
+        long allocated = 0L;
         for (int i = 0; i < weights.length; i++) {
             if (weights[i] == 0L) {
                 shares[i] = 0L;
+                remainders[i] = BigInteger.ZERO;
             } else {
-                shares[i] = totalValue.multiply(BigInteger.valueOf(weights[i])).divide(weightSum).longValueExact();
+                BigInteger weightedTotal = totalValue.multiply(BigInteger.valueOf(weights[i]));
+                BigInteger[] quotientAndRemainder = weightedTotal.divideAndRemainder(weightSum);
+                shares[i] = quotientAndRemainder[0].longValueExact();
+                remainders[i] = quotientAndRemainder[1];
+                allocated += shares[i];
+            }
+        }
+        long remainderToAssign = total - allocated;
+        if (remainderToAssign <= 0L) {
+            return shares;
+        }
+
+        Integer[] indexesByRemainder = new Integer[weights.length];
+        for (int i = 0; i < indexesByRemainder.length; i++) {
+            indexesByRemainder[i] = i;
+        }
+        Arrays.sort(indexesByRemainder, (left, right) -> {
+            int remainderOrder = remainders[right].compareTo(remainders[left]);
+            return remainderOrder != 0 ? remainderOrder : Integer.compare(left, right);
+        });
+
+        for (int index : indexesByRemainder) {
+            if (remainderToAssign == 0L) {
+                break;
+            }
+            if (weights[index] > 0L && remainders[index].signum() > 0) {
+                shares[index]++;
+                remainderToAssign--;
             }
         }
         return shares;
