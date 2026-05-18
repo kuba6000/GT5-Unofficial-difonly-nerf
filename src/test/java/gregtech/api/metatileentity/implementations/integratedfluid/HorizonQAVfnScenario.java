@@ -20,6 +20,9 @@ import net.minecraftforge.fluids.Fluid;
 final class HorizonQAVfnScenario {
 
     private static final int PIPE_CAPACITY = 1000;
+    private static final int MACHINE_HATCH_CAPACITY = 0;
+    private static final int INPUT_OUTPUT_HATCH_CAPACITY = 10_000;
+    private static final int INJECTOR_EXTRACTOR_HATCH_CAPACITY = 0;
 
     final Fluid fluid;
     final ScenarioNetworkManager manager;
@@ -39,6 +42,26 @@ final class HorizonQAVfnScenario {
 
     ScenarioMember pipe(String name, int capacityContribution) {
         return new ScenarioMember(name, capacityContribution);
+    }
+
+    ScenarioMember inputHatch(String name) {
+        return new ScenarioMember(name, INPUT_OUTPUT_HATCH_CAPACITY, INPUT_OUTPUT_HATCH_CAPACITY);
+    }
+
+    ScenarioMember outputHatch(String name) {
+        return new ScenarioMember(name, INPUT_OUTPUT_HATCH_CAPACITY, INPUT_OUTPUT_HATCH_CAPACITY);
+    }
+
+    ScenarioMember injectorHatch(String name) {
+        return new ScenarioMember(name, INJECTOR_EXTRACTOR_HATCH_CAPACITY);
+    }
+
+    ScenarioMember extractorHatch(String name) {
+        return new ScenarioMember(name, INJECTOR_EXTRACTOR_HATCH_CAPACITY);
+    }
+
+    ScenarioMember machineHatch(String name) {
+        return new ScenarioMember(name, MACHINE_HATCH_CAPACITY);
     }
 
     List<ScenarioMember> members(ScenarioMember... members) {
@@ -84,6 +107,14 @@ final class HorizonQAVfnScenario {
         }
         assertEquals(expectedMembers, network.getMemberCount());
         assertEquals(expectedMembers, network.getExpectedMemberCount());
+    }
+
+    void assertSingleNetworkCapacity(List<ScenarioMember> members, int expectedBaseCapacity,
+        int expectedAccumulatorCapacity) {
+        IntegratedFluidNetwork network = members.get(0).getNetwork();
+        assertNotNull(network);
+        assertEquals(expectedBaseCapacity, network.getMaxCapacity());
+        assertEquals(expectedAccumulatorCapacity, network.getAccumulatorCapacity());
     }
 
     void assertNetworkGroups(List<ScenarioMember> members, int expectedGroups) {
@@ -133,12 +164,18 @@ final class HorizonQAVfnScenario {
 
         final String name;
         private final int capacityContribution;
+        private final int accumulatorContribution;
         private IntegratedFluidNetwork network;
         private UUID networkId;
 
         private ScenarioMember(String name, int capacityContribution) {
+            this(name, capacityContribution, 0);
+        }
+
+        private ScenarioMember(String name, int capacityContribution, int accumulatorContribution) {
             this.name = name;
             this.capacityContribution = capacityContribution;
+            this.accumulatorContribution = accumulatorContribution;
         }
 
         @Override
@@ -167,6 +204,11 @@ final class HorizonQAVfnScenario {
         @Override
         public int getCapacityContribution() {
             return capacityContribution;
+        }
+
+        @Override
+        public int getAccumulatorContribution() {
+            return accumulatorContribution;
         }
     }
 
