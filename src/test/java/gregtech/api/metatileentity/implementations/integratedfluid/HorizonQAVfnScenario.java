@@ -36,6 +36,10 @@ final class HorizonQAVfnScenario {
         return new HorizonQAVfnScenario(IFNTestSupport.liquidFluid());
     }
 
+    static HorizonQAVfnScenario create(Fluid fluid) {
+        return new HorizonQAVfnScenario(fluid);
+    }
+
     ScenarioMember pipe(String name) {
         return pipe(name, PIPE_CAPACITY);
     }
