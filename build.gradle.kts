@@ -17,6 +17,35 @@ tasks.test.configure {
     }
 }
 
+val horizonsQaTestPatterns = listOf(
+    "*NetworkManagerPersistenceTest*",
+    "*NetworkManagerLifecycleTest*",
+    "*MTEIntegratedFluidPipeLifecycleTest*",
+    "*NetworkManagerMergeFreezeTest*",
+    "*NetworkManagerSafetyTickTest*",
+    "*IntegratedFluidNetworkStatusTest*",
+    "*IFNNetworkTransferGateTest*",
+    "*IFNDetectorCoverLogicTest*",
+    "*CoverIFNDetectorBaseTest*",
+    "*CoverIFNDetectorGuiTest*",
+)
+
+tasks.register<Test>("horizonsQA") {
+    group = "verification"
+    description = "Runs Horizon-QA milestone checks for IFN/VFN runtime stability."
+    dependsOn(tasks.named("testClasses"))
+    shouldRunAfter(tasks.test)
+    useJUnitPlatform()
+    testClassesDirs = tasks.test.get().testClassesDirs
+    classpath = tasks.test.get().classpath
+    filter {
+        horizonsQaTestPatterns.forEach(::includeTestsMatching)
+    }
+    testLogging {
+        events("passed", "skipped", "failed")
+    }
+}
+
 fun parseGtVersion(versionStr: String): Triple<Int, Int, Int> {
     val components = versionStr.split(Pattern.compile("[.-]"), 5)
     val vMajor = 500 + components[1].toInt()
