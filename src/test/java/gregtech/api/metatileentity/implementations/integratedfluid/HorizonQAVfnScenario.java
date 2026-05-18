@@ -15,6 +15,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
+import net.minecraft.nbt.NBTTagCompound;
 import net.minecraftforge.fluids.Fluid;
 
 final class HorizonQAVfnScenario {
@@ -25,11 +26,11 @@ final class HorizonQAVfnScenario {
     private static final int INJECTOR_EXTRACTOR_HATCH_CAPACITY = 0;
 
     final Fluid fluid;
-    final ScenarioNetworkManager manager;
+    ScenarioNetworkManager manager;
 
     private HorizonQAVfnScenario(Fluid fluid) {
         this.fluid = fluid;
-        this.manager = new ScenarioNetworkManager(fluid);
+        this.manager = new ScenarioNetworkManager(fluid, new IntegratedFluidNetworkSavedData());
     }
 
     static HorizonQAVfnScenario create() {
@@ -153,6 +154,26 @@ final class HorizonQAVfnScenario {
         return networks;
     }
 
+    void roundTripSavedDataAndReloadFrom(ScenarioMember seed, List<ScenarioMember> members) {
+        for (IntegratedFluidNetwork network : networksOf(members)) {
+            manager.savedData.upsertState(network.getNetworkId(), network);
+        }
+
+        NBTTagCompound nbt = new NBTTagCompound();
+        manager.savedData.writeToNBT(nbt);
+        IntegratedFluidNetworkSavedData reloadedData = new IntegratedFluidNetworkSavedData();
+        reloadedData.readFromNBT(nbt);
+
+        ScenarioNetworkManager reloadedManager = new ScenarioNetworkManager(fluid, reloadedData);
+        reloadedManager.copyLinksFrom(manager);
+        manager = reloadedManager;
+
+        for (ScenarioMember member : members) {
+            member.setNetwork(null);
+        }
+        manager.onMemberAdded(seed);
+    }
+
     static final class SeededFluid {
 
         final long amountQ;
@@ -219,11 +240,13 @@ final class HorizonQAVfnScenario {
     private static final class ScenarioNetworkManager extends NetworkManager {
 
         private final Fluid fluid;
+        private final IntegratedFluidNetworkSavedData savedData;
         private final Map<IIntegratedFluidMember, Set<IIntegratedFluidMember>> links = new HashMap<>();
 
-        private ScenarioNetworkManager(Fluid fluid) {
-            super(null, new IntegratedFluidNetworkSavedData());
+        private ScenarioNetworkManager(Fluid fluid, IntegratedFluidNetworkSavedData savedData) {
+            super(null, savedData);
             this.fluid = fluid;
+            this.savedData = savedData;
         }
 
         private void connect(IIntegratedFluidMember first, IIntegratedFluidMember second) {
@@ -254,6 +277,13 @@ final class HorizonQAVfnScenario {
         @Override
         protected IntegratedFluidNetwork newNetwork(UUID networkId) {
             return new ScenarioNetwork(networkId, fluid);
+        }
+
+        private void copyLinksFrom(ScenarioNetworkManager other) {
+            links.clear();
+            for (Map.Entry<IIntegratedFluidMember, Set<IIntegratedFluidMember>> entry : other.links.entrySet()) {
+                links.put(entry.getKey(), new HashSet<>(entry.getValue()));
+            }
         }
     }
 
