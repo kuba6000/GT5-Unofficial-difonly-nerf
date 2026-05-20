@@ -19,6 +19,7 @@ tasks.test.configure {
 
 val horizonsQaTestPatterns = listOf(
     "*HorizonQAVfnBlockedTransferStressTest*",
+    "*HorizonQAVfnCoverageMapTest*",
     "*HorizonQAVfnDeterministicStressTest*",
     "*HorizonQAVfnFailureMatrixTest*",
     "*HorizonQAVfnPersistenceStressTest*",
