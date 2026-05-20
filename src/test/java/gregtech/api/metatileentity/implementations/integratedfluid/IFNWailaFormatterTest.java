@@ -1,7 +1,12 @@
 package gregtech.api.metatileentity.implementations.integratedfluid;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -105,6 +110,37 @@ class IFNWailaFormatterTest {
             tooltip.toString());
         assertTrue(tooltip.stream().anyMatch(line -> line.contains("Occupied Volume:") && line.contains("42 L")),
             tooltip.toString());
+    }
+
+    @Test
+    void vaporPhaseDisplayIsNotDowngradedToGas() {
+        NBTTagCompound tag = new NBTTagCompound();
+        List<String> tooltip = new ArrayList<>();
+
+        tag.setBoolean("hasNetwork", true);
+        tag.setString("networkStatus", "NORMAL");
+        tag.setString("phase", "VAPOR");
+        tag.setDouble("occupiedVolume", 42.4d);
+
+        IFNWailaFormatter.addNetworkStatus(tag, tooltip);
+
+        assertTrue(tooltip.stream().anyMatch(line -> line.contains("Phase:") && line.contains("Vapor")),
+            tooltip.toString());
+        assertTrue(tooltip.stream().noneMatch(line -> line.contains("Phase:") && line.contains("Gas")),
+            tooltip.toString());
+    }
+
+    @Test
+    void integratedFluidPipeDoesNotOverwriteSolvedWailaPhase() throws IOException {
+        String source = new String(
+            Files.readAllBytes(Paths.get(
+                "src/main/java/gregtech/api/metatileentity/implementations/integratedfluid/MTEIntegratedFluidPipe.java")),
+            StandardCharsets.UTF_8);
+
+        assertTrue(source.contains("IFNWailaFormatter.writeNetworkStatus(network, tag)"));
+        assertFalse(
+            source.contains("tag.setString(\"phase\", network.getPhase().name())"),
+            "pipe WAILA must keep the solved phase from IFNWailaFormatter.writeNetworkStatus");
     }
 
     @Test

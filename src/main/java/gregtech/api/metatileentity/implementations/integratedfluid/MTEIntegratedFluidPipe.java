@@ -290,7 +290,6 @@ public class MTEIntegratedFluidPipe extends MetaPipeEntity implements IIntegrate
                 );
             }
             tag.setDouble("specificEnthalpyRelative", network.getSpecificEnthalpy() - ambientSpecificEnthalpy);
-            tag.setString("phase", network.getPhase().name());
             tag.setDouble("quality", network.getQuality());
             tag.setDouble("occupiedVolume", network.getOccupiedVolume());
             if (fluid != null) {
