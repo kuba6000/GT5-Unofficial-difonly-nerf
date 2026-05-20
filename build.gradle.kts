@@ -21,6 +21,7 @@ val horizonsQaTestPatterns = listOf(
     "*HorizonQAVfnBlockedTransferStressTest*",
     "*HorizonQAVfnDeterministicStressTest*",
     "*HorizonQAVfnFailureMatrixTest*",
+    "*HorizonQAVfnPersistenceStressTest*",
     "*HorizonQAVfnTransferStressTest*",
     "*HorizonQAVfnLongCycleTest*",
     "*HorizonQAVfnHeatSystemTest*",
