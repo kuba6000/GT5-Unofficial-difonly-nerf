@@ -41,6 +41,34 @@ val horizonsQaTestPatterns = listOf(
     "*CoverIFNDetectorGuiTest*",
 )
 
+val fullGameServerQaRequested = gradle.startParameter.taskNames.any {
+    it == "fullGameServerQA" || it.endsWith(":fullGameServerQA")
+}
+
+val fullGameServerQaRunDir = layout.projectDirectory.dir("run/server")
+
+val prepareFullGameServerQaRunDir = tasks.register("prepareFullGameServerQaRunDir") {
+    doLast {
+        val runDir = fullGameServerQaRunDir.asFile
+        runDir.mkdirs()
+        runDir.resolve("eula.txt").writeText("eula=true\n")
+
+        val serverProperties = runDir.resolve("server.properties")
+        val existingProperties = if (serverProperties.isFile) {
+            serverProperties.readLines().filterNot {
+                it.startsWith("online-mode=") || it.startsWith("motd=")
+            }
+        } else {
+            emptyList()
+        }
+        serverProperties.writeText(
+            (existingProperties + listOf(
+                "online-mode=false",
+                "motd=GT5 Full Game QA"))
+                .joinToString(System.lineSeparator(), postfix = System.lineSeparator()))
+    }
+}
+
 tasks.register<Test>("horizonsQA") {
     group = "verification"
     description = "Runs Horizon-QA milestone checks for IFN/VFN runtime stability."
@@ -105,6 +133,7 @@ configurations {
 }
 
 tasks.register<Jar>(functionalTest.jarTaskName) {
+    from(functionalTest.output)
     archiveClassifier.set("functionalTests")
     // we don't care about the version number here, keep it stable to avoid polluting the tmp directory
     archiveVersion.set("1.0")
@@ -119,6 +148,13 @@ tasks.assemble.configure {
 tasks.named<RunMinecraftTask>("runServer").configure {
     dependsOn(functionalTest.jarTaskName)
     classpath(configurations.named(functionalTest.runtimeClasspathConfigurationName), tasks.named(functionalTest.jarTaskName))
+    if (fullGameServerQaRequested) {
+        dependsOn(prepareFullGameServerQaRunDir)
+        jvmArgs(
+            "-Dgt5.fullGameQA=true",
+            "-Dgt5.test.package=gregtech.test.fullgame",
+            "-Dgt5.test.reportDir=./junit-full-game-out/")
+    }
 }
 
 tasks.named<RunMinecraftTask>("runClient").configure {
@@ -139,4 +175,10 @@ tasks.named<RunMinecraftTask>("runServer25").configure {
     }) {
         jvmArgs("-D$recipeLookupValidationProperty=true")
     }
+}
+
+tasks.register("fullGameServerQA") {
+    group = "verification"
+    description = "Runs GT5 full-game QA inside a headless dedicated server."
+    dependsOn(tasks.named("runServer"))
 }

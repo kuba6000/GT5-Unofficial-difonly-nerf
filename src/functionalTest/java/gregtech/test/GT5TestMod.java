@@ -32,20 +32,35 @@ import cpw.mods.fml.common.event.FMLServerStartedEvent;
     acceptableRemoteVersions = "*")
 public class GT5TestMod {
 
+    private static final String DEFAULT_TEST_PACKAGE = "gregtech.test";
+    private static final String DEFAULT_REPORT_DIR = "./junit-out/";
+    private static final String FULL_GAME_QA_PROPERTY = "gt5.fullGameQA";
+    private static final String TEST_PACKAGE_PROPERTY = "gt5.test.package";
+    private static final String REPORT_DIR_PROPERTY = "gt5.test.reportDir";
+
     @Mod.EventHandler
     public void onServerStarted(FMLServerStartedEvent event) {
         MinecraftServer.getServer()
-            .addChatMessage(new ChatComponentText("Running GT5 unit tests..."));
-        runTests();
+            .addChatMessage(new ChatComponentText("Running GT5 tests..."));
+        TestExecutionSummary summary = runTests();
         MinecraftServer.getServer()
-            .addChatMessage(new ChatComponentText("Running GT5 unit tests finished"));
+            .addChatMessage(new ChatComponentText("Running GT5 tests finished"));
+        if (isFullGameQa()) {
+            MinecraftServer.getServer()
+                .initiateShutdown();
+        }
+        if (summary.getTotalFailureCount() > 0 && FMLCommonHandler.instance()
+            .getSide()
+            .isServer()) {
+            throw new RuntimeException("Some of the GT5 tests failed to execute, check the log for details");
+        }
     }
 
-    private void runTests() {
+    private TestExecutionSummary runTests() {
         // https://junit.org/junit5/docs/current/user-guide/#launcher-api
         System.setProperty("junit.platform.reporting.open.xml.enabled", "false");
         final Path testsXmlOutDir = FileSystems.getDefault()
-            .getPath("./junit-out/")
+            .getPath(System.getProperty(REPORT_DIR_PROPERTY, DEFAULT_REPORT_DIR))
             .toAbsolutePath();
         final File testsXmlOutDirFile = testsXmlOutDir.toFile();
         testsXmlOutDirFile.mkdirs();
@@ -61,7 +76,7 @@ public class GT5TestMod {
             }
         }
         final LauncherDiscoveryRequest discovery = LauncherDiscoveryRequestBuilder.request()
-            .selectors(DiscoverySelectors.selectPackage("gregtech.test"))
+            .selectors(DiscoverySelectors.selectPackage(System.getProperty(TEST_PACKAGE_PROPERTY, DEFAULT_TEST_PACKAGE)))
             .build();
         final SummaryGeneratingListener summaryGenerator = new SummaryGeneratingListener();
         final TestExecutionSummary summary;
@@ -81,11 +96,10 @@ public class GT5TestMod {
             summary.printTo(stderrWriter);
             stderrWriter.flush();
         }
-        // Throw an exception if running via `runServer`
-        if (summary.getTotalFailureCount() > 0 && FMLCommonHandler.instance()
-            .getSide()
-            .isServer()) {
-            throw new RuntimeException("Some of the unit tests failed to execute, check the log for details");
-        }
+        return summary;
+    }
+
+    private static boolean isFullGameQa() {
+        return Boolean.getBoolean(FULL_GAME_QA_PROPERTY);
     }
 }
