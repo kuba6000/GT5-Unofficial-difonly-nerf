@@ -21,6 +21,7 @@ import gregtech.api.metatileentity.implementations.integratedfluid.MTEIntegrated
 import gregtech.api.metatileentity.implementations.integratedfluid.MTEIntegratedFluidInputHatch;
 import gregtech.api.metatileentity.implementations.integratedfluid.MTEIntegratedFluidOutputHatch;
 import gregtech.api.metatileentity.implementations.integratedfluid.MTEIntegratedFluidPipe;
+import gregtech.api.metatileentity.implementations.integratedfluid.MTEIntegratedFluidPressureRegulator;
 import gregtech.api.util.GTModHandler;
 import gregtech.api.util.GTOreDictUnificator;
 import gregtech.common.blocks.BlockFrameBox;
@@ -1542,6 +1543,13 @@ public final class LoaderMetaPipeEntities implements Runnable {
             5773,
             "hatch.integrated_fluid_injector",
             "Integrated Fluid Injector Hatch",
+            1);
+
+        // ID 5774: Integrated Fluid Pressure Regulator (Tier 1/LV) - boundary between two VFN networks
+        new MTEIntegratedFluidPressureRegulator(
+            5774,
+            "hatch.integrated_fluid_pressure_regulator",
+            "Integrated Fluid Pressure Regulator",
             1);
     }
 }

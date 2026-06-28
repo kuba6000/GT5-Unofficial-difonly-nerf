@@ -30,6 +30,7 @@ final class FullGameServerQaHarness {
     static final short INTEGRATED_FLUID_INPUT_HATCH_ID = 5771;
     static final short INTEGRATED_FLUID_OUTPUT_HATCH_ID = 5772;
     static final short INTEGRATED_FLUID_INJECTOR_HATCH_ID = 5773;
+    static final short INTEGRATED_FLUID_PRESSURE_REGULATOR_ID = 5774;
     static final short SUPER_TANK_LV_ID = 130;
     static final short HEAT_PUMP_CONTROLLER_ID = 32030;
 

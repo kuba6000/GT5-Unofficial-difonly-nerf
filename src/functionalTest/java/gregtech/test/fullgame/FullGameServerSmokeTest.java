@@ -22,6 +22,7 @@ import gregtech.api.metatileentity.implementations.integratedfluid.MTEIntegrated
 import gregtech.api.metatileentity.implementations.integratedfluid.MTEIntegratedFluidInputHatch;
 import gregtech.api.metatileentity.implementations.integratedfluid.MTEIntegratedFluidOutputHatch;
 import gregtech.api.metatileentity.implementations.integratedfluid.MTEIntegratedFluidPipe;
+import gregtech.api.metatileentity.implementations.integratedfluid.MTEIntegratedFluidPressureRegulator;
 import gregtech.api.recipe.check.CheckRecipeResult;
 import gregtech.common.tileentities.machines.multi.HeatPumpMode;
 import gregtech.common.tileentities.machines.multi.MTEHeatPump;
@@ -240,6 +241,85 @@ class FullGameServerSmokeTest {
             assertTrue(network.getTotalCapacity() > 0, "connected VFN must have hatch-backed capacity");
             assertTrue(injector.fill(ForgeDirection.WEST, water, true) > 0, "connected injector must accept water");
             assertTrue(network.getStoredAmount() > 0, "connected VFN must store injected water");
+        } finally {
+            qa.clearTrackedBlocks();
+        }
+    }
+
+    @Test
+    void pressureRegulatorMovesFluidBetweenSeparateVfnNetworksWithinSetpoint() {
+        FullGameServerQaHarness qa = FullGameServerQaHarness.overworld();
+        int x = 50;
+        int y = 200;
+        int z = 0;
+
+        try {
+            MTEIntegratedFluidInjectorHatch injector = qa.placeMetaTile(
+                x,
+                y,
+                z,
+                FullGameServerQaHarness.INTEGRATED_FLUID_INJECTOR_HATCH_ID,
+                MTEIntegratedFluidInjectorHatch.class);
+            MTEIntegratedFluidPipe inputPipe = qa.placeMetaTile(
+                x + 1,
+                y,
+                z,
+                FullGameServerQaHarness.INTEGRATED_FLUID_PIPE_ID,
+                MTEIntegratedFluidPipe.class);
+            MTEIntegratedFluidInputHatch inputHatch = qa.placeMetaTile(
+                x + 1,
+                y,
+                z + 1,
+                FullGameServerQaHarness.INTEGRATED_FLUID_INPUT_HATCH_ID,
+                MTEIntegratedFluidInputHatch.class);
+            MTEIntegratedFluidPressureRegulator regulator = qa.placeMetaTile(
+                x + 2,
+                y,
+                z,
+                FullGameServerQaHarness.INTEGRATED_FLUID_PRESSURE_REGULATOR_ID,
+                MTEIntegratedFluidPressureRegulator.class);
+            MTEIntegratedFluidPipe outputPipe = qa.placeMetaTile(
+                x + 3,
+                y,
+                z,
+                FullGameServerQaHarness.INTEGRATED_FLUID_PIPE_ID,
+                MTEIntegratedFluidPipe.class);
+            MTEIntegratedFluidOutputHatch outputHatch = qa.placeMetaTile(
+                x + 4,
+                y,
+                z,
+                FullGameServerQaHarness.INTEGRATED_FLUID_OUTPUT_HATCH_ID,
+                MTEIntegratedFluidOutputHatch.class);
+
+            FullGameServerQaHarness.face(injector, ForgeDirection.EAST);
+            FullGameServerQaHarness.face(inputHatch, ForgeDirection.NORTH);
+            FullGameServerQaHarness.face(regulator, ForgeDirection.EAST);
+            FullGameServerQaHarness.face(outputHatch, ForgeDirection.WEST);
+            FullGameServerQaHarness.connect(inputPipe, ForgeDirection.WEST, ForgeDirection.SOUTH);
+            FullGameServerQaHarness.connect(outputPipe, ForgeDirection.WEST, ForgeDirection.EAST);
+            qa.rebuildNetwork(inputPipe);
+            qa.rebuildNetwork(outputPipe);
+            qa.tickTrackedTiles(40);
+
+            IFNFluidThermalRegistration.init();
+            IntegratedFluidNetwork inputNetwork = inputPipe.getNetwork();
+            IntegratedFluidNetwork outputNetwork = outputPipe.getNetwork();
+            assertNotNull(inputNetwork, "input side VFN must exist before regulator transfer");
+            assertNotNull(outputNetwork, "output side VFN must exist before regulator transfer");
+            assertTrue(inputNetwork != outputNetwork, "pressure regulator must keep input and output VFNs separate");
+
+            FluidStack water = new FluidStack(FluidRegistry.WATER, 1_000);
+            assertTrue(injector.fill(ForgeDirection.WEST, water, true) > 0, "injector must seed regulator input VFN");
+            assertTrue(inputNetwork.getStoredAmount() > 0, "input VFN must contain fluid before regulator transfer");
+            assertEquals(0, outputNetwork.getStoredAmount(), "output VFN starts empty before regulator transfer");
+
+            regulator.setSetpointPressureBar(2.0f);
+            regulator.setOvershootToleranceBar(0.05f);
+            regulator.setMaxPacketAmountQ(50L * IntegratedFluidNetwork.AMOUNT_SCALE);
+            qa.tickTrackedTiles(80);
+
+            assertTrue(outputNetwork.getStoredAmount() > 0, "pressure regulator must move fluid into output VFN");
+            assertTrue(outputNetwork.getPressure() <= 2.05f, "pressure regulator must respect setpoint tolerance");
         } finally {
             qa.clearTrackedBlocks();
         }
